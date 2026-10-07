@@ -1,7 +1,5 @@
 <resources>
     <string name="app_name" translatable="false">Conexiuni Cluj</string>
-    <string name="tile_label">Favorite stops</string>
-    <string name="complication_label">Next bus</string>
 
     <string name="favorite_stops">Favorite stops</string>
     <string name="favorite_routes">Favorite routes</string>
@@ -9,12 +7,8 @@
     <string name="all_routes">All Routes</string>
     <string name="all_stops">All Stops</string>
     <string name="copy_favorites">Copy favorites</string>
-    <string name="bus_stop">Bus Stop</string>
-    <string name="add_to_favorites">Add to favorites</string>
-    <string name="remove_from_favorites">Remove from favorites</string>
     <string name="load_failed">Couldn\'t load. Check the connection.</string>
     <string name="retry">Try again</string>
-    <string name="loading_stop">Loading stop…</string>
     <string name="loading_route">Loading line…</string>
     <string name="no_schedule">No schedule data for this direction.</string>
     <string name="no_departures">No departures soon.</string>
@@ -30,22 +24,45 @@
     <string name="nearby_stops">Nearby stops</string>
     <string name="nearby_enable">Show nearby stops</string>
     <string name="nearby_none">No stops within 700 m.</string>
-    <string name="nearby_locating">Finding nearby stops…</string>
     <string name="nearby_unavailable">Location is off.</string>
 
     <string name="transfer_hint">Scan the code, or on your other device open Settings, tap Send and type the number.</string>
-    <string name="transfer_loading">Getting a code…</string>
     <string name="transfer_expired">The code expired.</string>
     <string name="transfer_failed">Couldn\'t get a code. Try again in a moment.</string>
     <string name="transfer_broken">That didn\'t work. Get a new code and send again.</string>
     <string name="transfer_new_code">New code</string>
     <string name="pair_review">Copy these favorites?</string>
-    <string name="pair_copy">Copy</string>
     <string name="pair_done">Favorites copied</string>
-    <string name="cancel">Cancel</string>
     <string name="count_line" translatable="false">%1$s: %2$d</string>
 
     <string name="credits" translatable="false">© OpenStreetMap, CARTO · tranzy.ai · CTP Cluj-Napoca</string>
 
-    <string name="tile_no_favorites">Add a favorite stop in the app.</string>
+
+    <string name="favorites">Favorites</string>
+    <string name="explore">Explore</string>
+    <string name="search">Search</string>
+    <string name="search_label">Stop or line</string>
+    <string name="search_again">Search again</string>
+    <string name="no_results">Nothing found for “%1$s”.</string>
+    <string name="lines">Lines</string>
+    <string name="stops">Stops</string>
+    <string name="nearby">Nearby</string>
+    <string name="eta_minutes" translatable="false">%1$d min</string>
+    <string name="then_times">Then %1$s</string>
+    <string name="from_stop">From %1$s</string>
+    <string name="walk_distance">%1$s · %2$d min walk</string>
+    <string name="live">Live</string>
+    <string name="scheduled">Scheduled</string>
+    <string name="follow">Follow</string>
+    <string name="following">Following</string>
+    <string name="stop_following">Stop</string>
+    <string name="follow_channel">Followed bus</string>
+    <string name="follow_arriving">Arriving in %1$s</string>
+    <string name="follow_now">Arriving now</string>
+    <string name="follow_ended">The bus has left %1$s.</string>
+    <string name="follow_no_bus">No more departures to follow.</string>
+    <string name="my_location">My location</string>
+    <string name="favorite_line">Favorite line</string>
+    <string name="favorite_stop">Favorite stop</string>
+    <string name="open_map">Map</string>
 </resources>

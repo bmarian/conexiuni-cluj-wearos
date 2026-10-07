@@ -2,17 +2,12 @@ package online.bmarian.bus
 
 import android.app.Application
 import android.app.LocaleManager
-import android.content.ComponentName
 import android.content.Context
 import android.os.Build
 import android.os.LocaleList
-import androidx.wear.tiles.TileService
-import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
-import online.bmarian.bus.complication.MainComplicationService
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Favorites
 import online.bmarian.bus.data.Repository
-import online.bmarian.bus.tile.MainTileService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,18 +30,8 @@ object Services {
     fun init(app: Application) {
         Api.init(app)
         repository = Repository(app)
-        favorites = Favorites(app) { refreshSurfaces(app) }
+        favorites = Favorites(app)
         scope.launch { repository.loadCached() }
-    }
-
-    // The tile and the complication read the favorites, so they redraw when those change.
-    fun refreshSurfaces(context: Context) {
-        runCatching { TileService.getUpdater(context).requestUpdate(MainTileService::class.java) }
-        runCatching {
-            ComplicationDataSourceUpdateRequester
-                .create(context, ComponentName(context, MainComplicationService::class.java))
-                .requestUpdateAll()
-        }
     }
 
     fun setLanguage(context: Context, tag: String) {

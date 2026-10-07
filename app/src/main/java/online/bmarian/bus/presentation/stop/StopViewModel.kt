@@ -3,6 +3,7 @@ package online.bmarian.bus.presentation.stop
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import online.bmarian.bus.Services
+import online.bmarian.bus.presentation.AmbientTicks
 import online.bmarian.bus.data.ShapePoint
 import online.bmarian.bus.data.StopInfo
 import online.bmarian.bus.data.Vehicle
@@ -105,6 +106,7 @@ class StopViewModel(val stopId: Int) : ViewModel() {
 
     /** Runs while the screen is visible: the clock ticks and live positions stream in. */
     suspend fun live() = coroutineScope {
+        launch { AmbientTicks.ticks.collect { clock.value = System.currentTimeMillis() } }
         launch {
             while (true) {
                 clock.value = System.currentTimeMillis()

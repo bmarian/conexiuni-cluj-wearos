@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.location.Location
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -16,28 +19,33 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.wear.compose.material3.FilledTonalButton
+import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.Text
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.logic.formatMeters
 import online.bmarian.bus.logic.haversineMeters
-import online.bmarian.bus.presentation.ActionRow
-import online.bmarian.bus.presentation.Heading
-import online.bmarian.bus.presentation.Icons
-import online.bmarian.bus.presentation.ListRow
 import online.bmarian.bus.presentation.ListScreen
-import online.bmarian.bus.presentation.Note
-import online.bmarian.bus.presentation.StopIcon
-import online.bmarian.bus.presentation.transformed
+import online.bmarian.bus.presentation.Loading
+import online.bmarian.bus.presentation.Message
+import online.bmarian.bus.presentation.Title
+import online.bmarian.bus.presentation.itemModifier
+import online.bmarian.bus.presentation.surface
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.ceil
 
 // Same reach and count as the website's nearby list.
 private const val NEARBY_RADIUS_METERS = 700.0
 private const val NEARBY_COUNT = 6
+// The website's walking pace, for the minutes on foot.
+private const val WALKING_METERS_PER_MINUTE = 80.0
 
 private val LOCATION_PERMISSIONS = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
 
@@ -93,32 +101,34 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit) {
     }
 
     ListScreen { spec ->
-        item { Heading(stringResource(R.string.nearby_stops), transformed(spec)) }
+        item { Title(stringResource(R.string.nearby_stops), spec) }
         when (fix) {
-            Fix.Asking, Fix.Locating -> item { Note(stringResource(R.string.nearby_locating), transformed(spec)) }
+            Fix.Asking, Fix.Locating -> item { Loading(spec) }
             Fix.Denied, Fix.Unavailable -> {
-                item { Note(stringResource(R.string.nearby_unavailable), transformed(spec)) }
+                item { Message(stringResource(R.string.nearby_unavailable), spec) }
                 item {
-                    ActionRow(
-                        stringResource(R.string.nearby_enable),
-                        onClick = {
-                            if (hasLocationPermission(context)) fix = Fix.Locating else launcher.launch(LOCATION_PERMISSIONS)
-                        },
-                        modifier = transformed(spec),
-                        icon = Icons.Location,
+                    FilledTonalButton(
+                        onClick = { if (hasLocationPermission(context)) fix = Fix.Locating else launcher.launch(LOCATION_PERMISSIONS) },
+                        modifier = itemModifier(spec),
+                        transformation = surface(spec),
+                        icon = { Icon(Icons.Rounded.MyLocation, contentDescription = null) },
+                        label = { Text(stringResource(R.string.nearby_enable)) },
                     )
                 }
             }
             is Fix.Found -> {
-                if (nearby.isEmpty()) item { Note(stringResource(R.string.nearby_none), transformed(spec)) }
+                if (nearby.isEmpty()) item { Message(stringResource(R.string.nearby_none), spec) }
                 items(nearby.size, key = { nearby[it].first.stopId }) { i ->
                     val (stop, meters) = nearby[i]
-                    ListRow(
-                        title = stop.name,
-                        sub = formatMeters(meters),
+                    FilledTonalButton(
                         onClick = { onOpenStop(stop.stopId) },
-                        modifier = transformed(spec),
-                        leading = { StopIcon() },
+                        modifier = itemModifier(spec),
+                        transformation = surface(spec),
+                        icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
+                        label = { Text(stop.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        secondaryLabel = {
+                            Text(stringResource(R.string.walk_distance, formatMeters(meters), ceil(meters / WALKING_METERS_PER_MINUTE).toInt().coerceAtLeast(1)))
+                        },
                     )
                 }
             }

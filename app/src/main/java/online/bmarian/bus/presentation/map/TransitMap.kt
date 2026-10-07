@@ -53,7 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
 import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.UserLocation
-import online.bmarian.bus.presentation.Icons
+import online.bmarian.bus.presentation.Glyphs
 import online.bmarian.bus.presentation.theme.Palette
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -124,6 +124,7 @@ fun TransitMap(
     labels: List<MapLabel> = emptyList(),
     vehicles: List<MapVehicle> = emptyList(),
     me: Fix? = null,
+    ambient: Boolean = false,
 ) {
     val density = LocalDensity.current
     val tilePx = with(density) { TILE_SIZE.toPx() }
@@ -176,7 +177,7 @@ fun TransitMap(
     }
     val vehicleStyle = remember { TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color.White) }
     val vehicleLayouts = remember(vehicles) { vehicles.associate { it.id to measurer.measure(it.name, vehicleStyle) } }
-    val busPath = remember { PathParser().parsePathString(Icons.BUS_STOP_PATH).toPath() }
+    val busPath = remember { PathParser().parsePathString(Glyphs.BUS_STOP_PATH).toPath() }
     val arrowPath = remember { PathParser().parsePathString("M12 2L21 21l-9-4-9 4 9-19z").toPath() }
 
     Canvas(
@@ -225,7 +226,7 @@ fun TransitMap(
             },
     ) {
         if (tileVersion < 0) return@Canvas
-        drawRect(Color(0xFF0E0E0E))
+        drawRect(if (ambient) Color.Black else Color(0xFF0E0E0E))
         val zoom = camera.zoom.value
         val world = worldSize(zoom)
         val cx = camera.x
@@ -235,7 +236,8 @@ fun TransitMap(
             ((py - cy) * world + this.size.height / 2).toFloat(),
         )
 
-        drawTiles(cx, cy, zoom, IntSize(this.size.width.toInt(), this.size.height.toInt()), tilePx)
+        // Always-on wants a mostly black screen, so the map keeps only its lines and markers.
+        if (!ambient) drawTiles(cx, cy, zoom, IntSize(this.size.width.toInt(), this.size.height.toInt()), tilePx)
 
         val lineWidth = 3.dp.toPx()
         for ((color, points) in projectedLines) {

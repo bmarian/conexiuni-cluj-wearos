@@ -12,7 +12,7 @@ import java.time.LocalDateTime
 
 class StopSnapshot(val stopId: Int, val name: String, val departures: List<StopDeparture>, val takenAtMs: Long)
 
-/** One look at a stop, for the tile and the complication: the stream is too much for them. */
+/** One look at a stop, for the summaries on home: a live stream per favorite is too much. */
 suspend fun stopSnapshot(stopId: Int): StopSnapshot {
     val repository = Services.repository
     val info = repository.stopInfo(stopId)

@@ -3,6 +3,7 @@ package online.bmarian.bus.presentation.route
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import online.bmarian.bus.Services
+import online.bmarian.bus.presentation.AmbientTicks
 import online.bmarian.bus.data.ShapeInfo
 import online.bmarian.bus.data.Vehicle
 import online.bmarian.bus.data.VehicleStream
@@ -109,6 +110,7 @@ class RouteViewModel(val routeId: Int, initialDirection: String, val fromStopId:
     }
 
     suspend fun live() = coroutineScope {
+        launch { AmbientTicks.ticks.collect { clock.value = System.currentTimeMillis() } }
         launch {
             while (true) {
                 clock.value = System.currentTimeMillis()

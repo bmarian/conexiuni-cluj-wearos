@@ -16,7 +16,7 @@ import kotlinx.serialization.json.intOrNull
 data class FavoriteRoute(val routeId: Int, val direction: String)
 
 // Same shapes as favorites:routes and favorites:stops on the web, so an export reads the same.
-class Favorites(context: Context, private val onChange: () -> Unit) {
+class Favorites(context: Context) {
     private val prefs = context.getSharedPreferences("favorites", Context.MODE_PRIVATE)
 
     private val _routes = MutableStateFlow(parseFavoriteRoutes(read("routes")))
@@ -32,7 +32,6 @@ class Favorites(context: Context, private val onChange: () -> Unit) {
             putString("routes", Api.json.encodeToString(_routes.value))
             putString("stops", Api.json.encodeToString(_stops.value))
         }
-        onChange()
     }
 
     fun isStopFavorite(stopId: Int) = stopId in _stops.value

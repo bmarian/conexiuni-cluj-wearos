@@ -3,27 +3,28 @@
 The [Conexiuni Cluj](https://github.com/bmarian/conexiuni-cluj) bus and tram tracker as a native Wear OS app. The website ran in the watch browser, but the browser couldn't get my location, the bezel could only scroll the page, and the page froze every time I lowered my wrist. So I rebuilt it for the watch.
 
 <p align="center">
-  <img src="readme/home.png" width="180" alt="Favorite stops and routes">
+  <img src="readme/home.png" width="180" alt="Favorite stops with their next departures">
   <img src="readme/stop.png" width="180" alt="Departures from a stop">
+  <img src="readme/departure.png" width="180" alt="One departure, with the button to follow it">
   <img src="readme/route-map.png" width="180" alt="A line on the map with the next arrival above each stop">
-  <img src="readme/timetable.png" width="180" alt="A line's timetable from the current hour on">
 </p>
 
 ## What it does
 
-- Favorite stops and lines on the first screen, then nearby stops, every line and every stop
-- Departures for any stop. Tracked buses get a live countdown, the rest show approximate times
+- Favorite stops on the first screen, with their next departures, like Google Maps shows Home and Work
+- Search for a stop or a line by voice or keyboard
+- Departures for any stop. Tracked buses get a live countdown and the realtime arcs, the rest show the timetable
+- Follow a bus: the countdown stays on the watch face, the watch buzzes two minutes before and when it comes, and it lets go once the bus has left
+- With the wrist down while following, the screen stays on the countdown in always-on mode
 - A line opens on the map with the next arrival above each stop, and one tap swaps the direction or shows the timetable
 - The stop map shows your favorite lines' buses on their way, with their routes
-- Turn the bezel to scroll lists and zoom maps
 - Your position on the map, and the stops within walking distance
-- A tile with the next departures at your first favorite stop
-- A complication that counts down to the next bus on your watch face
+- Turn the bezel to scroll lists and zoom maps
 - Copy your favorites from the website by scanning a code, or typing it on another device
 
 <p align="center">
-  <img src="readme/stop-map.png" width="180" alt="A favorite line's bus heading for the stop">
-  <img src="readme/tile.png" width="180" alt="The tile with the next departures">
+  <img src="readme/ambient.png" width="180" alt="A followed bus in always-on mode">
+  <img src="readme/timetable.png" width="180" alt="A line's timetable from the current hour on">
 </p>
 
 ## How it works

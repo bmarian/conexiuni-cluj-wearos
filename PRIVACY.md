@@ -6,6 +6,12 @@ Conexiuni Cluj for Wear OS shows live bus and tram departures in Cluj-Napoca. It
 
 With your permission, the app uses your location to list the stops near you and to show where you are on the map. That happens on the watch: your location is never sent anywhere.
 
+## Search and notifications
+
+Search uses the watch's own voice and keyboard input. The app only receives the words, and looks them up in the list of stops and lines on the watch.
+
+When you follow a bus, the app shows a notification and a countdown on the watch face until the bus has left. It asks for the notification permission for that, and uses it for nothing else.
+
 ## What the app downloads
 
 - Stops, lines, timetables and live bus positions from [bus.bmarian.online](https://bus.bmarian.online), the server behind the Conexiuni Cluj website.

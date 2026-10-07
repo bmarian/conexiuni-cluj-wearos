@@ -25,14 +25,14 @@ Everything the Play Console asks for, ready to paste. Images are in this folder.
 
 > Live CTP Cluj-Napoca buses and trams on your wrist.
 >
+> • Your favorite stops on the first screen, with their next departures
 > • Departures for any stop, with a live countdown for tracked buses
+> • Follow a bus: the countdown stays on your watch face, and the watch buzzes before it comes
 > • Every line on the map, with the next arrival above each stop
+> • Search stops and lines by voice or keyboard
 > • Full timetables, from the current hour on
-> • Favorite stops and lines on the first screen
-> • Stops near you
+> • Stops near you, and where you are on the map
 > • Turn the bezel to scroll and zoom
-> • A tile with the next departures at your favorite stop
-> • A complication that counts down to the next bus on your watch face
 > • Copy your favorites from bus.bmarian.online by scanning a code
 >
 > Works on its own over Wi-Fi or LTE, no phone app needed.
@@ -49,14 +49,14 @@ Everything the Play Console asks for, ready to paste. Images are in this folder.
 
 > Autobuzele și tramvaiele CTP Cluj-Napoca, în timp real, pe încheietură.
 >
-> • Plecările din orice stație, cu numărătoare inversă pentru autobuzele urmărite
+> • Stațiile favorite pe primul ecran, cu următoarele plecări
+> • Plecările din orice stație, cu numărătoare inversă pentru autobuzele urmărite în timp real
+> • Urmărește un autobuz: numărătoarea rămâne pe cadran, iar ceasul vibrează înainte să vină
 > • Fiecare linie pe hartă, cu următoarea sosire deasupra fiecărei stații
+> • Caută stații și linii cu vocea sau tastatura
 > • Orarul complet, de la ora curentă încolo
-> • Stațiile și liniile favorite pe primul ecran
-> • Stațiile din apropiere
+> • Stațiile din apropiere și locul tău pe hartă
 > • Rotește rama ca să derulezi și să mărești harta
-> • Un tile cu următoarele plecări din stația favorită
-> • O complicație care numără până la următorul autobuz, pe cadran
 > • Copiază favoritele de pe bus.bmarian.online scanând un cod
 >
 > Merge singur, pe Wi-Fi sau LTE, fără aplicație pe telefon.
@@ -88,4 +88,8 @@ Everything else (personal info, financial info, messages, photos, contacts, heal
 - **Target audience:** 13 and older. It isn't made for children.
 - **Government app:** no.
 - **News app:** no.
-- **Permissions:** location is used only in the foreground, for nearby stops and the map. There's no background location.
+- **Permissions:** location is used only in the foreground, for nearby stops and the map; there's no background location. Notifications are asked for when you first follow a bus.
+- **Foreground service declaration:** type *Special use*. Paste this:
+  > When the user taps Follow on a departure, the app keeps that bus's arrival countdown live as an ongoing activity on the watch face and vibrates shortly before the bus comes. It stops by itself once the bus has left the stop, after 90 minutes, or when the user taps Stop. It can't be started any other way.
+  >
+  > Video: tap a departure, tap Follow, lower the wrist, the countdown stays on the watch face.

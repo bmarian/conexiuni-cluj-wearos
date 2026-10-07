@@ -1,41 +1,47 @@
 package online.bmarian.bus.presentation.route
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Map
+import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.wear.compose.material3.FilledIconButton
+import androidx.wear.compose.material3.FilledTonalIconButton
+import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.IconToggleButton
+import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
+import kotlinx.coroutines.launch
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.ShapeInfo
@@ -45,29 +51,34 @@ import online.bmarian.bus.logic.daySchedule
 import online.bmarian.bus.logic.departureMinutes
 import online.bmarian.bus.logic.formatMinutesFromNow
 import online.bmarian.bus.logic.minutesOfDay
-import online.bmarian.bus.presentation.FavoriteToggle
-import online.bmarian.bus.presentation.FloatButton
-import online.bmarian.bus.presentation.FloatIconButton
-import online.bmarian.bus.presentation.Heading
-import online.bmarian.bus.presentation.Icons
+import online.bmarian.bus.presentation.LineBadge
 import online.bmarian.bus.presentation.ListScreen
-import online.bmarian.bus.presentation.Note
-import online.bmarian.bus.presentation.RouteBadge
+import online.bmarian.bus.presentation.Loading
+import online.bmarian.bus.presentation.LocalAmbient
+import online.bmarian.bus.presentation.Message
+import online.bmarian.bus.presentation.contentModifier
+import online.bmarian.bus.presentation.itemModifier
+import online.bmarian.bus.presentation.map.MapCamera
 import online.bmarian.bus.presentation.map.MapFrame
 import online.bmarian.bus.presentation.map.MapLabel
 import online.bmarian.bus.presentation.map.MapLine
 import online.bmarian.bus.presentation.map.MapStop
 import online.bmarian.bus.presentation.map.MapVehicle
 import online.bmarian.bus.presentation.map.TransitMap
+import online.bmarian.bus.presentation.map.mercatorX
+import online.bmarian.bus.presentation.map.mercatorY
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
+import online.bmarian.bus.presentation.stop.MapChip
 import online.bmarian.bus.presentation.theme.Palette
 import online.bmarian.bus.presentation.theme.routeColor
-import online.bmarian.bus.presentation.transformed
 import java.time.LocalDateTime
 
 // Opened from a stop, the map starts on that stop.
 private const val FROM_STOP_ZOOM = 15f
+private const val ME_ZOOM = 16f
+private val MAP_BUTTON = 44.dp
+private val SMALL_ACTION = 36.dp
 
 @Composable
 fun routeViewModel(routeId: Int, direction: String, fromStopId: Int?): RouteViewModel =
@@ -87,40 +98,29 @@ fun RouteScreen(vm: RouteViewModel) {
     BackHandler(enabled = timetableOpen) { timetableOpen = false }
 
     val terminal = info?.let { terminalName(it.longName, direction) }.orEmpty()
-    val other = if (direction == "0") "1" else "0"
-    val canSwap = info != null && vm.hasDirection(other)
+    val canSwap = info != null && vm.hasDirection(if (direction == "0") "1" else "0")
 
-    Box(Modifier.fillMaxSize()) {
-        if (timetableOpen) {
-            TimetableView(vm, info, direction, terminal)
-        } else {
-            RouteMapView(vm, camera, info, terminal, failed)
-        }
-        Row(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (canSwap) FloatIconButton(Icons.Swap, stringResource(R.string.switch_direction), onClick = vm::swap)
-            FloatButton(
-                stringResource(if (timetableOpen) R.string.map else R.string.timetable),
-                onClick = { timetableOpen = !timetableOpen },
-            )
-        }
+    if (timetableOpen) {
+        TimetableView(vm, info, direction, terminal, canSwap, onMap = { timetableOpen = false })
+    } else {
+        RouteMapView(vm, camera, info, terminal, failed, canSwap, onTimetable = { timetableOpen = true })
     }
 }
 
 @Composable
 private fun RouteMapView(
     vm: RouteViewModel,
-    camera: online.bmarian.bus.presentation.map.MapCamera,
+    camera: MapCamera,
     info: ShapeInfo?,
     terminal: String,
     failed: Boolean,
+    canSwap: Boolean,
+    onTimetable: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val me by rememberUserLocation()
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     val nowLabel = stringResource(R.string.now)
     val soonLabel = stringResource(R.string.soon)
     val color = routeColor(info?.color ?: "")
@@ -181,22 +181,15 @@ private fun RouteMapView(
                     MapVehicle("${it.vehicle.id}", it.vehicle.latitude, it.vehicle.longitude, it.routeShortName, color, it.heading)
                 },
                 me = me,
+                ambient = LocalAmbient.current,
             )
             if (info != null) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 30.dp)
-                        .widthIn(max = 150.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xE60F172A))
-                        .padding(start = 3.dp, end = 8.dp, top = 3.dp, bottom = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    RouteBadge(info.shortName, info.color, small = true)
-                    if (terminal.isNotEmpty()) {
-                        Text("→ $terminal", color = Palette.Title, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                MapChip(Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        LineBadge(info.shortName, info.color, height = 20.dp)
+                        if (terminal.isNotEmpty()) {
+                            Text("→ $terminal", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
             }
@@ -207,19 +200,36 @@ private fun RouteMapView(
                 else -> null
             }
             if (note != null) {
-                Text(
-                    note,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .widthIn(max = 150.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xE60F172A))
-                        .clickable(enabled = failed, onClick = vm::load)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    color = Palette.Action,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center,
-                )
+                MapChip(Modifier.align(Alignment.Center)) {
+                    Text(note, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+                }
+            }
+            if (!LocalAmbient.current) {
+                Row(
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 22.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    me?.let { fix ->
+                        FilledTonalIconButton(
+                            onClick = {
+                                camera.x = mercatorX(fix.lon)
+                                camera.y = mercatorY(fix.lat)
+                                camera.targetZoom = ME_ZOOM
+                                scope.launch { camera.zoom.animateTo(ME_ZOOM) }
+                            },
+                            modifier = Modifier.size(MAP_BUTTON),
+                        ) { Icon(Icons.Rounded.MyLocation, contentDescription = stringResource(R.string.my_location)) }
+                    }
+                    FilledIconButton(onClick = onTimetable, modifier = Modifier.size(MAP_BUTTON)) {
+                        Icon(Icons.Rounded.Schedule, contentDescription = stringResource(R.string.timetable))
+                    }
+                    if (canSwap) {
+                        FilledTonalIconButton(onClick = vm::swap, modifier = Modifier.size(MAP_BUTTON)) {
+                            Icon(Icons.Rounded.SwapVert, contentDescription = stringResource(R.string.switch_direction))
+                        }
+                    }
+                }
             }
         }
     }
@@ -228,7 +238,7 @@ private fun RouteMapView(
 private class HourRow(val hour: String, val minutes: List<Pair<String, Boolean>>)
 
 @Composable
-private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: String, terminal: String) {
+private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: String, terminal: String, canSwap: Boolean, onMap: () -> Unit) {
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
     val ui by vm.ui.collectAsStateWithLifecycle()
     val now = ui?.now ?: LocalDateTime.now(CLUJ_ZONE)
@@ -253,40 +263,65 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
         }
     }
 
-    ListScreen(bottomInset = 48.dp) { spec ->
+    ListScreen { spec ->
         item {
-            Heading(
-                title = if (terminal.isNotEmpty()) "→ $terminal" else "",
-                modifier = transformed(spec),
-                badge = info?.let { { RouteBadge(it.shortName, it.color) } },
-            )
+            Row(
+                contentModifier(spec).padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                info?.let { LineBadge(it.shortName, it.color) }
+                if (terminal.isNotEmpty()) {
+                    Text("→ $terminal", style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
         }
+        // The times are what this screen is for, so its actions stay small.
         item {
-            FavoriteToggle(
-                isFavorite = isFavorite,
-                onToggle = { Services.favorites.toggleRoute(vm.routeId, direction) },
-                addLabel = stringResource(R.string.add_to_favorites),
-                removeLabel = stringResource(R.string.remove_from_favorites),
-                modifier = transformed(spec),
-            )
+            Row(contentModifier(spec), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
+                IconToggleButton(
+                    checked = isFavorite,
+                    onCheckedChange = { Services.favorites.toggleRoute(vm.routeId, direction) },
+                    modifier = Modifier.size(SMALL_ACTION),
+                ) {
+                    Icon(
+                        if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        contentDescription = stringResource(R.string.favorite_line),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                if (canSwap) {
+                    FilledTonalIconButton(onClick = vm::swap, modifier = Modifier.size(SMALL_ACTION)) {
+                        Icon(Icons.Rounded.SwapVert, contentDescription = stringResource(R.string.switch_direction), modifier = Modifier.size(18.dp))
+                    }
+                }
+                FilledTonalIconButton(onClick = onMap, modifier = Modifier.size(SMALL_ACTION)) {
+                    Icon(Icons.Rounded.Map, contentDescription = stringResource(R.string.map), modifier = Modifier.size(18.dp))
+                }
+            }
         }
         when {
-            info == null -> item { Note(stringResource(R.string.loading_route), transformed(spec)) }
-            frequencyLabel != null -> item { Note(frequencyLabel, transformed(spec)) }
-            departures.isEmpty() -> item { Note(stringResource(R.string.no_schedule), transformed(spec)) }
-            hours.isEmpty() -> item { Note(stringResource(R.string.no_more_today), transformed(spec)) }
+            info == null -> item { Loading(spec) }
+            frequencyLabel != null -> item { Message(frequencyLabel, spec) }
+            departures.isEmpty() -> item { Message(stringResource(R.string.no_schedule), spec) }
+            hours.isEmpty() -> item { Message(stringResource(R.string.no_more_today), spec) }
         }
         if (info != null) {
             items(hours.size, key = { hours[it].hour }) { i ->
                 val row = hours[i]
                 Row(
-                    modifier = transformed(spec).fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentModifier(spec).padding(horizontal = 12.dp, vertical = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top,
                 ) {
-                    Text(row.hour, color = Palette.Title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(row.hour, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         for ((minute, past) in row.minutes) {
-                            Text(minute, color = if (past) Palette.Faint else Palette.Action, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                minute,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = if (past) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+                            )
                         }
                     }
                 }

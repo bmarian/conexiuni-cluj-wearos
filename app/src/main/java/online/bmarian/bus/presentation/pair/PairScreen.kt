@@ -6,15 +6,12 @@ import android.os.Vibrator
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -26,29 +23,35 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.wear.compose.material3.AlertDialog
+import androidx.wear.compose.material3.AlertDialogDefaults
+import androidx.wear.compose.material3.ConfirmationDialogDefaults
+import androidx.wear.compose.material3.FilledTonalButton
 import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.SuccessConfirmationDialog
+import androidx.wear.compose.material3.curvedText
 import androidx.wear.compose.material3.Text
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Transfer
 import online.bmarian.bus.data.TransferLink
-import online.bmarian.bus.presentation.ActionRow
-import online.bmarian.bus.presentation.FloatButton
-import online.bmarian.bus.presentation.Heading
-import online.bmarian.bus.presentation.Icons
 import online.bmarian.bus.presentation.ListScreen
-import online.bmarian.bus.presentation.Note
+import online.bmarian.bus.presentation.Loading
+import online.bmarian.bus.presentation.Message
+import online.bmarian.bus.presentation.contentModifier
+import online.bmarian.bus.presentation.itemModifier
+import online.bmarian.bus.presentation.surface
 import online.bmarian.bus.presentation.theme.Palette
-import online.bmarian.bus.presentation.transformed
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -61,7 +64,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 private const val POLL_MS = 2000L
-private const val DONE_PAUSE_MS = 1500L
 
 enum class PairState { Loading, Waiting, Review, Done, Expired, Failed, Broken }
 
@@ -174,60 +176,26 @@ fun PairScreen(onDone: () -> Unit, vm: PairViewModel = viewModel()) {
         view.keepScreenOn = true
         onDispose { view.keepScreenOn = false }
     }
-    LaunchedEffect(state) {
-        if (state == PairState.Done) {
-            delay(DONE_PAUSE_MS)
-            onDone()
-        }
-    }
 
     ListScreen { spec ->
         when (state) {
-            PairState.Waiting -> link?.let { current ->
+            PairState.Waiting, PairState.Review, PairState.Done -> link?.let { current ->
                 item {
-                    Box(
-                        modifier = transformed(spec).padding(top = 4.dp).size(112.dp).clip(RoundedCornerShape(10.dp))
-                            .background(Color.White).padding(8.dp),
-                    ) {
-                        QrCode(Transfer.url(current.code, vm.key), Modifier.size(96.dp))
+                    Box(contentModifier(spec), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(112.dp).clip(RoundedCornerShape(12.dp)).background(Color.White).padding(8.dp)) {
+                            QrCode(Transfer.url(current.code, vm.key), Modifier.size(96.dp))
+                        }
                     }
                 }
                 item {
                     Text(
                         Transfer.spaced(current.code),
-                        modifier = transformed(spec).fillMaxWidth().padding(top = 6.dp),
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        modifier = contentModifier(spec).padding(top = 4.dp),
+                        style = MaterialTheme.typography.numeralSmall,
                         textAlign = TextAlign.Center,
                     )
                 }
-                item { Note(stringResource(R.string.transfer_hint), transformed(spec)) }
-            }
-            PairState.Review -> summary?.let { counts ->
-                item { Heading(stringResource(R.string.pair_review), transformed(spec)) }
-                item {
-                    Column(transformed(spec).fillMaxWidth().padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(stringResource(R.string.count_line, stringResource(R.string.favorite_stops), counts.stops), color = Palette.Action, fontSize = 14.sp)
-                        Text(stringResource(R.string.count_line, stringResource(R.string.favorite_routes), counts.lines), color = Palette.Action, fontSize = 14.sp)
-                    }
-                }
-                item {
-                    Box(transformed(spec).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        FloatButton(stringResource(R.string.pair_copy), onClick = { vm.accept(context) })
-                    }
-                }
-                item { ActionRow(stringResource(R.string.cancel), onClick = onDone, modifier = transformed(spec)) }
-            }
-            PairState.Done -> {
-                item {
-                    Box(transformed(spec).fillMaxWidth().padding(top = 16.dp), contentAlignment = Alignment.Center) {
-                        Box(Modifier.size(56.dp).clip(CircleShape).background(Palette.AccentWash), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Check, contentDescription = null, tint = Palette.Accent, modifier = Modifier.size(28.dp))
-                        }
-                    }
-                }
-                item { Heading(stringResource(R.string.pair_done), transformed(spec)) }
+                item { Message(stringResource(R.string.transfer_hint), spec) }
             }
             PairState.Expired, PairState.Failed, PairState.Broken -> {
                 val message = when (state) {
@@ -235,10 +203,45 @@ fun PairScreen(onDone: () -> Unit, vm: PairViewModel = viewModel()) {
                     PairState.Failed -> R.string.transfer_failed
                     else -> R.string.transfer_broken
                 }
-                item { Note(stringResource(message), transformed(spec)) }
-                item { ActionRow(stringResource(R.string.transfer_new_code), onClick = vm::start, modifier = transformed(spec)) }
+                item { Message(stringResource(message), spec) }
+                item {
+                    FilledTonalButton(
+                        onClick = vm::start,
+                        modifier = itemModifier(spec),
+                        transformation = surface(spec),
+                        icon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
+                        label = { Text(stringResource(R.string.transfer_new_code)) },
+                    )
+                }
             }
-            PairState.Loading -> item { Note(stringResource(R.string.transfer_loading), transformed(spec)) }
+            PairState.Loading -> item { Loading(spec) }
         }
     }
+
+    AlertDialog(
+        visible = state == PairState.Review && summary != null,
+        onDismissRequest = onDone,
+        title = { Text(stringResource(R.string.pair_review)) },
+        text = {
+            summary?.let { counts ->
+                Text(
+                    listOf(
+                        stringResource(R.string.count_line, stringResource(R.string.favorite_stops), counts.stops),
+                        stringResource(R.string.count_line, stringResource(R.string.favorite_routes), counts.lines),
+                    ).joinToString("\n"),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        },
+        confirmButton = { AlertDialogDefaults.ConfirmButton(onClick = { vm.accept(context) }) },
+        dismissButton = { AlertDialogDefaults.DismissButton(onClick = onDone) },
+    )
+
+    val doneText = stringResource(R.string.pair_done)
+    val doneStyle = ConfirmationDialogDefaults.curvedTextStyle
+    SuccessConfirmationDialog(
+        visible = state == PairState.Done,
+        onDismissRequest = onDone,
+        curvedText = { curvedText(doneText, style = doneStyle) },
+    )
 }
