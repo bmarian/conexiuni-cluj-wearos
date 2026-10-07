@@ -12,28 +12,46 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
+// The upload key for Google Play, also kept out of the repository. See the README.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
 android {
-    namespace = "com.example.conexiuniclujwearos"
+    namespace = "online.bmarian.bus"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.conexiuniclujwearos"
+        applicationId = "online.bmarian.bus"
         minSdk = 30
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
 
         buildConfigField("String", "API_BASE", "\"https://bus.bmarian.online/api/\"")
         buildConfigField("String", "SITE_ORIGIN", "\"https://bus.bmarian.online\"")
         buildConfigField("String", "CARTO_KEY", "\"${localProperties.getProperty("carto.key", "")}\"")
     }
 
+    signingConfigs {
+        if (keystoreProperties.isNotEmpty()) {
+            create("upload") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Until there is a release key, the debug key lets the fast build go on the watch.
-            signingConfig = signingConfigs.getByName("debug")
+            // Without the upload key the debug one still lets the fast build go on a watch;
+            // Play refuses anything signed with it.
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
             optimization {
                 enable = true
             }
