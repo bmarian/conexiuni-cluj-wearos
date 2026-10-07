@@ -32,9 +32,10 @@ android {
 
     buildTypes {
         release {
+            // Until there is a release key, the debug key lets the fast build go on the watch.
+            signingConfig = signingConfigs.getByName("debug")
             optimization {
                 enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
             }
         }
     }

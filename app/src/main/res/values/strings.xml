@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Conexiuni Cluj</string>
+    <string name="app_name" translatable="false">Conexiuni Cluj</string>
     <string name="tile_label">Favorite stops</string>
     <string name="complication_label">Next bus</string>
 
@@ -26,7 +26,6 @@
     <string name="switch_direction">Switch direction</string>
     <string name="now">now</string>
     <string name="soon">soon</string>
-    <string name="minutes_short">%1$dm</string>
 
     <string name="nearby_stops">Nearby stops</string>
     <string name="nearby_enable">Show nearby stops</string>
@@ -44,10 +43,9 @@
     <string name="pair_copy">Copy</string>
     <string name="pair_done">Favorites copied</string>
     <string name="cancel">Cancel</string>
-    <string name="count_line">%1$s: %2$d</string>
+    <string name="count_line" translatable="false">%1$s: %2$d</string>
 
-    <string name="credits">© OpenStreetMap, CARTO · tranzy.ai · CTP Cluj-Napoca</string>
+    <string name="credits" translatable="false">© OpenStreetMap, CARTO · tranzy.ai · CTP Cluj-Napoca</string>
 
     <string name="tile_no_favorites">Add a favorite stop in the app.</string>
-    <string name="tile_open">Open</string>
 </resources>

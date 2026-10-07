@@ -1,0 +1,47 @@
+<resources>
+    <string name="tile_label">Stații favorite</string>
+    <string name="complication_label">Următorul autobuz</string>
+
+    <string name="favorite_stops">Stații favorite</string>
+    <string name="favorite_routes">Rute favorite</string>
+    <string name="no_favorites">Nu ai favorite încă. Apasă pe inimă la o rută sau stație ca să o salvezi aici.</string>
+    <string name="all_routes">Toate rutele</string>
+    <string name="all_stops">Toate stațiile</string>
+    <string name="copy_favorites">Copiază favoritele</string>
+    <string name="bus_stop">Stație</string>
+    <string name="add_to_favorites">Adaugă la favorite</string>
+    <string name="remove_from_favorites">Elimină din favorite</string>
+    <string name="load_failed">Nu s-a putut încărca. Verifică conexiunea.</string>
+    <string name="retry">Încearcă din nou</string>
+    <string name="loading_stop">Se încarcă stația…</string>
+    <string name="loading_route">Se încarcă linia…</string>
+    <string name="no_schedule">Nu există orar pentru această direcție.</string>
+    <string name="no_departures">Nicio plecare în curând.</string>
+    <string name="map">Hartă</string>
+    <string name="timetable">Orar</string>
+    <string name="frequency_every">La fiecare %1$d min</string>
+    <string name="frequency_every_range">La fiecare %1$d-%2$d min</string>
+    <string name="no_more_today">Nu mai sunt plecări azi.</string>
+    <string name="switch_direction">Schimbă sensul</string>
+    <string name="now">acum</string>
+    <string name="soon">curând</string>
+
+    <string name="nearby_stops">Stații din apropiere</string>
+    <string name="nearby_enable">Arată stațiile din apropiere</string>
+    <string name="nearby_none">Nicio stație pe o rază de 700 m.</string>
+    <string name="nearby_locating">Se caută stațiile din apropiere…</string>
+    <string name="nearby_unavailable">Locația este oprită.</string>
+
+    <string name="transfer_hint">Scanează codul sau, pe celălalt dispozitiv, deschide Setări, apasă Trimite și scrie numărul.</string>
+    <string name="transfer_loading">Se generează codul…</string>
+    <string name="transfer_expired">Codul a expirat.</string>
+    <string name="transfer_failed">Nu s-a putut obține un cod. Încearcă din nou puțin mai târziu.</string>
+    <string name="transfer_broken">Nu a mers. Ia un cod nou și trimite din nou.</string>
+    <string name="transfer_new_code">Cod nou</string>
+    <string name="pair_review">Copiezi aceste favorite?</string>
+    <string name="pair_copy">Copiază</string>
+    <string name="pair_done">Favorite copiate</string>
+    <string name="cancel">Anulează</string>
+
+    <string name="tile_no_favorites">Adaugă o stație favorită în aplicație.</string>
+</resources>
