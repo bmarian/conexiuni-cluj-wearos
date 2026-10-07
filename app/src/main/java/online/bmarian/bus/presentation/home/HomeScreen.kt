@@ -36,8 +36,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
 import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.CardDefaults
-import androidx.wear.compose.material3.EdgeButton
-import androidx.wear.compose.material3.EdgeButtonSize
 import androidx.wear.compose.material3.FilledTonalButton
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
@@ -55,7 +53,9 @@ import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.logic.computeStopDepartures
+import online.bmarian.bus.presentation.ActionRow
 import online.bmarian.bus.presentation.Eta
+import online.bmarian.bus.presentation.PillAction
 import online.bmarian.bus.presentation.LineBadge
 import online.bmarian.bus.presentation.ListScreen
 import online.bmarian.bus.presentation.Message
@@ -159,14 +159,7 @@ fun HomeScreen(
         favoriteRoutes.mapNotNull { fav -> byId[fav.routeId]?.let { Triple(it, fav.direction, terminalName(it.longName, fav.direction)) } }
     }
 
-    ListScreen(
-        state = state,
-        edgeButton = {
-            EdgeButton(onClick = onNearby, buttonSize = EdgeButtonSize.Small) {
-                Icon(Icons.Rounded.NearMe, contentDescription = stringResource(R.string.nearby))
-            }
-        },
-    ) { spec ->
+    ListScreen(state = state) { spec ->
         item { Title(stringResource(R.string.app_name), spec) }
         following?.let { follow ->
             item {
@@ -195,13 +188,10 @@ fun HomeScreen(
             }
         }
         item {
-            FilledTonalButton(
-                onClick = search,
-                modifier = itemModifier(spec),
-                transformation = surface(spec),
-                icon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                label = { Text(stringResource(R.string.search)) },
-            )
+            ActionRow(spec) {
+                PillAction(Icons.Rounded.Search, stringResource(R.string.search), search)
+                PillAction(Icons.Rounded.NearMe, stringResource(R.string.nearby_stops), onNearby)
+            }
         }
 
         if (favoriteStops.isEmpty() && favoriteRouteRows.isEmpty()) {

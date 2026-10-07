@@ -18,11 +18,12 @@ The [Conexiuni Cluj](https://github.com/bmarian/conexiuni-cluj) bus and tram tra
 - With the wrist down while following, the screen stays on the countdown in always-on mode
 - A line opens on the map with the next arrival above each stop, and one tap swaps the direction or shows the timetable
 - The stop map shows your favorite lines' buses on their way, with their routes
-- Your position on the map, and the stops within walking distance
+- The stops within walking distance, as a list or on a map, and your position on every map
 - Turn the bezel to scroll lists and zoom maps
 - Copy your favorites from the website by scanning a code, or typing it on another device
 
 <p align="center">
+  <img src="readme/nearby-map.png" width="180" alt="The stops around you on the map">
   <img src="readme/ambient.png" width="180" alt="A followed bus in always-on mode">
   <img src="readme/timetable.png" width="180" alt="A line's timetable from the current hour on">
 </p>

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -37,7 +38,11 @@ import androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnScope
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.CircularProgressIndicator
+import androidx.wear.compose.material3.FilledTonalButton
+import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.ListSubHeader
 import androidx.wear.compose.material3.MaterialTheme
@@ -181,5 +186,25 @@ fun Eta(minutes: Int, live: Boolean, now: LocalDateTime, style: TextStyle = Mate
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         if (live && arcs) RealtimeIcon(color, Modifier.padding(bottom = 2.dp))
         Text(etaText(minutes, now), style = style, color = color, maxLines = 1)
+    }
+}
+
+/** The row of actions under a screen's title: equal pills, icon only, filled when on. */
+@Composable
+fun TransformingLazyColumnItemScope.ActionRow(spec: TransformationSpec, content: @Composable RowScope.() -> Unit) {
+    Row(contentModifier(spec), horizontalArrangement = Arrangement.spacedBy(6.dp), content = content)
+}
+
+@Composable
+fun RowScope.PillAction(icon: ImageVector, description: String, onClick: () -> Unit, checked: Boolean = false) {
+    val tint = if (checked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+    val content: @Composable RowScope.() -> Unit = {
+        Icon(icon, contentDescription = description, modifier = Modifier.fillMaxWidth(), tint = tint)
+    }
+    val modifier = Modifier.weight(1f)
+    if (checked) {
+        Button(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(0.dp), content = content)
+    } else {
+        FilledTonalButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(0.dp), content = content)
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -46,6 +47,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,6 +79,8 @@ private const val FIT_MAX_ZOOM = 16f
 private const val FIT_SNAP = 0.25f
 // A 256 px web tile on the 412 px wide watch browser is about 62% of the screen.
 private val TILE_SIZE = 128.dp
+// A finger is wider than a stop marker.
+private val TAP_REACH = 22.dp
 // Same width as Wear's own edge swipe-to-dismiss zone.
 private val BACK_EDGE = 30.dp
 
@@ -96,7 +100,13 @@ class MapLabel(val id: String, val lat: Double, val lon: Double, val text: Strin
 class MapVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: Color, val heading: Double)
 
 sealed interface MapFrame {
-    class Fit(val points: List<Pair<Double, Double>>) : MapFrame
+    // Margins are shares of the screen: room for the screen's chips, buttons and labels.
+    class Fit(
+        val points: List<Pair<Double, Double>>,
+        val side: Double = 0.12,
+        val top: Double = 0.2,
+        val bottom: Double = 0.24,
+    ) : MapFrame
     class Focus(val lat: Double, val lon: Double, val zoom: Float) : MapFrame
 }
 
@@ -125,7 +135,13 @@ fun TransitMap(
     vehicles: List<MapVehicle> = emptyList(),
     me: Fix? = null,
     ambient: Boolean = false,
+    onStopTap: ((String) -> Unit)? = null,
+    // Where the screen's own chips and buttons sit over the map, so no label goes under them.
+    clearTop: Dp = 0.dp,
+    clearBottom: Dp = 0.dp,
 ) {
+    val currentStops by rememberUpdatedState(stops)
+    val currentOnStopTap by rememberUpdatedState(onStopTap)
     val density = LocalDensity.current
     val tilePx = with(density) { TILE_SIZE.toPx() }
     val scope = rememberCoroutineScope()
@@ -152,7 +168,7 @@ fun TransitMap(
             }
             is MapFrame.Fit -> {
                 if (frame.points.isEmpty()) return@LaunchedEffect
-                fit(camera, frame.points, size, tilePx)
+                fit(camera, frame, size, tilePx)
                 camera.framed = true
             }
         }
@@ -191,7 +207,23 @@ fun TransitMap(
             .requestFocusOnHierarchyActive()
             .focusable()
             .pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = { zoomTo(camera.targetZoom + 1f) })
+                detectTapGestures(
+                    onDoubleTap = { zoomTo(camera.targetZoom + 1f) },
+                    onTap = { at ->
+                        val tap = currentOnStopTap ?: return@detectTapGestures
+                        val world = worldSize(camera.zoom.value)
+                        val reach = TAP_REACH.toPx()
+                        currentStops
+                            .map { stop ->
+                                val x = ((mercatorX(stop.lon) - camera.x) * world + size.width / 2).toFloat()
+                                val y = ((mercatorY(stop.lat) - camera.y) * world + size.height / 2).toFloat()
+                                stop to (Offset(x, y) - at).getDistance()
+                            }
+                            .filter { it.second <= reach }
+                            .minByOrNull { it.second }
+                            ?.let { tap(it.first.id) }
+                    },
+                )
             }
             .pointerInput(Unit) {
                 val edge = BACK_EDGE.toPx()
@@ -276,9 +308,33 @@ fun TransitMap(
             drawCircle(ME_BLUE, 5.dp.toPx(), at)
         }
 
-        drawLabels(labelLayouts.map { (label, p, layout) -> Triple(label, toScreen(p.x, p.y), layout) }, stopRadius)
-
         val vehicleRadius = 10.dp.toPx()
+        // Everything a label must not cover: the stops, you, and the buses drawn over it all.
+        val obstacles = buildList {
+            for (stop in stops) {
+                val s = toScreen(mercatorX(stop.lon), mercatorY(stop.lat))
+                val r = (if (stop.selected) stopRadius * 1.35f else stopRadius) + 1.dp.toPx()
+                add(Rect(s.x - r, s.y - r, s.x + r, s.y + r))
+            }
+            if (me != null) {
+                val s = toScreen(mercatorX(me.lon), mercatorY(me.lat))
+                val r = 7.dp.toPx()
+                add(Rect(s.x - r, s.y - r, s.x + r, s.y + r))
+            }
+            for (vehicle in vehicles) {
+                val s = toScreen(mercatorX(vehicle.lon), mercatorY(vehicle.lat))
+                val r = vehicleRadius + 4.dp.toPx()
+                add(Rect(s.x - r, s.y - r, s.x + r, s.y + r))
+            }
+        }
+        drawLabels(
+            labelLayouts.map { (label, p, layout) -> Triple(label, toScreen(p.x, p.y), layout) },
+            stopRadius,
+            obstacles,
+            clearTop.toPx(),
+            clearBottom.toPx(),
+        )
+
         for (vehicle in vehicles) {
             val s = toScreen(mercatorX(vehicle.lon), mercatorY(vehicle.lat))
             drawCircle(Color.White, vehicleRadius + 1.dp.toPx(), s)
@@ -300,20 +356,44 @@ fun TransitMap(
     }
 }
 
-// Soonest first. A label that would cover one already placed stays hidden until zooming
-// in makes room for it.
-private fun DrawScope.drawLabels(labels: List<Triple<MapLabel, Offset, TextLayoutResult>>, stopRadius: Float) {
+// Soonest first. Each label goes above its stop if that spot is free, else below, right or
+// left; with none free it stays hidden until zooming in makes room. Free means clear of the
+// other labels, the markers, the screen's own controls and the round edge.
+private fun DrawScope.drawLabels(
+    labels: List<Triple<MapLabel, Offset, TextLayoutResult>>,
+    stopRadius: Float,
+    obstacles: List<Rect>,
+    clearTop: Float,
+    clearBottom: Float,
+) {
     val placed = mutableListOf<Rect>()
     val padX = 4.dp.toPx()
     val padY = 1.dp.toPx()
     val gap = 2.dp.toPx()
-    val lift = stopRadius + 3.dp.toPx()
+    // Clear of even the larger marker of the stop you came from.
+    val lift = stopRadius * 1.35f + 3.dp.toPx()
+    val center = Offset(size.width / 2, size.height / 2)
+    val rim = size.minDimension / 2 - 2.dp.toPx()
+    val lowest = size.height - clearBottom
+
+    fun Rect.hits(other: Rect) =
+        left < other.right + gap && right + gap > other.left && top < other.bottom + gap && bottom + gap > other.top
+
+    fun Rect.fits(): Boolean =
+        top >= clearTop && bottom <= lowest &&
+            listOf(topLeft, topRight, bottomLeft, bottomRight).all { (it - center).getDistance() <= rim }
+
     for ((label, at, layout) in labels) {
         val w = layout.size.width + padX * 2
         val h = layout.size.height + padY * 2
-        val box = Rect(at.x - w / 2, at.y - lift - h, at.x + w / 2, at.y - lift)
-        if (box.right < 0 || box.left > size.width || box.bottom < 0 || box.top > size.height) continue
-        if (placed.any { box.left < it.right + gap && box.right + gap > it.left && box.top < it.bottom + gap && box.bottom + gap > it.top }) continue
+        val box = listOf(
+            Rect(at.x - w / 2, at.y - lift - h, at.x + w / 2, at.y - lift),
+            Rect(at.x - w / 2, at.y + lift, at.x + w / 2, at.y + lift + h),
+            Rect(at.x + lift, at.y - h / 2, at.x + lift + w, at.y + h / 2),
+            Rect(at.x - lift - w, at.y - h / 2, at.x - lift, at.y + h / 2),
+        ).firstOrNull { spot ->
+            spot.fits() && placed.none { spot.hits(it) } && obstacles.none { !it.contains(at) && spot.hits(it) }
+        } ?: continue
         placed += box
         val corner = CornerRadius(4.dp.toPx())
         drawRoundRect(Color(0xEB0F172A), box.topLeft, box.size, corner)
@@ -377,16 +457,17 @@ private fun DrawScope.drawTiles(cx: Double, cy: Double, zoom: Float, size: IntSi
 
 // Like Leaflet's fitBounds with padding: the route sits inside the round screen, clear of
 // the title above and the buttons below.
-private suspend fun fit(camera: MapCamera, points: List<Pair<Double, Double>>, size: IntSize, tilePx: Float) {
+private suspend fun fit(camera: MapCamera, frame: MapFrame.Fit, size: IntSize, tilePx: Float) {
+    val points = frame.points
     val xs = points.map { mercatorX(it.second) }
     val ys = points.map { mercatorY(it.first) }
     val minX = xs.min()
     val maxX = xs.max()
     val minY = ys.min()
     val maxY = ys.max()
-    val side = size.width * 0.12
-    val top = size.height * 0.2
-    val bottom = size.height * 0.24
+    val side = size.width * frame.side
+    val top = size.height * frame.top
+    val bottom = size.height * frame.bottom
     val availW = size.width - side * 2
     val availH = size.height - top - bottom
     val spanX = max(maxX - minX, 1e-9)

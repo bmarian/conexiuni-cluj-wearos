@@ -21,8 +21,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnScope
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
-import androidx.wear.compose.material3.EdgeButton
-import androidx.wear.compose.material3.EdgeButtonSize
 import androidx.wear.compose.material3.FilledTonalButton
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.Text
@@ -167,14 +165,17 @@ fun SearchScreen(query: String, onSearch: (String) -> Unit, onOpenRoute: (Int) -
         }
     }
 
-    ListScreen(
-        edgeButton = {
-            EdgeButton(onClick = search, buttonSize = EdgeButtonSize.Small) {
-                Icon(Icons.Rounded.Search, contentDescription = stringResource(R.string.search_again))
-            }
-        },
-    ) { spec ->
+    ListScreen { spec ->
         item { Title("“$query”", spec) }
+        item {
+            FilledTonalButton(
+                onClick = search,
+                modifier = itemModifier(spec),
+                transformation = surface(spec),
+                icon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                label = { Text(stringResource(R.string.search_again)) },
+            )
+        }
         val (lines, found) = results ?: run {
             item { Loading(spec) }
             return@ListScreen

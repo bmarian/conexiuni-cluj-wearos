@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -25,6 +26,27 @@ object UserLocation {
 
     fun permitted(context: Context) = PERMISSIONS.any {
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    // The last place the nearby stops were worked out for. It stays on the watch.
+    private fun prefs(context: Context) = context.getSharedPreferences("location", Context.MODE_PRIVATE)
+
+    fun saved(context: Context): Fix? {
+        val prefs = prefs(context)
+        if (!prefs.contains("lat")) return null
+        return Fix(
+            Double.fromBits(prefs.getLong("lat", 0)),
+            Double.fromBits(prefs.getLong("lon", 0)),
+            prefs.getFloat("accuracy", 0f),
+        )
+    }
+
+    fun save(context: Context, fix: Fix) {
+        prefs(context).edit {
+            putLong("lat", fix.lat.toRawBits())
+            putLong("lon", fix.lon.toRawBits())
+            putFloat("accuracy", fix.accuracyMeters)
+        }
     }
 
     // Like the website, a position outside Cluj county isn't drawn.

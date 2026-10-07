@@ -59,7 +59,9 @@ import online.bmarian.bus.data.directionFromTripId
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.logic.StopDeparture
+import online.bmarian.bus.presentation.ActionRow
 import online.bmarian.bus.presentation.Eta
+import online.bmarian.bus.presentation.PillAction
 import online.bmarian.bus.presentation.LineBadge
 import online.bmarian.bus.presentation.ListScreen
 import online.bmarian.bus.presentation.Loading
@@ -87,7 +89,6 @@ import java.time.LocalDateTime
 // Far enough out to see the buses that are a few minutes away.
 private const val STOP_MAP_ZOOM = 15f
 private const val ME_ZOOM = 16f
-private val SMALL_ACTION = 36.dp
 
 @Composable
 fun stopViewModel(stopId: Int): StopViewModel = viewModel(key = "stop-$stopId") { StopViewModel(stopId) }
@@ -128,20 +129,15 @@ fun StopScreen(
     ListScreen { spec ->
         item { Title(name ?: "…", spec) }
         item {
-            ButtonGroup(contentModifier(spec)) {
-                IconToggleButton(
-                    checked = vm.stopId in favoriteStops,
-                    onCheckedChange = { Services.favorites.toggleStop(vm.stopId) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(
-                        if (vm.stopId in favoriteStops) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                        contentDescription = stringResource(R.string.favorite_stop),
-                    )
-                }
-                FilledTonalIconButton(onClick = onOpenMap, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Rounded.Map, contentDescription = stringResource(R.string.open_map))
-                }
+            val favorite = vm.stopId in favoriteStops
+            ActionRow(spec) {
+                PillAction(
+                    if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    stringResource(R.string.favorite_stop),
+                    { Services.favorites.toggleStop(vm.stopId) },
+                    checked = favorite,
+                )
+                PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenMap)
             }
         }
         when {
@@ -256,16 +252,23 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
                 )
             }
         }
-        // A plain button, like Start in Google Maps: an edge button hid itself until scrolled to.
+        // Follow sits with the other actions; filled while this bus is being followed.
         item {
-            val icon = @Composable {
-                Icon(if (isFollowing) Icons.Rounded.Close else Icons.Rounded.NotificationsActive, contentDescription = null)
-            }
-            val label = @Composable { Text(stringResource(if (isFollowing) R.string.stop_following else R.string.follow)) }
-            if (isFollowing) {
-                FilledTonalButton(onClick = onFollow, modifier = itemModifier(spec), transformation = surface(spec), icon = { icon() }, label = { label() })
-            } else {
-                Button(onClick = onFollow, modifier = itemModifier(spec), transformation = surface(spec), icon = { icon() }, label = { label() })
+            val favorite = favoriteRoutes.any { it.routeId == routeId && it.direction == direction }
+            ActionRow(spec) {
+                PillAction(
+                    Icons.Rounded.NotificationsActive,
+                    stringResource(if (isFollowing) R.string.stop_following else R.string.follow),
+                    onFollow,
+                    checked = isFollowing,
+                )
+                PillAction(
+                    if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    stringResource(R.string.favorite_line),
+                    { Services.favorites.toggleRoute(routeId, direction) },
+                    checked = favorite,
+                )
+                PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenRoute)
             }
         }
         item {
@@ -277,25 +280,6 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
-            }
-        }
-        item {
-            val favorite = favoriteRoutes.any { it.routeId == routeId && it.direction == direction }
-            Row(contentModifier(spec).padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
-                IconToggleButton(
-                    checked = favorite,
-                    onCheckedChange = { Services.favorites.toggleRoute(routeId, direction) },
-                    modifier = Modifier.size(SMALL_ACTION),
-                ) {
-                    Icon(
-                        if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                        contentDescription = stringResource(R.string.favorite_line),
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                FilledTonalIconButton(onClick = onOpenRoute, modifier = Modifier.size(SMALL_ACTION)) {
-                    Icon(Icons.Rounded.Map, contentDescription = stringResource(R.string.open_map), modifier = Modifier.size(18.dp))
-                }
             }
         }
     }
@@ -333,6 +317,8 @@ fun StopMapScreen(vm: StopViewModel) {
                 vehicles = layer.vehicles.map { MapVehicle(it.id, it.lat, it.lon, it.name, routeColor(it.color), it.heading) },
                 me = me,
                 ambient = LocalAmbient.current,
+                clearTop = 62.dp,
+                clearBottom = 68.dp,
             )
             name?.let {
                 MapChip(Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {

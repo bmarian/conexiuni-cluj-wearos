@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import online.bmarian.bus.data.directionFromTripId
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.presentation.home.HomeScreen
+import online.bmarian.bus.presentation.home.NearbyMapScreen
 import online.bmarian.bus.presentation.home.NearbyScreen
 import online.bmarian.bus.presentation.home.RoutesScreen
 import online.bmarian.bus.presentation.home.SearchScreen
@@ -133,7 +134,13 @@ private fun WearApp(openFollowed: MutableStateFlow<Boolean>) {
                         )
                     }
                     composable("nearby") {
-                        NearbyScreen(onOpenStop = { navController.navigate("stop/$it") })
+                        NearbyScreen(
+                            onOpenStop = { navController.navigate("stop/$it") },
+                            onOpenMap = { navController.navigate("nearbyMap") },
+                        )
+                    }
+                    composable("nearbyMap") {
+                        NearbyMapScreen(onOpenStop = { navController.navigate("stop/$it") })
                     }
                     composable("routes") {
                         RoutesScreen(onOpenRoute = { navController.navigate("route/$it/0") })

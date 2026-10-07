@@ -182,6 +182,8 @@ private fun RouteMapView(
                 },
                 me = me,
                 ambient = LocalAmbient.current,
+                clearTop = 62.dp,
+                clearBottom = 70.dp,
             )
             if (info != null) {
                 MapChip(Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
