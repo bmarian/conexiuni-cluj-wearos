@@ -53,7 +53,7 @@ fun AmbientFollow(state: FollowState) {
                 color = Color.White,
             )
             Text(
-                "→ ${followed.destination}",
+                "→\u00A0${followed.destination}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White,
                 textAlign = TextAlign.Center,

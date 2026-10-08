@@ -59,6 +59,14 @@ The release build is much faster on a watch than the debug one. Without an uploa
 
 runs the parity test.
 
+The release build ships a baseline profile, so the screens people use most are compiled ahead of time. After big UI changes, generate it again on an emulator in English, with its location set near a few Cluj stops:
+
+```bash
+ANDROID_SERIAL=emulator-5554 ./gradlew :app:generateBaselineProfile
+```
+
+The run uninstalls the app from the device when it ends, so don't point it at your watch.
+
 ## Releasing
 
 Google Play needs an upload key. Make one once and keep it somewhere safe, outside the repository:

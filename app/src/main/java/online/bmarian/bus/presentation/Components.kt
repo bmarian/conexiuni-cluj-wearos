@@ -128,6 +128,22 @@ fun TransformingLazyColumnItemScope.Loading(spec: TransformationSpec) {
     }
 }
 
+/** A line's badge and where it goes, as a screen's title. */
+@Composable
+fun TransformingLazyColumnItemScope.LineHeader(spec: TransformationSpec, shortName: String?, color: String?, text: String) {
+    ListHeader(modifier = itemModifier(spec), transformation = surface(spec)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (shortName != null && color != null) LineBadge(shortName, color)
+            if (text.isNotEmpty()) {
+                Text(text, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Start, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
 /** A line number in its CTP colour. */
 @Composable
 fun LineBadge(shortName: String, color: String, modifier: Modifier = Modifier, height: Dp = 28.dp) {

@@ -310,7 +310,8 @@ fun TransitMap(
 
         val vehicleRadius = 10.dp.toPx()
         // Everything a label must not cover: the stops, you, and the buses drawn over it all.
-        val obstacles = buildList {
+        // A label may touch its own stop's marker, never a bus, even one standing at that stop.
+        val markers = buildList {
             for (stop in stops) {
                 val s = toScreen(mercatorX(stop.lon), mercatorY(stop.lat))
                 val r = (if (stop.selected) stopRadius * 1.35f else stopRadius) + 1.dp.toPx()
@@ -321,16 +322,17 @@ fun TransitMap(
                 val r = 7.dp.toPx()
                 add(Rect(s.x - r, s.y - r, s.x + r, s.y + r))
             }
-            for (vehicle in vehicles) {
-                val s = toScreen(mercatorX(vehicle.lon), mercatorY(vehicle.lat))
-                val r = vehicleRadius + 4.dp.toPx()
-                add(Rect(s.x - r, s.y - r, s.x + r, s.y + r))
-            }
+        }
+        val buses = vehicles.map { vehicle ->
+            val s = toScreen(mercatorX(vehicle.lon), mercatorY(vehicle.lat))
+            val r = vehicleRadius + 4.dp.toPx()
+            Rect(s.x - r, s.y - r, s.x + r, s.y + r)
         }
         drawLabels(
             labelLayouts.map { (label, p, layout) -> Triple(label, toScreen(p.x, p.y), layout) },
             stopRadius,
-            obstacles,
+            markers,
+            buses,
             clearTop.toPx(),
             clearBottom.toPx(),
         )
@@ -362,7 +364,8 @@ fun TransitMap(
 private fun DrawScope.drawLabels(
     labels: List<Triple<MapLabel, Offset, TextLayoutResult>>,
     stopRadius: Float,
-    obstacles: List<Rect>,
+    markers: List<Rect>,
+    buses: List<Rect>,
     clearTop: Float,
     clearBottom: Float,
 ) {
@@ -392,7 +395,7 @@ private fun DrawScope.drawLabels(
             Rect(at.x + lift, at.y - h / 2, at.x + lift + w, at.y + h / 2),
             Rect(at.x - lift - w, at.y - h / 2, at.x - lift, at.y + h / 2),
         ).firstOrNull { spot ->
-            spot.fits() && placed.none { spot.hits(it) } && obstacles.none { !it.contains(at) && spot.hits(it) }
+            spot.fits() && placed.none { spot.hits(it) } && markers.none { !it.contains(at) && spot.hits(it) } && buses.none { spot.hits(it) }
         } ?: continue
         placed += box
         val corner = CornerRadius(4.dp.toPx())

@@ -54,6 +54,7 @@ import online.bmarian.bus.logic.formatMinutesFromNow
 import online.bmarian.bus.logic.minutesOfDay
 import online.bmarian.bus.logic.stopsForDirection
 import online.bmarian.bus.presentation.LineBadge
+import online.bmarian.bus.presentation.LineHeader
 import online.bmarian.bus.presentation.ListScreen
 import online.bmarian.bus.presentation.Loading
 import online.bmarian.bus.presentation.LocalAmbient
@@ -192,7 +193,7 @@ private fun RouteMapView(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         LineBadge(info.shortName, info.color, height = 20.dp)
                         if (terminal.isNotEmpty()) {
-                            Text("→ $terminal", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("→\u00A0$terminal", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -284,17 +285,8 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
 
     ListScreen { spec ->
         item {
-            Row(
-                contentModifier(spec).padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                info?.let { LineBadge(it.shortName, it.color) }
-                val heading = atStop?.second ?: terminal.takeIf { it.isNotEmpty() }?.let { "→ $it" }
-                if (heading != null) {
-                    Text(heading, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-            }
+            val heading = atStop?.second ?: terminal.takeIf { it.isNotEmpty() }?.let { "→\u00A0$it" }
+            LineHeader(spec, info?.shortName, info?.color, heading.orEmpty())
         }
         // The times are what this screen is for, so its actions stay small.
         item {

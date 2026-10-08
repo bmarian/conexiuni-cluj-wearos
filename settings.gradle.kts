@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Conexiuni Cluj WearOS"
 include(":app")
+include(":baselineprofile")

@@ -59,7 +59,7 @@ private fun TransformingLazyColumnScope.stopItems(stops: List<Stop>, spec: Trans
             modifier = itemModifier(spec),
             transformation = surface(spec),
             icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
-            label = { Text(stop.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+            label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
         )
     }
 }

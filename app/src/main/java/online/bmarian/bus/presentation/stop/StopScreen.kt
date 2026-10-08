@@ -63,6 +63,7 @@ import online.bmarian.bus.presentation.ActionRow
 import online.bmarian.bus.presentation.Eta
 import online.bmarian.bus.presentation.PillAction
 import online.bmarian.bus.presentation.LineBadge
+import online.bmarian.bus.presentation.LineHeader
 import online.bmarian.bus.presentation.ListScreen
 import online.bmarian.bus.presentation.Loading
 import online.bmarian.bus.presentation.LocalAmbient
@@ -217,19 +218,7 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
     ListScreen { spec ->
         val current = departure
         item {
-            Row(
-                contentModifier(spec).padding(horizontal = 18.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (current != null) LineBadge(current.shortName, current.color)
-                Text(
-                    current?.destination() ?: (name ?: "…"),
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            LineHeader(spec, current?.shortName, current?.color, current?.destination() ?: (name ?: "…"))
         }
         if (current == null) {
             item { if (ui == null) Loading(spec) else Message(stringResource(R.string.no_departures), spec) }

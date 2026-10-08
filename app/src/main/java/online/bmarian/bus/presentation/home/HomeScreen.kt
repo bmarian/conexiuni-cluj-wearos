@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -207,10 +208,11 @@ fun HomeScreen(
                 modifier = itemModifier(spec),
                 transformation = surface(spec),
                 icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
-                label = { Text(stop.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
                 secondaryLabel = summary?.takeIf { it.departures.isNotEmpty() }?.let { s ->
                     {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        // As many whole departures as fit; a small watch has room for one.
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically, maxLines = 1) {
                             for (departure in s.departures.take(2)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
                                     LineBadge(departure.shortName, departure.color, height = 16.dp)
@@ -231,7 +233,7 @@ fun HomeScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LineBadge(route.shortName, route.color)
-                    Text("→ $destination", maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text("→\u00A0$destination", maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

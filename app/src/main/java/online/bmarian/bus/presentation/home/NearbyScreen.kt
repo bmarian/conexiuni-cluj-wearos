@@ -135,7 +135,7 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit, onOpenMap: () -> Unit) {
                         modifier = itemModifier(spec),
                         transformation = surface(spec),
                         icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
-                        label = { Text(stop.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
                         secondaryLabel = {
                             Text(stringResource(R.string.walk_distance, formatMeters(meters), ceil(meters / WALKING_METERS_PER_MINUTE).toInt().coerceAtLeast(1)))
                         },

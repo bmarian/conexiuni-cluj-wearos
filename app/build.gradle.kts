@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.baselineprofile)
 }
 
 // The CARTO key stays out of the repository: put `carto.key=...` in local.properties.
@@ -68,6 +69,19 @@ android {
     }
 }
 
+// The baseline profile plugin copies release but only turns off the old minify flag. Recorded
+// on an obfuscated build, the profile names classes the real one doesn't have.
+androidComponents {
+    finalizeDsl { android ->
+        android.buildTypes.findByName("nonMinifiedRelease")?.optimization?.enable = false
+    }
+}
+
+// Generated with `gradlew :app:generateBaselineProfile` on an emulator; see the README.
+baselineProfile {
+    dexLayoutOptimization = true
+}
+
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.activity.compose)
@@ -93,6 +107,8 @@ dependencies {
     implementation(libs.wear.ongoing)
     implementation(libs.wear.input)
     implementation(libs.material.icons.extended)
+    implementation(libs.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)
