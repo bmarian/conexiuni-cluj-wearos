@@ -46,11 +46,13 @@ import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.ShapeInfo
 import online.bmarian.bus.data.terminalName
+import online.bmarian.bus.data.tripIdFor
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.daySchedule
 import online.bmarian.bus.logic.departureMinutes
 import online.bmarian.bus.logic.formatMinutesFromNow
 import online.bmarian.bus.logic.minutesOfDay
+import online.bmarian.bus.logic.stopsForDirection
 import online.bmarian.bus.presentation.LineBadge
 import online.bmarian.bus.presentation.ListScreen
 import online.bmarian.bus.presentation.Loading
@@ -247,9 +249,24 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
     val outgoing = direction == "0"
     val isFavorite = favoriteRoutes.any { it.routeId == vm.routeId && it.direction == direction }
 
+    // Opened from a stop, the times are when the bus gets there. After a swap that is the
+    // stop of the same name on the other side, if this direction has one.
+    val allStops by Services.repository.stops.collectAsStateWithLifecycle()
+    val names = remember(allStops) { allStops.associate { it.stopId to it.name } }
+    val atStop = remember(info, direction, names) {
+        val id = vm.fromStopId ?: return@remember null
+        val stops = info?.let { stopsForDirection(it, tripIdFor(vm.routeId, direction)) }.orEmpty()
+        val stop = stops.find { it.stop.stopId == id }
+            ?: names[id]?.let { name -> stops.find { names[it.stop.stopId] == name } }
+        stop?.let { found -> names[found.stop.stopId]?.let { found.offsetFromStart to it } }
+    }
+    val offset = atStop?.first ?: 0
+
     val schedule = info?.let { daySchedule(it.timetable, now) }
     val frequency = if (outgoing) schedule?.inFrequency else schedule?.outFrequency
-    val departures = remember(schedule, outgoing) { schedule?.let { departureMinutes(it, outgoing).sorted() }.orEmpty() }
+    val departures = remember(schedule, outgoing, offset) {
+        schedule?.let { departureMinutes(it, outgoing).map { minutes -> minutes + offset }.sorted() }.orEmpty()
+    }
     val nowMinutes = minutesOfDay(now)
     // From the current hour on: only what is still to come matters here.
     val hours = remember(departures, nowMinutes) {
@@ -273,8 +290,9 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 info?.let { LineBadge(it.shortName, it.color) }
-                if (terminal.isNotEmpty()) {
-                    Text("→ $terminal", style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                val heading = atStop?.second ?: terminal.takeIf { it.isNotEmpty() }?.let { "→ $it" }
+                if (heading != null) {
+                    Text(heading, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
