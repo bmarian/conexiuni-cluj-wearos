@@ -1,6 +1,11 @@
 package online.bmarian.bus.presentation.route
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
@@ -13,6 +18,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.SwapVert
@@ -25,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,14 +44,19 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.material3.FilledIconButton
 import androidx.wear.compose.material3.FilledTonalIconButton
 import androidx.wear.compose.material3.Icon
-import androidx.wear.compose.material3.IconToggleButton
+import androidx.wear.compose.material3.IconButtonDefaults
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import online.bmarian.bus.Links
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import online.bmarian.bus.R
+import online.bmarian.bus.follow.FollowManager
+import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.ShapeInfo
+import online.bmarian.bus.data.UserLocation
 import online.bmarian.bus.data.terminalName
 import online.bmarian.bus.data.tripIdFor
 import online.bmarian.bus.logic.CLUJ_ZONE
@@ -58,7 +70,10 @@ import online.bmarian.bus.presentation.LineHeader
 import online.bmarian.bus.presentation.ListScreen
 import online.bmarian.bus.presentation.Loading
 import online.bmarian.bus.presentation.LocalAmbient
+import online.bmarian.bus.presentation.ActionRow
 import online.bmarian.bus.presentation.Message
+import online.bmarian.bus.presentation.PillAction
+import online.bmarian.bus.presentation.ToggleAction
 import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
 import online.bmarian.bus.presentation.map.MapCamera
@@ -79,11 +94,14 @@ import java.time.LocalDateTime
 private const val FROM_STOP_ZOOM = 13f
 private const val ME_ZOOM = 14f
 private val MAP_BUTTON = 44.dp
-private val SMALL_ACTION = 36.dp
 
 @Composable
-fun routeViewModel(routeId: Int, direction: String, fromStopId: Int?): RouteViewModel =
-    viewModel(key = "route-$routeId-${fromStopId ?: ""}") { RouteViewModel(routeId, direction, fromStopId) }
+fun routeViewModel(routeId: Int, direction: String, fromStopId: Int?): RouteViewModel {
+    val context = LocalContext.current
+    return viewModel(key = "route-$routeId-${fromStopId ?: ""}") {
+        RouteViewModel(routeId, direction, fromStopId).apply { UserLocation.saved(context)?.let(::locate) }
+    }
+}
 
 @Composable
 fun RouteScreen(vm: RouteViewModel) {
@@ -120,6 +138,7 @@ private fun RouteMapView(
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val me by rememberUserLocation()
+    LaunchedEffect(me) { me?.let(vm::locate) }
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
     val nowLabel = stringResource(R.string.now)
     val soonLabel = stringResource(R.string.soon)
@@ -214,13 +233,14 @@ private fun RouteMapView(
                         FilledTonalIconButton(
                             onClick = { camera.centerOn(fix.lat, fix.lon, ME_ZOOM) },
                             modifier = Modifier.size(MAP_BUTTON),
+                            shapes = IconButtonDefaults.animatedShapes(),
                         ) { Icon(Icons.Rounded.MyLocation, contentDescription = stringResource(R.string.my_location)) }
                     }
-                    FilledIconButton(onClick = onTimetable, modifier = Modifier.size(MAP_BUTTON)) {
+                    FilledIconButton(onClick = onTimetable, modifier = Modifier.size(MAP_BUTTON), shapes = IconButtonDefaults.animatedShapes()) {
                         Icon(Icons.Rounded.Schedule, contentDescription = stringResource(R.string.timetable))
                     }
                     if (canSwap) {
-                        FilledTonalIconButton(onClick = vm::swap, modifier = Modifier.size(MAP_BUTTON)) {
+                        FilledTonalIconButton(onClick = vm::swap, modifier = Modifier.size(MAP_BUTTON), shapes = IconButtonDefaults.animatedShapes()) {
                             Icon(Icons.Rounded.SwapVert, contentDescription = stringResource(R.string.switch_direction))
                         }
                     }
@@ -248,9 +268,23 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
         val stops = info?.let { stopsForDirection(it, tripIdFor(vm.routeId, direction)) }.orEmpty()
         val stop = stops.find { it.stop.stopId == id }
             ?: names[id]?.let { name -> stops.find { names[it.stop.stopId] == name } }
-        stop?.let { found -> names[found.stop.stopId]?.let { found.offsetFromStart to it } }
+        stop?.let { found -> names[found.stop.stopId]?.let { found to it } }
     }
-    val offset = atStop?.first ?: 0
+    val offset = atStop?.first?.offsetFromStart ?: 0
+
+    val context = LocalContext.current
+    val following by FollowManager.state.collectAsStateWithLifecycle()
+    val tripId = tripIdFor(vm.routeId, direction)
+    val alerting = atStop != null && following?.followed?.let {
+        it.stopId == atStop.first.stop.stopId && it.routeId == vm.routeId && it.tripId == tripId
+    } == true
+    fun follow() {
+        val (stop, name) = atStop ?: return
+        val route = info ?: return
+        FollowManager.start(context, Followed(stop.stop.stopId, name, vm.routeId, tripId, route.shortName, route.color, terminal))
+    }
+    // POST_NOTIFICATIONS needs a runtime grant on Wear OS 4+.
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { follow() }
 
     val schedule = info?.let { daySchedule(it.timetable, now) }
     val frequency = if (outgoing) schedule?.inFrequency else schedule?.outFrequency
@@ -277,29 +311,33 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
             LineHeader(spec, info?.shortName, info?.color, heading.orEmpty())
         }
         item {
-            Row(contentModifier(spec), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
-                IconToggleButton(
-                    checked = isFavorite,
-                    onCheckedChange = { Services.favorites.toggleRoute(vm.routeId, direction) },
-                    modifier = Modifier.size(SMALL_ACTION),
-                ) {
-                    Icon(
-                        if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                        contentDescription = stringResource(R.string.favorite_line),
-                        modifier = Modifier.size(18.dp),
-                    )
+            ActionRow(spec) {
+                if (atStop != null) {
+                    ToggleAction(Icons.Rounded.NotificationsActive, stringResource(R.string.follow), alerting, {
+                        when {
+                            alerting -> FollowManager.stop(context)
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
+                                permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            else -> follow()
+                        }
+                    })
                 }
-                if (canSwap) {
-                    FilledTonalIconButton(onClick = vm::swap, modifier = Modifier.size(SMALL_ACTION)) {
-                        Icon(Icons.Rounded.SwapVert, contentDescription = stringResource(R.string.switch_direction), modifier = Modifier.size(18.dp))
-                    }
-                }
-                FilledTonalIconButton(onClick = onMap, modifier = Modifier.size(SMALL_ACTION)) {
-                    Icon(Icons.Rounded.Map, contentDescription = stringResource(R.string.map), modifier = Modifier.size(18.dp))
-                }
-                FilledTonalIconButton(onClick = openOnPhone, modifier = Modifier.size(SMALL_ACTION)) {
-                    Icon(Icons.Rounded.PhoneAndroid, contentDescription = stringResource(R.string.open_on_phone), modifier = Modifier.size(18.dp))
-                }
+                ToggleAction(
+                    if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    stringResource(R.string.save),
+                    isFavorite,
+                    { Services.favorites.toggleRoute(vm.routeId, direction) },
+                    color = Palette.Heart,
+                    onColor = Color.White,
+                )
+            }
+        }
+        item {
+            ActionRow(spec) {
+                if (canSwap) PillAction(Icons.Rounded.SwapVert, stringResource(R.string.switch_direction), vm::swap)
+                PillAction(Icons.Rounded.Map, stringResource(R.string.map), onMap)
+                PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
             }
         }
         when {

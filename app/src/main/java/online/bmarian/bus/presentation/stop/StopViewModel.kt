@@ -8,7 +8,6 @@ import online.bmarian.bus.data.ShapePoint
 import online.bmarian.bus.data.StopInfo
 import online.bmarian.bus.data.Vehicle
 import online.bmarian.bus.data.VehicleStream
-import online.bmarian.bus.data.directionFromTripId
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.logic.buildShapeIndex
@@ -116,5 +115,5 @@ class StopViewModel(val stopId: Int) : ViewModel() {
     }
 
     fun isDepartureFavorite(departure: StopDeparture) =
-        Services.favorites.isRouteFavorite(departure.routeId, directionFromTripId(departure.tripId))
+        Services.favorites.isRouteFavorite(departure.routeId)
 }

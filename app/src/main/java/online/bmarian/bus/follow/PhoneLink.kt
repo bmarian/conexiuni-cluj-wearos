@@ -126,14 +126,11 @@ class PhoneListener : WearableListenerService() {
 }
 
 private const val MIRROR_NOTIFICATION_ID = 9
-private const val ENDED_NOTIFICATION_ID = 8
-private const val ALERT_NOTIFICATION_ID = 10
 private const val FOLLOW_CHANNEL = "follow"
-private const val ALERT_CHANNEL = "follow_alerts"
-private const val SOON_MINUTES = 2
 
 object Mirror {
-    private var alerted: Pair<String, MutableSet<String>>? = null
+    // Messages can arrive twice; one buzz per alert.
+    private var buzzed: String? = null
 
     private fun manager(context: Context) = context.getSystemService(NotificationManager::class.java)
 
@@ -144,19 +141,18 @@ object Mirror {
                 NotificationChannel(FOLLOW_CHANNEL, context.getString(R.string.follow_channel), NotificationManager.IMPORTANCE_LOW),
             )
         }
-        if (manager.getNotificationChannel(ALERT_CHANNEL) == null) {
-            manager.createNotificationChannel(
-                NotificationChannel(ALERT_CHANNEL, context.getString(R.string.follow_alerts_channel), NotificationManager.IMPORTANCE_HIGH).apply {
-                    enableVibration(true)
-                    vibrationPattern = longArrayOf(0, 120, 120, 120)
-                },
-            )
-        }
     }
 
+    /** [alert] is the phone's buzz for this update. */
     @SuppressLint("MissingPermission")
-    fun show(context: Context, state: FollowState, isNew: Boolean) {
+    fun show(context: Context, state: FollowState, alert: Boolean) {
         channels(context)
+        val now = (state.minutes ?: 1) <= 0
+        val key = "${state.id}:$now"
+        if (alert && buzzed != key) {
+            buzzed = key
+            Buzz.play(context, if (now) Buzz.NOW else Buzz.SOON)
+        }
         val followed = state.followed
         val minutes = state.minutes
         val arrival = state.arrivalAt
@@ -202,64 +198,15 @@ object Mirror {
             .build()
             .apply(context)
         runCatching { manager(context).notify(MIRROR_NOTIFICATION_ID, builder.build()) }
-
-        if (isNew || alerted?.first != state.id) alerted = state.id to mutableSetOf()
-        if (minutes != null) {
-            val given = alerted!!.second
-            if (minutes in 1..SOON_MINUTES && given.add("soon")) alert(context, followed, minutes)
-            if (minutes <= 0 && given.add("now")) {
-                given += "soon"
-                alert(context, followed, 0)
-            }
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun alert(context: Context, followed: Followed, minutes: Int) {
-        val text = if (minutes <= 0) context.getString(R.string.follow_now)
-        else context.getString(R.string.follow_arriving, context.getString(R.string.eta_minutes, minutes))
-        val notification = NotificationCompat.Builder(context, ALERT_CHANNEL)
-            .setSmallIcon(R.drawable.ic_bus)
-            .setContentTitle("${followed.shortName} → ${followed.destination}")
-            .setContentText(text)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setAutoCancel(true)
-            .setTimeoutAfter(3 * 60_000L)
-            .setContentIntent(openApp(context))
-            .build()
-        runCatching { manager(context).notify(ALERT_NOTIFICATION_ID, notification) }
-    }
-
-    @SuppressLint("MissingPermission")
-    fun end(context: Context, sync: FollowSync) {
-        clear(context)
-        val followed = sync.followed
-        val message = when (sync.end) {
-            "left" -> context.getString(R.string.follow_ended, followed.stopName)
-            "none" -> context.getString(R.string.follow_no_bus)
-            else -> return
-        }
-        channels(context)
-        val done = NotificationCompat.Builder(context, FOLLOW_CHANNEL)
-            .setSmallIcon(R.drawable.ic_bus)
-            .setContentTitle("${followed.shortName} → ${followed.destination}")
-            .setContentText(message)
-            .setContentIntent(openApp(context))
-            .setAutoCancel(true)
-            .setTimeoutAfter(5 * 60_000L)
-            .build()
-        runCatching { manager(context).notify(ENDED_NOTIFICATION_ID, done) }
     }
 
     fun reshow(context: Context) {
         val state = FollowManager.state.value?.takeIf { it.remote } ?: return
-        show(context, state, isNew = false)
+        show(context, state, alert = false)
     }
 
     fun clear(context: Context) {
-        alerted = null
         manager(context).cancel(MIRROR_NOTIFICATION_ID)
-        manager(context).cancel(ALERT_NOTIFICATION_ID)
     }
 
     private fun openApp(context: Context): PendingIntent = PendingIntent.getActivity(

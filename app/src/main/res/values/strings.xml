@@ -58,13 +58,11 @@
     <string name="follow_channel">Followed bus</string>
     <string name="follow_arriving">Arriving in %1$s</string>
     <string name="follow_now">Arriving now</string>
-    <string name="follow_ended">The bus has left %1$s.</string>
-    <string name="follow_no_bus">No more departures to follow.</string>
     <string name="my_location">My location</string>
+    <string name="save">Save</string>
     <string name="favorite_line">Favorite line</string>
     <string name="favorite_stop">Favorite stop</string>
     <string name="open_map">Map</string>
-    <string name="follow_alerts_channel">Bus arriving</string>
     <string name="open_on_phone">Open on phone</string>
     <string name="phone_unreachable">Phone not connected</string>
     <string name="journey_to">To %1$s</string>

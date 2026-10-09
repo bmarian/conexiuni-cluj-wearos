@@ -5,6 +5,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -50,6 +51,7 @@ import online.bmarian.bus.presentation.Loading
 import online.bmarian.bus.presentation.Message
 import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
+import online.bmarian.bus.presentation.squish
 import online.bmarian.bus.presentation.surface
 import online.bmarian.bus.presentation.theme.Palette
 import com.google.zxing.BarcodeFormat
@@ -202,9 +204,11 @@ fun PairScreen(onDone: () -> Unit, vm: PairViewModel = viewModel()) {
                 }
                 item { Message(stringResource(message), spec) }
                 item {
+                    val press = remember { MutableInteractionSource() }
                     FilledTonalButton(
                         onClick = vm::start,
-                        modifier = itemModifier(spec),
+                        modifier = itemModifier(spec).squish(press),
+                        interactionSource = press,
                         transformation = surface(spec),
                         icon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
                         label = { Text(stringResource(R.string.transfer_new_code)) },

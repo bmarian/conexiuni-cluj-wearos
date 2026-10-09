@@ -53,13 +53,11 @@
     <string name="follow_channel">Autobuz urmărit</string>
     <string name="follow_arriving">Sosește în %1$s</string>
     <string name="follow_now">Sosește acum</string>
-    <string name="follow_ended">Autobuzul a plecat din %1$s.</string>
-    <string name="follow_no_bus">Nu mai sunt plecări de urmărit.</string>
     <string name="my_location">Locația mea</string>
+    <string name="save">Salvează</string>
     <string name="favorite_line">Linie favorită</string>
     <string name="favorite_stop">Stație favorită</string>
     <string name="open_map">Hartă</string>
-    <string name="follow_alerts_channel">Sosirea autobuzului</string>
     <string name="open_on_phone">Deschide pe telefon</string>
     <string name="phone_unreachable">Telefonul nu e conectat</string>
     <string name="journey_to">Spre %1$s</string>

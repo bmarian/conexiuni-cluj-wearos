@@ -1,20 +1,28 @@
 package online.bmarian.bus.presentation
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,7 +32,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,10 +52,15 @@ import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.ButtonGroup
+import androidx.wear.compose.material3.ButtonGroupScope
 import androidx.wear.compose.material3.CircularProgressIndicator
-import androidx.wear.compose.material3.FilledTonalButton
+import androidx.wear.compose.material3.FilledTonalIconButton
+import androidx.wear.compose.material3.IconButtonDefaults
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.ListHeader
+import androidx.wear.compose.material3.LocalContentColor
 import androidx.wear.compose.material3.ListSubHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
@@ -190,7 +207,7 @@ fun minutesUntil(atMs: Long, nowMs: Long): Int = ((atMs - nowMs + 30_000) / 60_0
 fun Countdown(atMs: Long, style: TextStyle, color: Color = Color.Unspecified) {
     rememberClock().value
     val minutes = minutesUntil(atMs, System.currentTimeMillis())
-    Text(etaText(minutes, LocalDateTime.now(CLUJ_ZONE)), style = style, color = color, maxLines = 1)
+    Ticker(etaText(minutes, LocalDateTime.now(CLUJ_ZONE)), style = style, color = color)
 }
 
 @Composable
@@ -205,25 +222,71 @@ fun Eta(minutes: Int, live: Boolean, now: LocalDateTime, style: TextStyle = Mate
     val color = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         if (live && arcs) RealtimeIcon(color, Modifier.padding(bottom = 2.dp))
-        Text(etaText(minutes, now), style = style, color = color, maxLines = 1)
+        Ticker(etaText(minutes, now), style = style, color = color)
     }
 }
 
+private val ACTION_HEIGHT = 48.dp
+
+/** A row of actions: the pressed one widens while its neighbours make room. */
 @Composable
-fun TransformingLazyColumnItemScope.ActionRow(spec: TransformationSpec, content: @Composable RowScope.() -> Unit) {
-    Row(contentModifier(spec), horizontalArrangement = Arrangement.spacedBy(6.dp), content = content)
+fun TransformingLazyColumnItemScope.ActionRow(spec: TransformationSpec, content: @Composable ButtonGroupScope.() -> Unit) {
+    ButtonGroup(contentModifier(spec), spacing = 6.dp, content = content)
 }
 
+/** Goes somewhere: an icon pill that squares up while pressed. */
 @Composable
-fun RowScope.PillAction(icon: ImageVector, description: String, onClick: () -> Unit, checked: Boolean = false) {
-    val tint = if (checked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
-    val content: @Composable RowScope.() -> Unit = {
-        Icon(icon, contentDescription = description, modifier = Modifier.fillMaxWidth(), tint = tint)
+fun ButtonGroupScope.PillAction(icon: ImageVector, description: String, onClick: () -> Unit, weight: Float = 1f) {
+    val interaction = remember { MutableInteractionSource() }
+    FilledTonalIconButton(
+        onClick = onClick,
+        modifier = Modifier.weight(weight).animateWidth(interaction).height(ACTION_HEIGHT),
+        shapes = IconButtonDefaults.animatedShapes(),
+        interactionSource = interaction,
+    ) {
+        Icon(icon, contentDescription = description)
     }
-    val modifier = Modifier.weight(1f)
-    if (checked) {
-        Button(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(0.dp), content = content)
-    } else {
-        FilledTonalButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(0.dp), content = content)
+}
+
+/** Keeps something on: fills with [color], tightens its corners and pops its icon when turned on. */
+@Composable
+fun ButtonGroupScope.ToggleAction(
+    icon: ImageVector,
+    label: String,
+    checked: Boolean,
+    onClick: () -> Unit,
+    color: Color = MaterialTheme.colorScheme.primary,
+    onColor: Color = MaterialTheme.colorScheme.onPrimary,
+    weight: Float = 1f,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val haptics = LocalHapticFeedback.current
+    val corner by animateDpAsState(
+        if (checked) 14.dp else ACTION_HEIGHT / 2,
+        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "corner",
+    )
+    Button(
+        onClick = {
+            haptics.performHapticFeedback(if (checked) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+            onClick()
+        },
+        modifier = Modifier.weight(weight).animateWidth(interaction).height(ACTION_HEIGHT).squish(interaction, 0.9f).semantics { selected = checked },
+        shape = RoundedCornerShape(corner),
+        colors = if (checked) ButtonDefaults.buttonColors(containerColor = color, contentColor = onColor, iconColor = onColor)
+        else ButtonDefaults.filledTonalButtonColors(),
+        contentPadding = PaddingValues(horizontal = 8.dp),
+        interactionSource = interaction,
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            PopIcon(icon, checked, Modifier.size(18.dp))
+            BasicText(
+                label,
+                Modifier.padding(start = 4.dp),
+                style = MaterialTheme.typography.labelMedium.copy(color = LocalContentColor.current),
+                maxLines = 1,
+                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelMedium.fontSize),
+            )
+        }
     }
 }

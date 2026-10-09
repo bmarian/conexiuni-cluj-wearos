@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -62,6 +64,8 @@ import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.presentation.ActionRow
 import online.bmarian.bus.presentation.Eta
 import online.bmarian.bus.presentation.PillAction
+import online.bmarian.bus.presentation.Ticker
+import online.bmarian.bus.presentation.ToggleAction
 import online.bmarian.bus.presentation.LineBadge
 import online.bmarian.bus.presentation.LineHeader
 import online.bmarian.bus.presentation.ListScreen
@@ -70,6 +74,7 @@ import online.bmarian.bus.presentation.LocalAmbient
 import online.bmarian.bus.presentation.Message
 import online.bmarian.bus.presentation.RealtimeIcon
 import online.bmarian.bus.presentation.Title
+import online.bmarian.bus.presentation.cascade
 import online.bmarian.bus.presentation.etaText
 import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
@@ -81,6 +86,7 @@ import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
 import online.bmarian.bus.presentation.rememberOpenOnPhone
+import online.bmarian.bus.presentation.squish
 import online.bmarian.bus.presentation.surface
 import online.bmarian.bus.presentation.theme.Palette
 import online.bmarian.bus.presentation.theme.routeColor
@@ -131,11 +137,14 @@ fun StopScreen(
         item {
             val favorite = vm.stopId in favoriteStops
             ActionRow(spec) {
-                PillAction(
+                ToggleAction(
                     if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    stringResource(R.string.favorite_stop),
+                    stringResource(R.string.save),
+                    favorite,
                     { Services.favorites.toggleStop(vm.stopId) },
-                    checked = favorite,
+                    color = Palette.Heart,
+                    onColor = Color.White,
+                    weight = 1.7f,
                 )
                 PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenMap)
                 PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
@@ -145,9 +154,11 @@ fun StopScreen(
             failed -> {
                 item { Message(stringResource(R.string.load_failed), spec) }
                 item {
+                    val press = remember { MutableInteractionSource() }
                     FilledTonalButton(
                         onClick = vm::load,
-                        modifier = itemModifier(spec),
+                        modifier = itemModifier(spec).squish(press),
+                        interactionSource = press,
                         transformation = surface(spec),
                         icon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
                         label = { Text(stringResource(R.string.retry)) },
@@ -160,9 +171,11 @@ fun StopScreen(
                 val departure = sorted[i]
                 val now = ui!!.now
                 val followed = following?.followed?.let { it.routeId == departure.routeId && it.tripId == departure.tripId && it.stopId == vm.stopId } == true
+                val press = remember { MutableInteractionSource() }
                 TitleCard(
                     onClick = { onOpenDeparture(departure) },
-                    modifier = itemModifier(spec),
+                    modifier = itemModifier(spec).squish(press).cascade(i, "list"),
+                    interactionSource = press,
                     transformation = surface(spec),
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -232,7 +245,7 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
                 val color = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (live) RealtimeIcon(color, size = 16.dp)
-                    Text(etaText(minutes, now), style = MaterialTheme.typography.numeralSmall, color = color)
+                    Ticker(etaText(minutes, now), style = MaterialTheme.typography.numeralSmall, color = color)
                 }
                 Text(
                     stringResource(if (live) R.string.live else R.string.scheduled),
@@ -244,18 +257,19 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
         item {
             val favorite = favoriteRoutes.any { it.routeId == routeId && it.direction == direction }
             ActionRow(spec) {
-                PillAction(
-                    Icons.Rounded.NotificationsActive,
-                    stringResource(if (isFollowing) R.string.stop_following else R.string.follow),
-                    onFollow,
-                    checked = isFollowing,
-                )
-                PillAction(
+                ToggleAction(Icons.Rounded.NotificationsActive, stringResource(R.string.follow), isFollowing, onFollow)
+                ToggleAction(
                     if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    stringResource(R.string.favorite_line),
+                    stringResource(R.string.save),
+                    favorite,
                     { Services.favorites.toggleRoute(routeId, direction) },
-                    checked = favorite,
+                    color = Palette.Heart,
+                    onColor = Color.White,
                 )
+            }
+        }
+        item {
+            ActionRow(spec) {
                 PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenRoute)
                 PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
             }

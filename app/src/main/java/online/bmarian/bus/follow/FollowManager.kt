@@ -33,6 +33,8 @@ data class FollowSync(
     val arrivalAt: Long? = null,
     // "left", "none" or "stopped" once over.
     val end: String? = null,
+    // Buzz for this update.
+    val alert: Boolean = false,
 )
 
 data class FollowState(
@@ -81,7 +83,7 @@ object FollowManager {
         if (sync.end != null) {
             if (current?.remote == true && current.id == sync.id) {
                 mutableState.value = null
-                Mirror.end(context, sync)
+                Mirror.clear(context)
             }
             return
         }
@@ -90,7 +92,7 @@ object FollowManager {
         }
         val state = FollowState(sync.followed, sync.minutes, sync.live, sync.later, sync.id, sync.arrivalAt, remote = true)
         mutableState.value = state
-        Mirror.show(context, state, current?.id != sync.id)
+        Mirror.show(context, state, sync.alert)
     }
 
     internal fun onRemoteStop(context: Context, id: String) {

@@ -1,5 +1,6 @@
 package online.bmarian.bus.presentation.home
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,8 +46,10 @@ import online.bmarian.bus.presentation.Loading
 import online.bmarian.bus.presentation.Message
 import online.bmarian.bus.presentation.SubHeader
 import online.bmarian.bus.presentation.Title
+import online.bmarian.bus.presentation.cascade
 import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
+import online.bmarian.bus.presentation.squish
 import online.bmarian.bus.presentation.surface
 import online.bmarian.bus.presentation.theme.routeColor
 
@@ -54,9 +58,11 @@ private const val SEARCH_LIMIT = 25
 private fun TransformingLazyColumnScope.stopItems(stops: List<Stop>, spec: TransformationSpec, onOpenStop: (Int) -> Unit) {
     items(stops.size, key = { "s-${stops[it].stopId}" }) { i ->
         val stop = stops[i]
+        val press = remember { MutableInteractionSource() }
         FilledTonalButton(
             onClick = { onOpenStop(stop.stopId) },
-            modifier = itemModifier(spec),
+            modifier = itemModifier(spec).squish(press).cascade(i, "list"),
+            interactionSource = press,
             transformation = surface(spec),
             icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
             label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
@@ -67,9 +73,11 @@ private fun TransformingLazyColumnScope.stopItems(stops: List<Stop>, spec: Trans
 private fun TransformingLazyColumnScope.routeItems(routes: List<Route>, spec: TransformationSpec, onOpenRoute: (Int) -> Unit) {
     items(routes.size, key = { "r-${routes[it].routeId}" }) { i ->
         val route = routes[i]
+        val press = remember { MutableInteractionSource() }
         FilledTonalButton(
             onClick = { onOpenRoute(route.routeId) },
-            modifier = itemModifier(spec),
+            modifier = itemModifier(spec).squish(press).cascade(i, "list"),
+            interactionSource = press,
             transformation = surface(spec),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -165,9 +173,11 @@ fun SearchScreen(query: String, onSearch: (String) -> Unit, onOpenRoute: (Int) -
     ListScreen { spec ->
         item { Title("“$query”", spec) }
         item {
+            val press = remember { MutableInteractionSource() }
             FilledTonalButton(
                 onClick = search,
-                modifier = itemModifier(spec),
+                modifier = itemModifier(spec).squish(press),
+                interactionSource = press,
                 transformation = surface(spec),
                 icon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 label = { Text(stringResource(R.string.search_again)) },

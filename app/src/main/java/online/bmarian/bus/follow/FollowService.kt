@@ -9,9 +9,6 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.wear.ongoing.OngoingActivity
@@ -44,9 +41,9 @@ import java.util.UUID
 import java.time.LocalDateTime
 
 private const val NOTIFICATION_ID = 7
-private const val ENDED_NOTIFICATION_ID = 8
 private const val FOLLOW_CHANNEL = "follow"
 private const val TICK_MS = 15_000L
+private const val LIVE_WAIT_MS = 6_000L
 private const val STOP_INFO_REFRESH_MS = 120_000L
 private const val SOON_MINUTES = 2
 private const val GIVE_UP_MS = 90 * 60_000L
@@ -94,10 +91,7 @@ class FollowService : Service() {
             .setStatus(status(followed, null, 0))
             .build()
             .also { it.apply(this) }
-        ServiceCompat.startForeground(
-            this, NOTIFICATION_ID, base.build(),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0,
-        )
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, base.build(), foregroundType())
         job?.cancel()
         job = scope.launch { track(followed, id) }
         return START_REDELIVER_INTENT
@@ -117,7 +111,8 @@ class FollowService : Service() {
         val startedAt = System.currentTimeMillis()
         val info = MutableStateFlow(repository.cachedStopInfo(followed.stopId)?.only(followed.routeId))
         val shapes = runCatching { repository.shapes(listOf(followed.tripId)) }.getOrDefault(emptyMap())
-        val vehicles = MutableStateFlow<Map<String, List<Vehicle>>>(emptyMap())
+        // Null until the first live snapshot, so a bus the timetable still shows as due isn't taken as arrived.
+        val vehicles = MutableStateFlow<Map<String, List<Vehicle>>?>(null)
         val clock = MutableStateFlow(startedAt)
 
         launch {
@@ -128,6 +123,10 @@ class FollowService : Service() {
         }
         launch { VehicleStream.vehicles(listOf(followed.tripId)).collect { vehicles.value = it } }
         launch {
+            delay(LIVE_WAIT_MS)
+            if (vehicles.value == null) vehicles.value = emptyMap()
+        }
+        launch {
             while (true) {
                 delay(TICK_MS)
                 clock.value = System.currentTimeMillis()
@@ -135,14 +134,14 @@ class FollowService : Service() {
         }
 
         val progress = Progress()
-        combine(info.filterNotNull(), vehicles, clock) { stop, buses, nowMs ->
+        combine(info.filterNotNull(), vehicles.filterNotNull(), clock) { stop, buses, nowMs ->
             withContext(Dispatchers.Default) {
                 val now = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), CLUJ_ZONE)
                 computeStopDepartures(stop, shapes, buses, now, nowMs)
                     .firstOrNull { it.routeId == followed.routeId && it.tripId == followed.tripId } to nowMs
             }
         }.collect { (departure, nowMs) ->
-            if (nowMs - startedAt > GIVE_UP_MS) return@collect end(followed, null, "stopped")
+            if (nowMs - startedAt > GIVE_UP_MS) return@collect end("stopped")
             update(followed, id, departure, nowMs, progress)
         }
     }
@@ -156,19 +155,21 @@ class FollowService : Service() {
     @SuppressLint("MissingPermission")
     private fun update(followed: Followed, id: String, departure: StopDeparture?, nowMs: Long, progress: Progress) {
         val first = departure?.nextTimes?.firstOrNull()
-        if (first == null) return end(followed, getString(R.string.follow_no_bus), "none")
+        if (first == null) return end("none")
         val minutes = first.minutes
-        if (progress.arrived && minutes > (progress.lastMinutes ?: 0) + 2) {
-            return end(followed, getString(R.string.follow_ended, followed.stopName), "left")
+        // A jump after the bus was close means it passed, even if no reading caught it at 0.
+        if (progress.buzzedSoon && minutes > (progress.lastMinutes ?: 0) + 2) {
+            return end("left")
         }
-        if (minutes <= SOON_MINUTES && !progress.buzzedSoon && minutes > 0) {
+        // Only changes after the first reading buzz: the user just asked.
+        val opening = progress.lastMinutes == null
+        if (minutes <= SOON_MINUTES && !progress.buzzedSoon) {
             progress.buzzedSoon = true
-            buzz(longArrayOf(0, 120, 120, 120))
+            if (!opening && minutes > 0) Buzz.play(this, Buzz.SOON)
         }
         if (minutes == 0 && !progress.arrived) {
             progress.arrived = true
-            progress.buzzedSoon = true
-            buzz(longArrayOf(0, 400, 150, 400, 150, 400))
+            if (!opening) Buzz.play(this, Buzz.NOW)
         }
         progress.lastMinutes = minutes
 
@@ -183,26 +184,17 @@ class FollowService : Service() {
         ongoing?.update(this, status(followed, minutes, arrival))
     }
 
-    @SuppressLint("MissingPermission")
-    private fun end(followed: Followed, message: String?, reason: String) {
+    private fun end(reason: String) {
         ended = true
         current?.let { PhoneLink.sendState(this, it.toSync(end = reason)) }
-        if (message != null) {
-            val done = NotificationCompat.Builder(this, FOLLOW_CHANNEL)
-                .setSmallIcon(R.drawable.ic_bus)
-                .setContentTitle("${followed.shortName} → ${followed.destination}")
-                .setContentText(message)
-                .setContentIntent(openApp(null))
-                .setAutoCancel(true)
-                .setTimeoutAfter(5 * 60_000L)
-                .build()
-            getSystemService(NotificationManager::class.java).notify(ENDED_NOTIFICATION_ID, done)
-        }
         if (FollowManager.state.value?.id == current?.id) FollowManager.mutableState.value = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
         job?.cancel()
     }
+
+    private fun foregroundType() =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
 
     private fun baseNotification(followed: Followed) = NotificationCompat.Builder(this, FOLLOW_CHANNEL)
         .setSmallIcon(R.drawable.ic_bus)
@@ -251,15 +243,6 @@ class FollowService : Service() {
         Intent(this, FollowService::class.java).setAction(ACTION_STOP),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
-
-    private fun buzz(pattern: LongArray) {
-        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            getSystemService(VibratorManager::class.java)?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION") getSystemService(Vibrator::class.java)
-        }
-        vibrator?.vibrate(VibrationEffect.createWaveform(pattern, -1))
-    }
 
     private fun createChannel() {
         val manager = getSystemService(NotificationManager::class.java)

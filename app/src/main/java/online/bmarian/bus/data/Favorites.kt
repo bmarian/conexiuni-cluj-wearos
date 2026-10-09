@@ -50,8 +50,8 @@ class Favorites(
 
     fun isStopFavorite(stopId: Int) = stopId in _stops.value
 
-    fun isRouteFavorite(routeId: Int, direction: String) =
-        _routes.value.any { it.routeId == routeId && it.direction == direction }
+    fun isRouteFavorite(routeId: Int, direction: String? = null) =
+        _routes.value.any { it.routeId == routeId && (direction == null || it.direction == direction) }
 
     @Synchronized
     fun toggleStop(stopId: Int) {

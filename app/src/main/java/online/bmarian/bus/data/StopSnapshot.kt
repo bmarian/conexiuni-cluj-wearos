@@ -25,7 +25,7 @@ suspend fun stopSnapshot(stopId: Int): StopSnapshot {
     }
     val favorites = Services.favorites
     val sorted = departures.sortedWith(
-        compareBy({ if (favorites.isRouteFavorite(it.routeId, directionFromTripId(it.tripId))) 0 else 1 }, { it.minutesLeft }),
+        compareBy({ if (favorites.isRouteFavorite(it.routeId)) 0 else 1 }, { it.minutesLeft }),
     )
     return StopSnapshot(stopId, info.name, sorted, nowMs)
 }

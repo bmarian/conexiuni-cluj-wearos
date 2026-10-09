@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import online.bmarian.bus.Services
 import online.bmarian.bus.presentation.AmbientTicks
+import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.ShapeInfo
 import online.bmarian.bus.data.Vehicle
 import online.bmarian.bus.data.VehicleStream
@@ -14,6 +15,7 @@ import online.bmarian.bus.logic.IndexedStop
 import online.bmarian.bus.logic.IndexedVehicle
 import online.bmarian.bus.logic.MarkedArrival
 import online.bmarian.bus.logic.directionShape
+import online.bmarian.bus.logic.haversineMeters
 import online.bmarian.bus.logic.indexVehicles
 import online.bmarian.bus.logic.routeStopArrivals
 import online.bmarian.bus.logic.stopsForDirection
@@ -45,6 +47,8 @@ class RouteViewModel(val routeId: Int, initialDirection: String, val fromStopId:
     private val repository = Services.repository
 
     val direction = MutableStateFlow(if (initialDirection == "1") "1" else "0")
+    private var wantsAuto = initialDirection == "auto"
+    private var here: Fix? = null
     val shapeInfo = MutableStateFlow<ShapeInfo?>(null)
     val failed = MutableStateFlow(false)
 
@@ -94,6 +98,7 @@ class RouteViewModel(val routeId: Int, initialDirection: String, val fromStopId:
         val ids = listOf("0", "1").map { it to tripIdFor(routeId, it) }
         val loaded = runCatching { repository.shapes(ids.map { it.second }) }.getOrDefault(emptyMap())
         shapeInfo.value = info
+        if (wantsAuto) pickNearest(info)
         if (loaded.isNotEmpty() || shapes.value.isEmpty()) {
             shapes.value = ids.mapNotNull { (dir, tripId) ->
                 directionShape(info, tripId, loaded[tripId].orEmpty())?.let { dir to it }
@@ -101,10 +106,28 @@ class RouteViewModel(val routeId: Int, initialDirection: String, val fromStopId:
         }
     }
 
+    /** For "auto": the direction with the stop nearest to [fix], once both are known. */
+    fun locate(fix: Fix) {
+        if (!wantsAuto) return
+        here = fix
+        shapeInfo.value?.let(::pickNearest)
+    }
+
+    private fun pickNearest(info: ShapeInfo) {
+        val fix = here ?: return
+        val byTrip = mapOf(tripIdFor(routeId, "0") to "0", tripIdFor(routeId, "1") to "1")
+        val nearest = info.stopTimes
+            .filter { it.tripId in byTrip && it.lat != 0.0 }
+            .minByOrNull { haversineMeters(fix.lat, fix.lon, it.lat, it.lon) } ?: return
+        wantsAuto = false
+        direction.value = byTrip.getValue(nearest.tripId)
+    }
+
     fun hasDirection(dir: String): Boolean =
         shapeInfo.value?.stopTimes?.any { it.tripId == tripIdFor(routeId, dir) } == true
 
     fun swap() {
+        wantsAuto = false
         direction.value = if (direction.value == "0") "1" else "0"
     }
 

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.view.inputmethod.EditorInfo
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -52,6 +53,7 @@ import kotlinx.coroutines.flow.collectLatest
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.stopSnapshot
+import online.bmarian.bus.data.bothWays
 import online.bmarian.bus.data.terminalName
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.JourneyMirror
@@ -67,8 +69,10 @@ import online.bmarian.bus.presentation.ListScreen
 import online.bmarian.bus.presentation.Message
 import online.bmarian.bus.presentation.SubHeader
 import online.bmarian.bus.presentation.Title
+import online.bmarian.bus.presentation.cascade
 import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
+import online.bmarian.bus.presentation.squish
 import online.bmarian.bus.presentation.surface
 import java.time.Instant
 import java.time.LocalDateTime
@@ -131,16 +135,23 @@ fun HomeScreen(
     }
     val favoriteRouteRows = remember(routes, favoriteRoutes) {
         val byId = routes.associateBy { it.routeId }
-        favoriteRoutes.mapNotNull { fav -> byId[fav.routeId]?.let { Triple(it, fav.direction, terminalName(it.longName, fav.direction)) } }
+        // Both directions saved: one row that opens the direction nearest the user.
+        favoriteRoutes.groupBy { it.routeId }.mapNotNull { (routeId, favorites) ->
+            val route = byId[routeId] ?: return@mapNotNull null
+            if (favorites.size > 1) Triple(route, "auto", bothWays(route.longName))
+            else Triple(route, favorites[0].direction, "→\u00A0" + terminalName(route.longName, favorites[0].direction))
+        }
     }
 
     ListScreen(state = state) { spec ->
         item { Title(stringResource(R.string.app_name), spec) }
         journey?.let { trip ->
             item {
+                val press = remember { MutableInteractionSource() }
                 Card(
                     onClick = onOpenJourney,
-                    modifier = itemModifier(spec),
+                    modifier = itemModifier(spec).squish(press),
+                    interactionSource = press,
                     transformation = surface(spec),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -178,9 +189,11 @@ fun HomeScreen(
         }
         following?.let { follow ->
             item {
+                val press = remember { MutableInteractionSource() }
                 Card(
                     onClick = onOpenFollowed,
-                    modifier = itemModifier(spec),
+                    modifier = itemModifier(spec).squish(press),
+                    interactionSource = press,
                     transformation = surface(spec),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -219,51 +232,61 @@ fun HomeScreen(
         }
         items(favoriteStops.size, key = { "fs-${favoriteStops[it].stopId}" }) { i ->
             val stop = favoriteStops[i]
+            val press = remember { MutableInteractionSource() }
             FilledTonalButton(
                 onClick = { onOpenStop(stop.stopId) },
-                modifier = itemModifier(spec),
+                modifier = itemModifier(spec).squish(press).cascade(i, "list"),
+                interactionSource = press,
                 transformation = surface(spec),
                 icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
                 label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
             )
         }
         items(favoriteRouteRows.size, key = { "fr-${favoriteRouteRows[it].first.routeId}-${favoriteRouteRows[it].second}" }) { i ->
-            val (route, direction, destination) = favoriteRouteRows[i]
+            val (route, direction, label) = favoriteRouteRows[i]
+            val press = remember { MutableInteractionSource() }
             FilledTonalButton(
                 onClick = { onOpenRoute(route.routeId, direction) },
-                modifier = itemModifier(spec),
+                modifier = itemModifier(spec).squish(press).cascade(i, "list"),
+                interactionSource = press,
                 transformation = surface(spec),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LineBadge(route.shortName, route.color)
-                    Text("→\u00A0$destination", maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(label, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
 
         item { SubHeader(stringResource(R.string.explore), spec) }
         item {
+            val press = remember { MutableInteractionSource() }
             FilledTonalButton(
                 onClick = onBrowseRoutes,
-                modifier = itemModifier(spec),
+                modifier = itemModifier(spec).squish(press),
+                interactionSource = press,
                 transformation = surface(spec),
                 icon = { Icon(Icons.Rounded.DirectionsBus, contentDescription = null) },
                 label = { Text(stringResource(R.string.all_routes)) },
             )
         }
         item {
+            val press = remember { MutableInteractionSource() }
             FilledTonalButton(
                 onClick = onBrowseStops,
-                modifier = itemModifier(spec),
+                modifier = itemModifier(spec).squish(press),
+                interactionSource = press,
                 transformation = surface(spec),
                 icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
                 label = { Text(stringResource(R.string.all_stops)) },
             )
         }
         item {
+            val press = remember { MutableInteractionSource() }
             FilledTonalButton(
                 onClick = onCopyFavorites,
-                modifier = itemModifier(spec),
+                modifier = itemModifier(spec).squish(press),
+                interactionSource = press,
                 transformation = surface(spec),
                 icon = { Icon(Icons.Rounded.QrCode2, contentDescription = null) },
                 label = { Text(stringResource(R.string.copy_favorites)) },

@@ -120,6 +120,11 @@ fun directionFromTripId(tripId: String): String = if (tripId.endsWith(INCOMING_S
 fun tripIdFor(routeId: Int, direction: String): String =
     "$routeId${if (direction == "1") INCOMING_SUFFIX else OUTGOING_SUFFIX}"
 
+fun bothWays(routeLongName: String): String {
+    val i = routeLongName.lastIndexOf(" - ")
+    return if (i < 0) routeLongName else routeLongName.substring(0, i) + " ⇄ " + routeLongName.substring(i + 3)
+}
+
 fun terminalName(routeLongName: String, direction: String): String {
     val i = routeLongName.lastIndexOf(" - ")
     if (i < 0) return routeLongName

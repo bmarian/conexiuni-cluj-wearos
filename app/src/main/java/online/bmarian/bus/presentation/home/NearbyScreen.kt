@@ -3,6 +3,7 @@ package online.bmarian.bus.presentation.home
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -46,6 +47,7 @@ import online.bmarian.bus.presentation.Loading
 import online.bmarian.bus.presentation.LocalAmbient
 import online.bmarian.bus.presentation.Message
 import online.bmarian.bus.presentation.Title
+import online.bmarian.bus.presentation.cascade
 import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
 import online.bmarian.bus.presentation.map.MapFrame
@@ -54,6 +56,7 @@ import online.bmarian.bus.presentation.map.MapStop
 import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
+import online.bmarian.bus.presentation.squish
 import online.bmarian.bus.presentation.stop.MapChip
 import online.bmarian.bus.presentation.surface
 import online.bmarian.bus.presentation.theme.Palette
@@ -123,9 +126,11 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit, onOpenMap: () -> Unit) {
                 if (nearby.isEmpty()) item { Message(stringResource(R.string.nearby_none), spec) }
                 items(nearby.size, key = { nearby[it].first.stopId }) { i ->
                     val (stop, meters) = nearby[i]
+                    val press = remember { MutableInteractionSource() }
                     FilledTonalButton(
                         onClick = { onOpenStop(stop.stopId) },
-                        modifier = itemModifier(spec),
+                        modifier = itemModifier(spec).squish(press).cascade(i, "list"),
+                        interactionSource = press,
                         transformation = surface(spec),
                         icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
                         label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
@@ -139,9 +144,11 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit, onOpenMap: () -> Unit) {
             else -> {
                 item { Message(stringResource(R.string.nearby_unavailable), spec) }
                 item {
+                    val press = remember { MutableInteractionSource() }
                     FilledTonalButton(
                         onClick = { if (permitted) gaveUp = false else launcher.launch(LOCATION_PERMISSIONS) },
-                        modifier = itemModifier(spec),
+                        modifier = itemModifier(spec).squish(press),
+                        interactionSource = press,
                         transformation = surface(spec),
                         icon = { Icon(Icons.Rounded.MyLocation, contentDescription = null) },
                         label = { Text(stringResource(R.string.nearby_enable)) },
