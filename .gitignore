@@ -16,3 +16,8 @@ local.properties
 keystore.properties
 *.jks
 *.keystore
+
+/app/release/
+*.apk
+*.aab
+/app/src/*/generated/baselineProfiles/
