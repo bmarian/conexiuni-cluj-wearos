@@ -18,7 +18,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +34,6 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.UserLocation
@@ -54,8 +52,6 @@ import online.bmarian.bus.presentation.map.MapFrame
 import online.bmarian.bus.presentation.map.MapLabel
 import online.bmarian.bus.presentation.map.MapStop
 import online.bmarian.bus.presentation.map.TransitMap
-import online.bmarian.bus.presentation.map.mercatorX
-import online.bmarian.bus.presentation.map.mercatorY
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
 import online.bmarian.bus.presentation.stop.MapChip
@@ -159,7 +155,7 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit, onOpenMap: () -> Unit) {
     }
 }
 
-private const val NEARBY_MAP_ZOOM = 15.5f
+private const val NEARBY_MAP_ZOOM = 13.5f
 
 /** The same stops as the list, on the map with their names; a tap opens one. */
 @Composable
@@ -169,7 +165,6 @@ fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
     val live by rememberUserLocation()
     var here by remember { mutableStateOf(UserLocation.saved(context)) }
     val camera = rememberMapCamera()
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(live) {
         val fix = live ?: return@LaunchedEffect
@@ -195,15 +190,13 @@ fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
                 camera = camera,
                 // All six stops and you in view, as close in as that allows.
                 frame = center?.takeIf { stops.isNotEmpty() }?.let { here ->
-                    MapFrame.Fit(around.map { (stop, _) -> stop.lat to stop.lon } + (here.lat to here.lon), side = 0.22, top = 0.3, bottom = 0.34)
+                    MapFrame.Fit(around.map { (stop, _) -> stop.lat to stop.lon } + (here.lat to here.lon), side = 0.22, top = 0.38, bottom = 0.34)
                 },
                 stops = around.map { (stop, _) -> MapStop("${stop.stopId}", stop.lat, stop.lon, Palette.StopGray) },
-                // Nearest first, so those are the names that win when labels collide.
+                // Nearest first, drawn on top where two names meet.
                 labels = around.mapIndexed { i, (stop, _) -> MapLabel("${stop.stopId}", stop.lat, stop.lon, stop.name, live = false, rank = i) },
                 me = live,
                 ambient = LocalAmbient.current,
-                clearTop = 62.dp,
-                clearBottom = 70.dp,
                 onStopTap = { id -> id.toIntOrNull()?.let(onOpenStop) },
             )
             MapChip(Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
@@ -216,12 +209,7 @@ fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
             }
             live?.let { fix ->
                 FilledTonalIconButton(
-                    onClick = {
-                        camera.x = mercatorX(fix.lon)
-                        camera.y = mercatorY(fix.lat)
-                        camera.targetZoom = NEARBY_MAP_ZOOM
-                        scope.launch { camera.zoom.animateTo(NEARBY_MAP_ZOOM) }
-                    },
+                    onClick = { camera.centerOn(fix.lat, fix.lon, NEARBY_MAP_ZOOM) },
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 22.dp).size(44.dp),
                 ) {
                     Icon(Icons.Rounded.MyLocation, contentDescription = stringResource(R.string.my_location))

@@ -16,7 +16,11 @@ import kotlinx.serialization.json.intOrNull
 data class FavoriteRoute(val routeId: Int, val direction: String)
 
 // Same shapes as favorites:routes and favorites:stops on the web, so an export reads the same.
-class Favorites(context: Context) {
+// Every change made here goes to [onChange] as well, to be sent to the phone.
+class Favorites(
+    context: Context,
+    private val onChange: (stops: List<Int>, routes: List<FavoriteRoute>, updatedAt: Long) -> Unit = { _, _, _ -> },
+) {
     private val prefs = context.getSharedPreferences("favorites", Context.MODE_PRIVATE)
 
     private val _routes = MutableStateFlow(parseFavoriteRoutes(read("routes")))
@@ -27,6 +31,11 @@ class Favorites(context: Context) {
     private fun read(key: String): JsonElement? =
         prefs.getString(key, null)?.let { runCatching { Api.json.parseToJsonElement(it) }.getOrNull() }
 
+    // When the lists last matched what this device sent the phone, or took from it.
+    private var syncedAt: Long
+        get() = prefs.getLong("syncedAt", 0)
+        set(value) = prefs.edit { putLong("syncedAt", value) }
+
     private fun persist() {
         prefs.edit {
             putString("routes", Api.json.encodeToString(_routes.value))
@@ -34,27 +43,48 @@ class Favorites(context: Context) {
         }
     }
 
+    // Changed here: saved, and sent to the phone as the newest copy.
+    private fun changed() {
+        persist()
+        val now = System.currentTimeMillis()
+        syncedAt = now
+        onChange(_stops.value, _routes.value, now)
+    }
+
     fun isStopFavorite(stopId: Int) = stopId in _stops.value
 
     fun isRouteFavorite(routeId: Int, direction: String) =
         _routes.value.any { it.routeId == routeId && it.direction == direction }
 
+    @Synchronized
     fun toggleStop(stopId: Int) {
         _stops.value = if (stopId in _stops.value) _stops.value - stopId else _stops.value + stopId
-        persist()
+        changed()
     }
 
+    @Synchronized
     fun toggleRoute(routeId: Int, direction: String) {
         val fav = FavoriteRoute(routeId, direction)
         _routes.value = if (fav in _routes.value) _routes.value - fav else _routes.value + fav
-        persist()
+        changed()
     }
 
     /** Replaces both lists with what another device sent, like importAll on the web. */
+    @Synchronized
     fun import(favorites: JsonObject) {
         _routes.value = parseFavoriteRoutes(favorites["routes"])
         _stops.value = parseStopIds(favorites["stops"])
+        changed()
+    }
+
+    /** The phone's copy, taken as it is if it is newer than this one, and not sent back. */
+    @Synchronized
+    fun takeRemote(stops: List<Int>, routes: List<FavoriteRoute>, updatedAt: Long) {
+        if (updatedAt <= syncedAt) return
+        _stops.value = stops
+        _routes.value = routes
         persist()
+        syncedAt = updatedAt
     }
 
     companion object {

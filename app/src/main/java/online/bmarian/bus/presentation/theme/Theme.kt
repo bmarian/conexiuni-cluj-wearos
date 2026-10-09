@@ -1,10 +1,13 @@
 package online.bmarian.bus.presentation.theme
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.graphics.toColorInt
 import androidx.wear.compose.material3.ColorScheme
 import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.dynamicColorScheme
 
 // Map-only colours: the map draws on its own dark tiles.
 object Palette {
@@ -49,7 +52,10 @@ private val BrandColors = ColorScheme(
 fun routeColor(hex: String): Color =
     runCatching { Color(hex.toColorInt()) }.getOrDefault(Palette.StopGray)
 
+/** The watch's own Material You colours when it has them, the app's emerald otherwise. */
 @Composable
 fun ConexiuniClujWearOSTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = BrandColors, content = content)
+    val context = LocalContext.current
+    val scheme = remember(context) { dynamicColorScheme(context) ?: BrandColors }
+    MaterialTheme(colorScheme = scheme, content = content)
 }

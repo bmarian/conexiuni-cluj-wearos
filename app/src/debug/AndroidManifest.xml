@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Debug builds only: phone messages relayed by the phone project's tools/wear-relay.py. -->
+        <receiver
+            android:name=".follow.DebugWearReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="online.bmarian.bus.DEBUG_WEAR" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

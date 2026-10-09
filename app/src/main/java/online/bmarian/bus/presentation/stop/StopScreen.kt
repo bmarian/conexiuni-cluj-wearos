@@ -22,12 +22,12 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,7 +52,7 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.TitleCard
-import kotlinx.coroutines.launch
+import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.directionFromTripId
@@ -78,18 +78,17 @@ import online.bmarian.bus.presentation.map.MapLine
 import online.bmarian.bus.presentation.map.MapStop
 import online.bmarian.bus.presentation.map.MapVehicle
 import online.bmarian.bus.presentation.map.TransitMap
-import online.bmarian.bus.presentation.map.mercatorX
-import online.bmarian.bus.presentation.map.mercatorY
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
+import online.bmarian.bus.presentation.rememberOpenOnPhone
 import online.bmarian.bus.presentation.surface
 import online.bmarian.bus.presentation.theme.Palette
 import online.bmarian.bus.presentation.theme.routeColor
 import java.time.LocalDateTime
 
 // Far enough out to see the buses that are a few minutes away.
-private const val STOP_MAP_ZOOM = 15f
-private const val ME_ZOOM = 16f
+private const val STOP_MAP_ZOOM = 13f
+private const val ME_ZOOM = 14f
 
 @Composable
 fun stopViewModel(stopId: Int): StopViewModel = viewModel(key = "stop-$stopId") { StopViewModel(stopId) }
@@ -122,6 +121,7 @@ fun StopScreen(
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
     val following by FollowManager.state.collectAsStateWithLifecycle()
+    val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
 
     val sorted = remember(ui, favoriteRoutes) {
         ui?.departures?.sortedWith(compareBy({ if (vm.isDepartureFavorite(it)) 0 else 1 }, { it.minutesLeft }))
@@ -139,6 +139,7 @@ fun StopScreen(
                     checked = favorite,
                 )
                 PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenMap)
+                PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
             }
         }
         when {
@@ -194,6 +195,8 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
     val departure = ui?.departures?.firstOrNull { it.routeId == routeId && it.tripId == tripId }
     val direction = directionFromTripId(tripId)
     val isFollowing = following?.followed?.let { it.stopId == vm.stopId && it.routeId == routeId && it.tripId == tripId } == true
+    // The phone app has no page for one departure; its stop lists it.
+    val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
 
     fun follow() {
         val d = departure ?: return
@@ -258,6 +261,7 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
                     checked = favorite,
                 )
                 PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenRoute)
+                PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
             }
         }
         item {
@@ -294,7 +298,6 @@ fun StopMapScreen(vm: StopViewModel) {
     val layer by vm.mapLayer.collectAsStateWithLifecycle()
     val me by rememberUserLocation()
     val camera = rememberMapCamera()
-    val scope = rememberCoroutineScope()
     val frame = location?.let { MapFrame.Focus(it.first, it.second, STOP_MAP_ZOOM) }
     ScreenScaffold {
         Box(Modifier.fillMaxSize()) {
@@ -306,8 +309,6 @@ fun StopMapScreen(vm: StopViewModel) {
                 vehicles = layer.vehicles.map { MapVehicle(it.id, it.lat, it.lon, it.name, routeColor(it.color), it.heading) },
                 me = me,
                 ambient = LocalAmbient.current,
-                clearTop = 62.dp,
-                clearBottom = 68.dp,
             )
             name?.let {
                 MapChip(Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
@@ -316,12 +317,7 @@ fun StopMapScreen(vm: StopViewModel) {
             }
             me?.let { fix ->
                 FilledTonalIconButton(
-                    onClick = {
-                        camera.x = mercatorX(fix.lon)
-                        camera.y = mercatorY(fix.lat)
-                        camera.targetZoom = ME_ZOOM
-                        scope.launch { camera.zoom.animateTo(ME_ZOOM) }
-                    },
+                    onClick = { camera.centerOn(fix.lat, fix.lon, ME_ZOOM) },
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
                 ) {
                     Icon(Icons.Rounded.MyLocation, contentDescription = stringResource(R.string.my_location))

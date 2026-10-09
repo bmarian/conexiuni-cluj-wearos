@@ -7,7 +7,9 @@ import android.os.Build
 import android.os.LocaleList
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Favorites
+import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.data.Repository
+import online.bmarian.bus.surfaces.updateSurfacesOnChange
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,8 +32,11 @@ object Services {
     fun init(app: Application) {
         Api.init(app)
         repository = Repository(app)
-        favorites = Favorites(app)
+        favorites = Favorites(app) { stops, routes, updatedAt -> FavoritesSync.publish(app, stops, routes, updatedAt) }
         scope.launch { repository.loadCached() }
+        // Favorites changed on the phone while the app wasn't running.
+        FavoritesSync.pull(app)
+        scope.launch { updateSurfacesOnChange(app) }
     }
 
     fun setLanguage(context: Context, tag: String) {

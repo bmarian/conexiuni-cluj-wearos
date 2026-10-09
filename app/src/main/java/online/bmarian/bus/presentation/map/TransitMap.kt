@@ -1,129 +1,172 @@
 package online.bmarian.bus.presentation.map
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.RectF
+import android.location.Location
+import android.view.MotionEvent
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.vector.PathParser
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
+import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.UserLocation
-import online.bmarian.bus.presentation.Glyphs
-import online.bmarian.bus.presentation.theme.Palette
-import kotlinx.coroutines.launch
-import kotlin.math.PI
-import kotlin.math.floor
-import kotlin.math.ln
-import kotlin.math.log2
-import kotlin.math.max
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.location.LocationComponentActivationOptions
+import org.maplibre.android.location.LocationComponentOptions
+import org.maplibre.android.location.OnCameraTrackingChangedListener
+import org.maplibre.android.location.modes.CameraMode
+import org.maplibre.android.location.modes.RenderMode
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapLibreMapOptions
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
+import org.maplibre.android.module.http.HttpRequestUtil
+import org.maplibre.android.offline.OfflineManager
+import org.maplibre.android.style.expressions.Expression.eq
+import org.maplibre.android.style.expressions.Expression.get
+import org.maplibre.android.style.expressions.Expression.literal
+import org.maplibre.android.style.expressions.Expression.toColor
+import org.maplibre.android.style.layers.Layer
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap
+import org.maplibre.android.style.layers.PropertyFactory.iconAnchor
+import org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement
+import org.maplibre.android.style.layers.PropertyFactory.iconImage
+import org.maplibre.android.style.layers.PropertyFactory.iconRotate
+import org.maplibre.android.style.layers.PropertyFactory.iconRotationAlignment
+import org.maplibre.android.style.layers.PropertyFactory.iconTranslate
+import org.maplibre.android.style.layers.PropertyFactory.iconTranslateAnchor
+import org.maplibre.android.style.layers.PropertyFactory.lineCap
+import org.maplibre.android.style.layers.PropertyFactory.lineColor
+import org.maplibre.android.style.layers.PropertyFactory.lineDasharray
+import org.maplibre.android.style.layers.PropertyFactory.lineJoin
+import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
+import org.maplibre.android.style.layers.PropertyFactory.lineWidth
+import org.maplibre.android.style.layers.PropertyFactory.symbolSortKey
+import org.maplibre.android.style.layers.PropertyFactory.visibility
+import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.geojson.Feature
+import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.LineString
+import org.maplibre.geojson.Point
 import kotlin.math.min
-import kotlin.math.pow
-import kotlin.math.roundToInt
 import kotlin.math.sign
-import kotlin.math.tan
 
-private const val MIN_ZOOM = 10f
-private const val MAX_ZOOM = 18f
-private const val MAX_TILE_ZOOM = 18
-// One bezel click. The website zoomed a whole level per click, which jumps too far.
-private const val ZOOM_PER_DETENT = 0.5f
+// MapLibre's zoom levels: two below the old canvas map's, which counted 128 dp tiles.
+private const val MIN_ZOOM = 8.0
+private const val MAX_ZOOM = 17.0
 // Fitted routes stop here, like the website's watch map.
-private const val FIT_MAX_ZOOM = 16f
-private const val FIT_SNAP = 0.25f
-// A 256 px web tile on the 412 px wide watch browser is about 62% of the screen.
-private val TILE_SIZE = 128.dp
+private const val FIT_MAX_ZOOM = 14.0
+// One bezel click. The website zoomed a whole level per click, which jumps too far.
+private const val ZOOM_PER_DETENT = 0.5
 // A finger is wider than a stop marker.
 private val TAP_REACH = 22.dp
+// Following you, the top this share of the screen is kept for the way ahead.
+private const val FOLLOW_TOP_SHARE = 0.25
 // Same width as Wear's own edge swipe-to-dismiss zone.
 private val BACK_EDGE = 30.dp
+private val CLUJ_CENTER = LatLng(46.7712, 23.6236)
 
-private val CLUJ_CENTER = 46.7712 to 23.6236
-private const val EARTH_CIRCUMFERENCE_M = 40_075_016.686
-private val ME_BLUE = Color(0xFF3B82F6)
+private var started = false
 
-fun mercatorX(lon: Double) = (lon + 180.0) / 360.0
-fun mercatorY(lat: Double): Double {
-    val rad = Math.toRadians(lat)
-    return (1.0 - ln(tan(rad) + 1.0 / kotlin.math.cos(rad)) / PI) / 2.0
+/** MapLibre on the app's own HTTP client, with a tile cache a watch can spare. */
+private fun startMapLibre(context: Context) {
+    if (started) return
+    started = true
+    val app = context.applicationContext
+    MapLibre.getInstance(app)
+    // The app's client without its HTTP cache: MapLibre keeps tiles in its own.
+    HttpRequestUtil.setOkHttpClient(Api.client.newBuilder().cache(null).build())
+    OfflineManager.getInstance(app).setMaximumAmbientCacheSize(40L * 1024 * 1024, null)
 }
 
-class MapLine(val points: List<Pair<Double, Double>>, val color: Color)
+/** A route or, [dotted], a walk. */
+class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false)
 class MapStop(val id: String, val lat: Double, val lon: Double, val color: Color, val selected: Boolean = false)
 class MapLabel(val id: String, val lat: Double, val lon: Double, val text: String, val live: Boolean, val rank: Int)
 class MapVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: Color, val heading: Double)
 
+/** Following you the way Maps navigation does: close in, tilted, turned the way you go. */
+data class MapFollow(val zoom: Double, val tilt: Double)
+
 sealed interface MapFrame {
-    // Margins are shares of the screen: room for the screen's chips, buttons and labels.
+    // Margins are shares of the screen: room for the title chip with the times standing above
+    // the stops under it, the buttons, and the round screen's edge.
     class Fit(
         val points: List<Pair<Double, Double>>,
-        val side: Double = 0.12,
-        val top: Double = 0.2,
-        val bottom: Double = 0.24,
+        val side: Double = 0.14,
+        val top: Double = 0.38,
+        val bottom: Double = 0.32,
     ) : MapFrame
     class Focus(val lat: Double, val lon: Double, val zoom: Float) : MapFrame
 }
 
+/**
+ * Where a screen's map looks. It outlives the map view, so a map that comes back (the line's
+ * timetable and back) opens where it was left.
+ */
 @Stable
 class MapCamera {
-    var x by mutableDoubleStateOf(mercatorX(CLUJ_CENTER.second))
-    var y by mutableDoubleStateOf(mercatorY(CLUJ_CENTER.first))
-    val zoom = Animatable(13f)
+    internal var map: MapLibreMap? = null
+    internal var position: CameraPosition? = null
+    private var pending: CameraPosition? = null
     var framed by mutableStateOf(false)
-    var targetZoom = 13f
+
+    /** Flies to a place, now or as soon as the map is there. */
+    fun centerOn(lat: Double, lon: Double, zoom: Float) {
+        val target = CameraPosition.Builder().target(LatLng(lat, lon)).zoom(zoom.toDouble()).build()
+        val m = map
+        if (m == null) pending = target else m.animateCamera(CameraUpdateFactory.newCameraPosition(target), 500)
+    }
+
+    internal fun attach(m: MapLibreMap) {
+        map = m
+        pending?.let { m.moveCamera(CameraUpdateFactory.newCameraPosition(it)) }
+        pending = null
+        m.addOnCameraIdleListener { position = m.cameraPosition }
+    }
 }
 
 @Composable
 fun rememberMapCamera() = remember { MapCamera() }
 
-private class Projected(val x: Double, val y: Double)
-
+/**
+ * The phone app's map on the watch: OpenFreeMap's dark streets drawn by MapLibre, with routes,
+ * walks (dotted), stops, buses, you and the times above the stops, which always show. Drag and
+ * pinch to move it, the crown zooms, a swipe from the left edge goes back.
+ */
 @Composable
 fun TransitMap(
     camera: MapCamera,
@@ -136,352 +179,408 @@ fun TransitMap(
     me: Fix? = null,
     ambient: Boolean = false,
     onStopTap: ((String) -> Unit)? = null,
-    // Where the screen's own chips and buttons sit over the map, so no label goes under them.
-    clearTop: Dp = 0.dp,
-    clearBottom: Dp = 0.dp,
+    // Off when something else over the map takes the drags; the crown still zooms.
+    interactive: Boolean = true,
+    // Follows [me] while set; moving the map by hand lets go and calls [onFollowLost].
+    follow: MapFollow? = null,
+    onFollowLost: (() -> Unit)? = null,
 ) {
-    val currentStops by rememberUpdatedState(stops)
-    val currentOnStopTap by rememberUpdatedState(onStopTap)
+    val context = LocalContext.current
     val density = LocalDensity.current
-    val tilePx = with(density) { TILE_SIZE.toPx() }
-    val scope = rememberCoroutineScope()
-    var size by remember { mutableStateOf(IntSize.Zero) }
-    val measurer = rememberTextMeasurer()
-    val tileVersion by TileLoader.version
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val currentOnStopTap by rememberUpdatedState(onStopTap)
+    val currentOnFollowLost by rememberUpdatedState(onFollowLost)
+    var session by remember { mutableStateOf<MapSession?>(null) }
 
-    fun worldSize(zoom: Float) = tilePx * 2.0.pow(zoom.toDouble())
+    val host = remember {
+        startMapLibre(context)
+        val start = camera.position ?: CameraPosition.Builder().target(CLUJ_CENTER).zoom(11.0).build()
+        val options = MapLibreMapOptions.createFromAttributes(context)
+            .camera(start)
+            .minZoomPreference(MIN_ZOOM)
+            .maxZoomPreference(MAX_ZOOM)
+            .attributionEnabled(false)
+            .logoEnabled(false)
+            .compassEnabled(false)
+            .tiltGesturesEnabled(false)
+            .rotateGesturesEnabled(false)
+            .foregroundLoadColor(0xFF0C0C0C.toInt())
+        MapHost(context, MapView(context, options).also { it.onCreate(null) })
+    }
+    host.edgePx = with(density) { BACK_EDGE.toPx() }
+    host.interactive = interactive
 
-    fun zoomTo(target: Float) {
-        camera.targetZoom = target.coerceIn(MIN_ZOOM, MAX_ZOOM)
-        scope.launch { camera.zoom.animateTo(camera.targetZoom, tween(180)) }
+    DisposableEffect(lifecycle, host) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> host.map.onStart()
+                Lifecycle.Event.ON_RESUME -> host.map.onResume()
+                Lifecycle.Event.ON_PAUSE -> host.map.onPause()
+                Lifecycle.Event.ON_STOP -> host.map.onStop()
+                else -> {}
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) host.map.onPause()
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) host.map.onStop()
+            camera.map = null
+            host.map.onDestroy()
+        }
     }
 
-    LaunchedEffect(frame, size) {
-        if (camera.framed || frame == null || size == IntSize.Zero) return@LaunchedEffect
-        when (frame) {
-            is MapFrame.Focus -> {
-                camera.x = mercatorX(frame.lon)
-                camera.y = mercatorY(frame.lat)
-                camera.targetZoom = frame.zoom
-                camera.zoom.snapTo(frame.zoom)
-                camera.framed = true
+    DisposableEffect(host) {
+        host.map.getMapAsync { map ->
+            map.setLatLngBoundsForCameraTarget(LatLngBounds.from(47.5, 24.27, 46.38, 22.75))
+            map.setStyle(Style.Builder().fromJson(darkStyle(context))) { style ->
+                val created = MapSession(context, map, style) { currentOnFollowLost?.invoke() }
+                map.addOnMapClickListener { latLng ->
+                    val tap = currentOnStopTap ?: return@addOnMapClickListener false
+                    val id = created.stopAt(map.projection.toScreenLocation(latLng), with(density) { TAP_REACH.toPx() })
+                        ?: return@addOnMapClickListener false
+                    tap(id)
+                    true
+                }
+                camera.attach(map)
+                session = created
             }
+        }
+        onDispose {}
+    }
+
+    LaunchedEffect(session, lines) { session?.setLines(lines) }
+    LaunchedEffect(session, stops) { session?.setStops(stops) }
+    LaunchedEffect(session, labels) { session?.setLabels(labels) }
+    LaunchedEffect(session, vehicles) { session?.setVehicles(vehicles) }
+    LaunchedEffect(session, me) { session?.setMe(me) }
+    LaunchedEffect(session, follow) { session?.setFollow(follow) }
+    LaunchedEffect(session, ambient) {
+        session?.setAmbient(ambient)
+        host.setBackgroundColor(if (ambient) android.graphics.Color.BLACK else 0xFF0C0C0C.toInt())
+    }
+
+    // Framed once: moving it by hand afterwards is never undone, unless the screen asks again.
+    // Following you, the camera is yours already.
+    val following = follow != null && me != null
+    // The first frame is just there; a later one (the trip's overview, the next leg) moves to it.
+    val shown = remember { booleanArrayOf(false) }
+    LaunchedEffect(session, frame, camera.framed, following) {
+        val s = session ?: return@LaunchedEffect
+        if (following) shown[0] = true
+        if (camera.framed || frame == null || following) return@LaunchedEffect
+        while (host.width == 0 || host.height == 0) withFrameNanos {}
+        val animate = shown[0]
+        // Letting go of you eases the camera flat: this move replaces that one.
+        s.map.cancelTransitions()
+        when (frame) {
+            is MapFrame.Focus -> s.move(
+                CameraPosition.Builder().target(LatLng(frame.lat, frame.lon)).zoom(frame.zoom.toDouble()).bearing(0.0).tilt(0.0).build(),
+                animate,
+            )
             is MapFrame.Fit -> {
                 if (frame.points.isEmpty()) return@LaunchedEffect
-                fit(camera, frame, size, tilePx)
-                camera.framed = true
+                s.fit(frame, host.width, host.height, animate)
             }
         }
+        camera.framed = true
+        shown[0] = true
     }
 
-    LaunchedEffect(size) {
-        snapshotFlow { Triple(camera.x, camera.y, camera.zoom.value) }.collect { (cx, cy, zoom) ->
-            if (size == IntSize.Zero) return@collect
-            forEachVisibleTile(cx, cy, zoom, size, tilePx) { z, x, y, _, _ -> TileLoader.request(scope, z, x, y) }
-        }
-    }
-
-    val projectedLines = remember(lines) {
-        lines.map { line -> line.color to line.points.map { Projected(mercatorX(it.second), mercatorY(it.first)) } }
-    }
-    val labelStyle = remember { TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-    val labelLayouts = remember(labels) {
-        labels.sortedBy { it.rank }.map { label ->
-            Triple(label, Projected(mercatorX(label.lon), mercatorY(label.lat)),
-                measurer.measure(label.text, labelStyle.copy(color = if (label.live) Palette.Accent else Color(0xFFE2E8F0))))
-        }
-    }
-    val vehicleStyle = remember { TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color.White) }
-    val vehicleLayouts = remember(vehicles) { vehicles.associate { it.id to measurer.measure(it.name, vehicleStyle) } }
-    val busPath = remember { PathParser().parsePathString(Glyphs.BUS_STOP_PATH).toPath() }
-    val arrowPath = remember { PathParser().parsePathString("M12 2L21 21l-9-4-9 4 9-19z").toPath() }
-
-    Canvas(
+    AndroidView(
+        factory = { host },
         modifier = modifier
             .fillMaxSize()
-            .onSizeChanged { size = it }
             .onRotaryScrollEvent { event ->
-                if (event.verticalScrollPixels != 0f) zoomTo(camera.targetZoom + sign(event.verticalScrollPixels) * ZOOM_PER_DETENT)
+                if (event.verticalScrollPixels != 0f) {
+                    session?.map?.animateCamera(CameraUpdateFactory.zoomBy(sign(event.verticalScrollPixels) * ZOOM_PER_DETENT), 150)
+                }
                 true
             }
             .requestFocusOnHierarchyActive()
-            .focusable()
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = { zoomTo(camera.targetZoom + 1f) },
-                    onTap = { at ->
-                        val tap = currentOnStopTap ?: return@detectTapGestures
-                        val world = worldSize(camera.zoom.value)
-                        val reach = TAP_REACH.toPx()
-                        currentStops
-                            .map { stop ->
-                                val x = ((mercatorX(stop.lon) - camera.x) * world + size.width / 2).toFloat()
-                                val y = ((mercatorY(stop.lat) - camera.y) * world + size.height / 2).toFloat()
-                                stop to (Offset(x, y) - at).getDistance()
-                            }
-                            .filter { it.second <= reach }
-                            .minByOrNull { it.second }
-                            ?.let { tap(it.first.id) }
-                    },
-                )
-            }
-            .pointerInput(Unit) {
-                val edge = BACK_EDGE.toPx()
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    // Left alone, a swipe from the left edge goes back: not every watch has a back button.
-                    if (down.position.x < edge) return@awaitEachGesture
-                    var moved = Offset.Zero
-                    var dragging = false
-                    do {
-                        val event = awaitPointerEvent()
-                        if (event.changes.any { it.isConsumed }) break
-                        val pan = event.calculatePan()
-                        val gestureZoom = event.calculateZoom()
-                        if (!dragging) {
-                            moved += pan
-                            dragging = moved.getDistance() > viewConfiguration.touchSlop || gestureZoom != 1f
-                        }
-                        if (dragging) {
-                            val world = worldSize(camera.zoom.value)
-                            camera.x -= pan.x / world
-                            camera.y -= pan.y / world
-                            if (gestureZoom != 1f) {
-                                val next = (camera.zoom.value + log2(gestureZoom)).coerceIn(MIN_ZOOM, MAX_ZOOM)
-                                camera.targetZoom = next
-                                scope.launch { camera.zoom.snapTo(next) }
-                            }
-                            event.changes.forEach { if (it.positionChanged()) it.consume() }
-                        }
-                    } while (event.changes.any { it.pressed })
+            .focusable(),
+    )
+}
+
+/** The map view, leaving the left edge to swipe-to-dismiss, and everything when not interactive. */
+@SuppressLint("ViewConstructor")
+private class MapHost(context: Context, val map: MapView) : FrameLayout(context) {
+    var edgePx = 0f
+    var interactive = true
+
+    init {
+        addView(map, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (!interactive) return false
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN && ev.x < edgePx) return false
+        return super.dispatchTouchEvent(ev)
+    }
+}
+
+private var cachedStyle: String? = null
+
+private fun darkStyle(context: Context): String =
+    cachedStyle ?: context.assets.open("styles/dark.json").bufferedReader().use { it.readText() }.also { cachedStyle = it }
+
+private const val SRC_LINES = "ct-lines"
+private const val SRC_STOPS = "ct-stops"
+private const val SRC_LABELS = "ct-labels"
+private const val SRC_VEHICLES = "ct-vehicles"
+private const val LAYER_STOPS = "ct-stops"
+
+/** The watch map's own layers over the basemap, kept up to date as the screen changes them. */
+private class MapSession(
+    private val context: Context,
+    val map: MapLibreMap,
+    private val style: Style,
+    private val onFollowLost: () -> Unit,
+) {
+    private val images = MapImages(context)
+    private val added = HashSet<String>()
+    private var me: Fix? = null
+    private var follow: MapFollow? = null
+
+    init {
+        listOf(SRC_LINES, SRC_STOPS, SRC_LABELS, SRC_VEHICLES).forEach { style.addSource(GeoJsonSource(it)) }
+        style.addImage("heading", images.heading())
+        // Routes over the streets, under their names, like the phone's map.
+        val layers = style.layers
+        val lastGround = layers.indexOfLast { it !is SymbolLayer && !it.id.startsWith("boundary") }
+        val firstLabel = layers.drop(lastGround + 1).firstOrNull { it is SymbolLayer }?.id
+        fun under(layer: Layer) = if (firstLabel != null) style.addLayerBelow(layer, firstLabel) else style.addLayer(layer)
+        under(
+            LineLayer("ct-lines", SRC_LINES).withProperties(
+                lineColor(toColor(get("color"))),
+                lineOpacity(get("opacity")),
+                lineWidth(3.5f),
+                lineCap(Property.LINE_CAP_ROUND),
+                lineJoin(Property.LINE_JOIN_ROUND),
+            ).withFilter(eq(get("dotted"), literal(false))),
+        )
+        under(
+            LineLayer("ct-walks", SRC_LINES).withProperties(
+                lineColor(toColor(get("color"))),
+                lineOpacity(get("opacity")),
+                lineWidth(3.5f),
+                lineDasharray(arrayOf(0f, 2f)),
+                lineCap(Property.LINE_CAP_ROUND),
+                lineJoin(Property.LINE_JOIN_ROUND),
+            ).withFilter(eq(get("dotted"), literal(true))),
+        )
+        fun over(layer: SymbolLayer) {
+            layer.setProperties(iconAllowOverlap(true), iconIgnorePlacement(true))
+            style.addLayer(layer)
+        }
+        over(SymbolLayer(LAYER_STOPS, SRC_STOPS).withProperties(iconImage(get("img")), symbolSortKey(get("z"))))
+        // The times sit above their stops, always: they never hide or jump about.
+        // Under the buses and you, which move and matter more.
+        over(
+            SymbolLayer("ct-labels", SRC_LABELS).withProperties(
+                iconImage(get("img")),
+                iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                iconTranslate(arrayOf(0f, -(MapImages.STOP_SELECTED_DP / 2 + 2f))),
+                iconTranslateAnchor(Property.ICON_TRANSLATE_ANCHOR_VIEWPORT),
+                symbolSortKey(get("z")),
+            ),
+        )
+        over(SymbolLayer("ct-vehicles", SRC_VEHICLES).withProperties(iconImage(get("img")), symbolSortKey(get("z"))))
+        over(
+            SymbolLayer("ct-heading", SRC_VEHICLES).withProperties(
+                iconImage("heading"),
+                iconRotate(get("heading")),
+                iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                iconTranslate(arrayOf(8f, 8f)),
+                iconTranslateAnchor(Property.ICON_TRANSLATE_ANCHOR_VIEWPORT),
+                symbolSortKey(get("z")),
+            ),
+        )
+    }
+
+    private fun image(name: String, make: () -> android.graphics.Bitmap) {
+        if (added.add(name)) style.addImage(name, make())
+    }
+
+    private fun source(id: String): GeoJsonSource? = style.getSourceAs(id)
+
+    private fun hex(color: Color) = "#%06X".format(0xFFFFFF and color.toArgb())
+
+    fun setLines(lines: List<MapLine>) {
+        source(SRC_LINES)?.setGeoJson(
+            FeatureCollection.fromFeatures(
+                lines.filter { it.points.size >= 2 }.map { line ->
+                    Feature.fromGeometry(LineString.fromLngLats(line.points.map { Point.fromLngLat(it.second, it.first) })).apply {
+                        addStringProperty("color", hex(line.color))
+                        addNumberProperty("opacity", line.color.alpha * 0.9f)
+                        addBooleanProperty("dotted", line.dotted)
+                    }
+                },
+            ),
+        )
+    }
+
+    fun setStops(stops: List<MapStop>) {
+        source(SRC_STOPS)?.setGeoJson(
+            FeatureCollection.fromFeatures(
+                stops.map { stop ->
+                    val name = "stop-${stop.color.toArgb()}-${stop.selected}"
+                    image(name) { images.stop(stop.color, stop.selected) }
+                    Feature.fromGeometry(Point.fromLngLat(stop.lon, stop.lat)).apply {
+                        addStringProperty("id", stop.id)
+                        addStringProperty("img", name)
+                        addNumberProperty("z", if (stop.selected) 1 else 0)
+                    }
+                },
+            ),
+        )
+    }
+
+    fun setLabels(labels: List<MapLabel>) {
+        source(SRC_LABELS)?.setGeoJson(
+            FeatureCollection.fromFeatures(
+                labels.map { label ->
+                    val name = "label-${label.live}-${label.text}"
+                    image(name) { images.label(label.text, label.live) }
+                    Feature.fromGeometry(Point.fromLngLat(label.lon, label.lat)).apply {
+                        addStringProperty("img", name)
+                        // Soonest drawn last, on top where two meet.
+                        addNumberProperty("z", -label.rank.toDouble().coerceIn(-1e6, 1e6))
+                    }
+                },
+            ),
+        )
+    }
+
+    fun setVehicles(vehicles: List<MapVehicle>) {
+        source(SRC_VEHICLES)?.setGeoJson(
+            FeatureCollection.fromFeatures(
+                vehicles.filter { it.lat != 0.0 && it.lon != 0.0 }.map { v ->
+                    val name = "veh-${v.color.toArgb()}-${v.name}"
+                    image(name) { images.vehicle(v.color, v.name) }
+                    Feature.fromGeometry(Point.fromLngLat(v.lon, v.lat)).apply {
+                        addStringProperty("img", name)
+                        addNumberProperty("heading", v.heading)
+                        addNumberProperty("z", -v.lat)
+                    }
+                },
+            ),
+        )
+    }
+
+    /** You, as the phone's map draws you: MapLibre's dot, its arrow when following. */
+    fun setMe(fix: Fix?) {
+        me = fix
+        applyMe()
+    }
+
+    fun setFollow(camera: MapFollow?) {
+        if (camera == follow) return
+        follow = camera
+        applyFollow()
+    }
+
+    // No location engine of its own: the fixes come from the watch or the phone, so it needs
+    // no location permission.
+    @SuppressLint("MissingPermission")
+    private fun applyMe() {
+        val component = map.locationComponent
+        val fix = me
+        if (fix == null) {
+            if (component.isLocationComponentActivated) component.isLocationComponentEnabled = false
+            return
+        }
+        if (!component.isLocationComponentActivated) {
+            val options = LocationComponentOptions.builder(context)
+                .accuracyAlpha(0.15f)
+                .pulseEnabled(false)
+                .enableStaleState(false)
+                .build()
+            component.activateLocationComponent(
+                LocationComponentActivationOptions.builder(context, style)
+                    .locationComponentOptions(options)
+                    .useDefaultLocationEngine(false)
+                    .build(),
+            )
+            component.renderMode = RenderMode.NORMAL
+            component.cameraMode = CameraMode.NONE
+            component.addOnCameraTrackingChangedListener(object : OnCameraTrackingChangedListener {
+                override fun onCameraTrackingDismissed() {
+                    if (follow != null) onFollowLost()
                 }
+
+                override fun onCameraTrackingChanged(currentMode: Int) {}
+            })
+        }
+        val first = !component.isLocationComponentEnabled
+        component.isLocationComponentEnabled = true
+        component.forceLocationUpdate(
+            Location("app").apply {
+                latitude = fix.lat
+                longitude = fix.lon
+                accuracy = fix.accuracyMeters
+                fix.bearing?.let { bearing = it }
+                time = System.currentTimeMillis()
             },
-    ) {
-        if (tileVersion < 0) return@Canvas
-        drawRect(if (ambient) Color.Black else Color(0xFF0E0E0E))
-        val zoom = camera.zoom.value
-        val world = worldSize(zoom)
-        val cx = camera.x
-        val cy = camera.y
-        fun toScreen(px: Double, py: Double) = Offset(
-            ((px - cx) * world + this.size.width / 2).toFloat(),
-            ((py - cy) * world + this.size.height / 2).toFloat(),
         )
+        if (first) applyFollow()
+    }
 
-        // Always-on wants a mostly black screen, so the map keeps only its lines and markers.
-        if (!ambient) drawTiles(cx, cy, zoom, IntSize(this.size.width.toInt(), this.size.height.toInt()), tilePx)
-
-        val lineWidth = 3.dp.toPx()
-        for ((color, points) in projectedLines) {
-            if (points.size < 2) continue
-            val path = Path()
-            points.forEachIndexed { i, p ->
-                val s = toScreen(p.x, p.y)
-                if (i == 0) path.moveTo(s.x, s.y) else path.lineTo(s.x, s.y)
-            }
-            drawPath(path, color.copy(alpha = 0.85f), style = Stroke(lineWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    @SuppressLint("MissingPermission")
+    private fun applyFollow() {
+        val camera = follow
+        val component = map.locationComponent
+        if (!component.isLocationComponentActivated || !component.isLocationComponentEnabled) return
+        if (camera == null) {
+            if (component.cameraMode == CameraMode.NONE && component.renderMode == RenderMode.NORMAL) return
+            // Its own zoom, tilt and padding animations would keep moving the camera after it lets go.
+            component.cancelZoomWhileTrackingAnimation()
+            component.cancelTiltWhileTrackingAnimation()
+            component.cancelPaddingWhileTrackingAnimation()
+            component.cameraMode = CameraMode.NONE
+            component.renderMode = RenderMode.NORMAL
+            map.easeCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(map.cameraPosition).tilt(0.0).padding(0.0, 0.0, 0.0, 0.0).build()), 500)
+            return
         }
+        component.renderMode = RenderMode.GPS
+        component.setCameraMode(CameraMode.TRACKING_GPS, 600L, camera.zoom, null, camera.tilt, null)
+        // You low on the screen, the way ahead above you, as on Maps.
+        component.paddingWhileTracking(doubleArrayOf(0.0, map.height * FOLLOW_TOP_SHARE, 0.0, 0.0), 600L)
+    }
 
-        if (me != null) {
-            val at = toScreen(mercatorX(me.lon), mercatorY(me.lat))
-            // Metres to pixels at this latitude, for the accuracy circle.
-            val pxPerMeter = world / (EARTH_CIRCUMFERENCE_M * kotlin.math.cos(Math.toRadians(me.lat)))
-            drawCircle(ME_BLUE.copy(alpha = 0.15f), (me.accuracyMeters * pxPerMeter).toFloat(), at)
-            drawCircle(ME_BLUE, (me.accuracyMeters * pxPerMeter).toFloat(), at, style = Stroke(1.dp.toPx()))
-        }
-
-        val stopRadius = 6.dp.toPx()
-        for (stop in stops.sortedBy { it.selected }) {
-            val s = toScreen(mercatorX(stop.lon), mercatorY(stop.lat))
-            val r = if (stop.selected) stopRadius * 1.35f else stopRadius
-            drawCircle(Color.White, r + 1.dp.toPx(), s)
-            drawCircle(stop.color, r, s)
-            val iconSize = r * 1.15f
-            translate(s.x - iconSize / 2, s.y - iconSize / 2) {
-                scale(iconSize / 24f, iconSize / 24f, pivot = Offset.Zero) { drawPath(busPath, Color.White) }
-            }
-        }
-
-        if (me != null) {
-            val at = toScreen(mercatorX(me.lon), mercatorY(me.lat))
-            drawCircle(Color.White, 7.dp.toPx(), at)
-            drawCircle(ME_BLUE, 5.dp.toPx(), at)
-        }
-
-        val vehicleRadius = 10.dp.toPx()
-        // Everything a label must not cover: the stops, you, and the buses drawn over it all.
-        // A label may touch its own stop's marker, never a bus, even one standing at that stop.
-        val markers = buildList {
-            for (stop in stops) {
-                val s = toScreen(mercatorX(stop.lon), mercatorY(stop.lat))
-                val r = (if (stop.selected) stopRadius * 1.35f else stopRadius) + 1.dp.toPx()
-                add(Rect(s.x - r, s.y - r, s.x + r, s.y + r))
-            }
-            if (me != null) {
-                val s = toScreen(mercatorX(me.lon), mercatorY(me.lat))
-                val r = 7.dp.toPx()
-                add(Rect(s.x - r, s.y - r, s.x + r, s.y + r))
-            }
-        }
-        val buses = vehicles.map { vehicle ->
-            val s = toScreen(mercatorX(vehicle.lon), mercatorY(vehicle.lat))
-            val r = vehicleRadius + 4.dp.toPx()
-            Rect(s.x - r, s.y - r, s.x + r, s.y + r)
-        }
-        drawLabels(
-            labelLayouts.map { (label, p, layout) -> Triple(label, toScreen(p.x, p.y), layout) },
-            stopRadius,
-            markers,
-            buses,
-            clearTop.toPx(),
-            clearBottom.toPx(),
-        )
-
-        for (vehicle in vehicles) {
-            val s = toScreen(mercatorX(vehicle.lon), mercatorY(vehicle.lat))
-            drawCircle(Color.White, vehicleRadius + 1.dp.toPx(), s)
-            drawCircle(vehicle.color, vehicleRadius, s)
-            vehicleLayouts[vehicle.id]?.let { layout ->
-                drawText(layout, topLeft = Offset(s.x - layout.size.width / 2f, s.y - layout.size.height / 2f))
-            }
-            val badge = Offset(s.x + vehicleRadius * 0.75f, s.y + vehicleRadius * 0.75f)
-            val badgeRadius = 4.5.dp.toPx()
-            drawCircle(Color.White, badgeRadius + 0.5.dp.toPx(), badge)
-            drawCircle(Color(0xD90F172A), badgeRadius, badge)
-            val arrow = badgeRadius * 1.25f
-            rotate(vehicle.heading.toFloat(), pivot = badge) {
-                translate(badge.x - arrow / 2, badge.y - arrow / 2) {
-                    scale(arrow / 24f, arrow / 24f, pivot = Offset.Zero) { drawPath(arrowPath, Color.White) }
-                }
-            }
+    /** Always-on wants a mostly black screen: the streets go; the lines, markers and you stay. */
+    fun setAmbient(on: Boolean) {
+        for (layer in style.layers) {
+            if (layer.id.startsWith("ct-") || layer.id.startsWith("mapbox-location")) continue
+            layer.setProperties(visibility(if (on) Property.NONE else Property.VISIBLE))
         }
     }
-}
 
-// Soonest first. Each label goes above its stop if that spot is free, else below, right or
-// left; with none free it stays hidden until zooming in makes room. Free means clear of the
-// other labels, the markers, the screen's own controls and the round edge.
-private fun DrawScope.drawLabels(
-    labels: List<Triple<MapLabel, Offset, TextLayoutResult>>,
-    stopRadius: Float,
-    markers: List<Rect>,
-    buses: List<Rect>,
-    clearTop: Float,
-    clearBottom: Float,
-) {
-    val placed = mutableListOf<Rect>()
-    val padX = 4.dp.toPx()
-    val padY = 1.dp.toPx()
-    val gap = 2.dp.toPx()
-    // Clear of even the larger marker of the stop you came from.
-    val lift = stopRadius * 1.35f + 3.dp.toPx()
-    val center = Offset(size.width / 2, size.height / 2)
-    val rim = size.minDimension / 2 - 2.dp.toPx()
-    val lowest = size.height - clearBottom
+    fun stopAt(point: android.graphics.PointF, reach: Float): String? =
+        map.queryRenderedFeatures(RectF(point.x - reach, point.y - reach, point.x + reach, point.y + reach), LAYER_STOPS)
+            .firstOrNull()?.getStringProperty("id")
 
-    fun Rect.hits(other: Rect) =
-        left < other.right + gap && right + gap > other.left && top < other.bottom + gap && bottom + gap > other.top
-
-    fun Rect.fits(): Boolean =
-        top >= clearTop && bottom <= lowest &&
-            listOf(topLeft, topRight, bottomLeft, bottomRight).all { (it - center).getDistance() <= rim }
-
-    for ((label, at, layout) in labels) {
-        val w = layout.size.width + padX * 2
-        val h = layout.size.height + padY * 2
-        val box = listOf(
-            Rect(at.x - w / 2, at.y - lift - h, at.x + w / 2, at.y - lift),
-            Rect(at.x - w / 2, at.y + lift, at.x + w / 2, at.y + lift + h),
-            Rect(at.x + lift, at.y - h / 2, at.x + lift + w, at.y + h / 2),
-            Rect(at.x - lift - w, at.y - h / 2, at.x - lift, at.y + h / 2),
-        ).firstOrNull { spot ->
-            spot.fits() && placed.none { spot.hits(it) } && markers.none { !it.contains(at) && spot.hits(it) } && buses.none { spot.hits(it) }
-        } ?: continue
-        placed += box
-        val corner = CornerRadius(4.dp.toPx())
-        drawRoundRect(Color(0xEB0F172A), box.topLeft, box.size, corner)
-        drawRoundRect(if (label.live) Palette.AccentDeep else Palette.SurfaceLine, box.topLeft, box.size, corner, style = Stroke(1.dp.toPx()))
-        drawText(layout, topLeft = Offset(box.left + padX, box.top + padY))
+    fun move(camera: CameraPosition, animate: Boolean) {
+        val update = CameraUpdateFactory.newCameraPosition(camera)
+        if (animate) map.easeCamera(update, 600) else map.moveCamera(update)
     }
-}
 
-private inline fun forEachVisibleTile(
-    cx: Double, cy: Double, zoom: Float, size: IntSize, tilePx: Float,
-    block: (z: Int, x: Int, y: Int, left: Float, top: Float) -> Unit,
-) {
-    val tz = zoom.roundToInt().coerceIn(0, MAX_TILE_ZOOM)
-    val world = tilePx * 2.0.pow(zoom.toDouble())
-    val tiles = 1 shl tz
-    val minX = floor((cx - size.width / 2.0 / world) * tiles).toInt()
-    val maxX = floor((cx + size.width / 2.0 / world) * tiles).toInt()
-    val minY = floor((cy - size.height / 2.0 / world) * tiles).toInt()
-    val maxY = floor((cy + size.height / 2.0 / world) * tiles).toInt()
-    for (x in max(minX, 0)..min(maxX, tiles - 1)) {
-        for (y in max(minY, 0)..min(maxY, tiles - 1)) {
-            val left = ((x.toDouble() / tiles - cx) * world + size.width / 2).toFloat()
-            val top = ((y.toDouble() / tiles - cy) * world + size.height / 2).toFloat()
-            block(tz, x, y, left, top)
+    /** North up and flat, as the overview is wherever following you had turned and tilted it. */
+    fun fit(frame: MapFrame.Fit, width: Int, height: Int, animate: Boolean) {
+        val lats = frame.points.map { it.first }
+        val lons = frame.points.map { it.second }
+        val side = (width * frame.side).toInt()
+        val top = (height * frame.top).toInt()
+        val bottom = (height * frame.bottom).toInt()
+        val flat = CameraPosition.Builder().bearing(0.0).tilt(0.0).padding(side.toDouble(), top.toDouble(), side.toDouble(), bottom.toDouble())
+        if (lats.max() - lats.min() < 1e-6 && lons.max() - lons.min() < 1e-6) {
+            move(flat.target(LatLng(lats.first(), lons.first())).zoom(FIT_MAX_ZOOM).build(), animate)
+            return
         }
+        val bounds = LatLngBounds.from(lats.max(), lons.max(), lats.min(), lons.min())
+        val fitted = map.getCameraForLatLngBounds(bounds, intArrayOf(side, top, side, bottom), 0.0, 0.0) ?: return
+        move(flat.target(fitted.target).zoom(min(fitted.zoom, FIT_MAX_ZOOM)).build(), animate)
     }
-}
-
-private fun DrawScope.drawTiles(cx: Double, cy: Double, zoom: Float, size: IntSize, tilePx: Float) {
-    val world = tilePx * 2.0.pow(zoom.toDouble())
-    forEachVisibleTile(cx, cy, zoom, size, tilePx) { z, x, y, left, top ->
-        val drawn = (world / (1 shl z)).toFloat()
-        val image = TileLoader.cached(z, x, y)
-        if (image != null) {
-            drawImage(
-                image,
-                dstOffset = androidx.compose.ui.unit.IntOffset(floor(left).toInt(), floor(top).toInt()),
-                dstSize = IntSize((drawn + 1).toInt(), (drawn + 1).toInt()),
-            )
-            return@forEachVisibleTile
-        }
-        // Until it arrives, stretch a parent tile that is already here.
-        for (up in 1..3) {
-            val pz = z - up
-            if (pz < 0) break
-            val parent = TileLoader.cached(pz, x shr up, y shr up) ?: continue
-            val part = parent.width / (1 shl up)
-            val offX = (x - ((x shr up) shl up)) * part
-            val offY = (y - ((y shr up) shl up)) * part
-            drawImage(
-                parent,
-                srcOffset = androidx.compose.ui.unit.IntOffset(offX, offY),
-                srcSize = IntSize(part, part),
-                dstOffset = androidx.compose.ui.unit.IntOffset(floor(left).toInt(), floor(top).toInt()),
-                dstSize = IntSize((drawn + 1).toInt(), (drawn + 1).toInt()),
-            )
-            break
-        }
-    }
-}
-
-// Like Leaflet's fitBounds with padding: the route sits inside the round screen, clear of
-// the title above and the buttons below.
-private suspend fun fit(camera: MapCamera, frame: MapFrame.Fit, size: IntSize, tilePx: Float) {
-    val points = frame.points
-    val xs = points.map { mercatorX(it.second) }
-    val ys = points.map { mercatorY(it.first) }
-    val minX = xs.min()
-    val maxX = xs.max()
-    val minY = ys.min()
-    val maxY = ys.max()
-    val side = size.width * frame.side
-    val top = size.height * frame.top
-    val bottom = size.height * frame.bottom
-    val availW = size.width - side * 2
-    val availH = size.height - top - bottom
-    val spanX = max(maxX - minX, 1e-9)
-    val spanY = max(maxY - minY, 1e-9)
-    val raw = log2(min(availW / (spanX * tilePx), availH / (spanY * tilePx))).toFloat()
-    val zoom = (floor(raw / FIT_SNAP) * FIT_SNAP).coerceIn(MIN_ZOOM, FIT_MAX_ZOOM)
-    val world = tilePx * 2.0.pow(zoom.toDouble())
-    camera.x = (minX + maxX) / 2
-    camera.y = (minY + maxY) / 2 - (top - bottom) / 2 / world
-    camera.targetZoom = zoom
-    camera.zoom.snapTo(zoom)
 }
 
 @Composable

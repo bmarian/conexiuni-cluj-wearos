@@ -13,6 +13,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.runtime.Composable
@@ -20,7 +21,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,7 +41,7 @@ import androidx.wear.compose.material3.IconToggleButton
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
-import kotlinx.coroutines.launch
+import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.ShapeInfo
@@ -68,18 +68,17 @@ import online.bmarian.bus.presentation.map.MapLine
 import online.bmarian.bus.presentation.map.MapStop
 import online.bmarian.bus.presentation.map.MapVehicle
 import online.bmarian.bus.presentation.map.TransitMap
-import online.bmarian.bus.presentation.map.mercatorX
-import online.bmarian.bus.presentation.map.mercatorY
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
+import online.bmarian.bus.presentation.rememberOpenOnPhone
 import online.bmarian.bus.presentation.stop.MapChip
 import online.bmarian.bus.presentation.theme.Palette
 import online.bmarian.bus.presentation.theme.routeColor
 import java.time.LocalDateTime
 
 // Opened from a stop, the map starts on that stop.
-private const val FROM_STOP_ZOOM = 15f
-private const val ME_ZOOM = 16f
+private const val FROM_STOP_ZOOM = 13f
+private const val ME_ZOOM = 14f
 private val MAP_BUTTON = 44.dp
 private val SMALL_ACTION = 36.dp
 
@@ -123,7 +122,6 @@ private fun RouteMapView(
     val ui by vm.ui.collectAsStateWithLifecycle()
     val me by rememberUserLocation()
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
     val nowLabel = stringResource(R.string.now)
     val soonLabel = stringResource(R.string.soon)
     val color = routeColor(info?.color ?: "")
@@ -185,8 +183,6 @@ private fun RouteMapView(
                 },
                 me = me,
                 ambient = LocalAmbient.current,
-                clearTop = 62.dp,
-                clearBottom = 70.dp,
             )
             if (info != null) {
                 MapChip(Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
@@ -217,12 +213,7 @@ private fun RouteMapView(
                 ) {
                     me?.let { fix ->
                         FilledTonalIconButton(
-                            onClick = {
-                                camera.x = mercatorX(fix.lon)
-                                camera.y = mercatorY(fix.lat)
-                                camera.targetZoom = ME_ZOOM
-                                scope.launch { camera.zoom.animateTo(ME_ZOOM) }
-                            },
+                            onClick = { camera.centerOn(fix.lat, fix.lon, ME_ZOOM) },
                             modifier = Modifier.size(MAP_BUTTON),
                         ) { Icon(Icons.Rounded.MyLocation, contentDescription = stringResource(R.string.my_location)) }
                     }
@@ -249,6 +240,7 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
     val now = ui?.now ?: LocalDateTime.now(CLUJ_ZONE)
     val outgoing = direction == "0"
     val isFavorite = favoriteRoutes.any { it.routeId == vm.routeId && it.direction == direction }
+    val openOnPhone = rememberOpenOnPhone(Links.route(vm.routeId, direction))
 
     // Opened from a stop, the times are when the bus gets there. After a swap that is the
     // stop of the same name on the other side, if this direction has one.
@@ -309,6 +301,9 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
                 }
                 FilledTonalIconButton(onClick = onMap, modifier = Modifier.size(SMALL_ACTION)) {
                     Icon(Icons.Rounded.Map, contentDescription = stringResource(R.string.map), modifier = Modifier.size(18.dp))
+                }
+                FilledTonalIconButton(onClick = openOnPhone, modifier = Modifier.size(SMALL_ACTION)) {
+                    Icon(Icons.Rounded.PhoneAndroid, contentDescription = stringResource(R.string.open_on_phone), modifier = Modifier.size(18.dp))
                 }
             }
         }

@@ -53,6 +53,7 @@ import androidx.wear.compose.material3.lazy.TransformationSpec
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import online.bmarian.bus.R
+import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.formatMinutesFromNow
 import online.bmarian.bus.presentation.theme.routeColor
 import java.time.LocalDateTime
@@ -186,6 +187,19 @@ fun RealtimeIcon(color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) 
             )
         }
     }
+}
+
+/** Whole minutes left until [atMs], rounded up the way the departure lists count them. */
+// To the nearest minute: the phone sends whole minutes, and the two clocks are a few seconds apart.
+fun minutesUntil(atMs: Long, nowMs: Long): Int = ((atMs - nowMs + 30_000) / 60_000).toInt().coerceAtLeast(0)
+
+/** A countdown to [atMs] that moves on by itself. */
+@Composable
+fun Countdown(atMs: Long, style: TextStyle, color: Color = Color.Unspecified) {
+    // The clock only redraws it; the time is read fresh, so a new arrival shows right at once.
+    rememberClock().value
+    val minutes = minutesUntil(atMs, System.currentTimeMillis())
+    Text(etaText(minutes, LocalDateTime.now(CLUJ_ZONE)), style = style, color = color, maxLines = 1)
 }
 
 @Composable

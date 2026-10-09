@@ -13,6 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
@@ -24,15 +25,22 @@ import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import online.bmarian.bus.Links
 import online.bmarian.bus.data.directionFromTripId
 import online.bmarian.bus.follow.FollowManager
+import online.bmarian.bus.follow.JourneyMirror
 import online.bmarian.bus.presentation.home.HomeScreen
 import online.bmarian.bus.presentation.home.NearbyMapScreen
 import online.bmarian.bus.presentation.home.NearbyScreen
 import online.bmarian.bus.presentation.home.RoutesScreen
 import online.bmarian.bus.presentation.home.SearchScreen
 import online.bmarian.bus.presentation.home.StopsScreen
+import online.bmarian.bus.presentation.journey.JourneyMapScreen
+import online.bmarian.bus.presentation.journey.JourneyScreen
 import online.bmarian.bus.presentation.pair.PairScreen
 import online.bmarian.bus.presentation.route.RouteScreen
 import online.bmarian.bus.presentation.route.routeViewModel
@@ -43,11 +51,14 @@ import online.bmarian.bus.presentation.stop.stopViewModel
 import online.bmarian.bus.presentation.theme.ConexiuniClujWearOSTheme
 
 const val EXTRA_OPEN_FOLLOWED = "openFollowed"
-
+// A conexiunicluj:// link, from a tile, which can't set an intent's data.
+const val EXTRA_LINK = "link"
 
 class MainActivity : ComponentActivity() {
     // Set when the followed bus's notification or watch-face icon opened the app.
     private val openFollowed = MutableStateFlow(false)
+    // The screen a link asked for: a stop or a line opened on the phone, or a tile's stop.
+    private val openLink = MutableStateFlow<String?>(null)
     private val ambient = MutableStateFlow(false)
 
     private val ambientObserver = AmbientLifecycleObserver(
@@ -74,7 +85,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) take(intent)
         setContent {
             val isAmbient by ambient.collectAsStateWithLifecycle()
-            CompositionLocalProvider(LocalAmbient provides isAmbient) { WearApp(openFollowed) }
+            CompositionLocalProvider(LocalAmbient provides isAmbient) { WearApp(openFollowed, openLink) }
         }
     }
 
@@ -85,16 +96,27 @@ class MainActivity : ComponentActivity() {
 
     private fun take(intent: Intent?) {
         if (intent?.getBooleanExtra(EXTRA_OPEN_FOLLOWED, false) == true) openFollowed.value = true
+        val link = intent?.data ?: intent?.getStringExtra(EXTRA_LINK)?.toUri()
+        // The phone opens these when it starts following a bus or a journey.
+        when (link?.takeIf { it.scheme == Links.SCHEME }?.pathSegments?.firstOrNull()) {
+            Links.FOLLOWING -> openFollowed.value = true
+            Links.JOURNEY -> openLink.value = "journey"
+            else -> link?.let(Links::destination)?.let { openLink.value = it }
+        }
     }
 }
 
+private const val DEPARTURE_ROUTE = "departure/{stopId}/{routeId}/{tripId}"
+
 @Composable
-private fun WearApp(openFollowed: MutableStateFlow<Boolean>) {
+private fun WearApp(openFollowed: MutableStateFlow<Boolean>, openLink: MutableStateFlow<String?>) {
     val navController = rememberSwipeDismissableNavController()
     val homeState = rememberTransformingLazyColumnState()
     val scope = rememberCoroutineScope()
     val toOpen by openFollowed.collectAsStateWithLifecycle()
+    val linked by openLink.collectAsStateWithLifecycle()
     val following by FollowManager.state.collectAsStateWithLifecycle()
+    val journey by JourneyMirror.state.collectAsStateWithLifecycle()
 
     fun openFollowed() {
         val followed = FollowManager.state.value?.followed ?: return
@@ -104,8 +126,23 @@ private fun WearApp(openFollowed: MutableStateFlow<Boolean>) {
     LaunchedEffect(toOpen) {
         if (!toOpen) return@LaunchedEffect
         openFollowed.value = false
+        // Opened by the phone, the link can come a moment before the bus it's about.
+        val followed = withTimeoutOrNull(10_000) { FollowManager.state.filterNotNull().first() }?.followed ?: return@LaunchedEffect
+        // Already on it, as when the watch wakes back onto the app: it stays as it was.
+        val here = navController.currentBackStackEntry
+        if (here?.destination?.route == DEPARTURE_ROUTE && here.arguments?.getString("tripId") == followed.tripId) return@LaunchedEffect
         navController.popBackStack("home", inclusive = false)
         openFollowed()
+    }
+
+    LaunchedEffect(linked) {
+        val route = linked ?: return@LaunchedEffect
+        openLink.value = null
+        // The watch wakes onto the trip through its link: the step or the map stays where it was.
+        val here = navController.currentBackStackEntry?.destination?.route
+        if (route == "journey" && (here == "journey" || here == "journeyMap")) return@LaunchedEffect
+        navController.popBackStack("home", inclusive = false)
+        if (route != "home") navController.navigate(route)
     }
 
     ConexiuniClujWearOSTheme {
@@ -123,6 +160,7 @@ private fun WearApp(openFollowed: MutableStateFlow<Boolean>) {
                             onBrowseRoutes = { navController.navigate("routes") },
                             onBrowseStops = { navController.navigate("stops") },
                             onCopyFavorites = { navController.navigate("pair") },
+                            onOpenJourney = { navController.navigate("journey") },
                         )
                     }
                     composable("search/{query}") { entry ->
@@ -170,7 +208,7 @@ private fun WearApp(openFollowed: MutableStateFlow<Boolean>) {
                         )
                     }
                     composable(
-                        "departure/{stopId}/{routeId}/{tripId}",
+                        DEPARTURE_ROUTE,
                         arguments = listOf(
                             navArgument("stopId") { type = NavType.IntType },
                             navArgument("routeId") { type = NavType.IntType },
@@ -209,6 +247,15 @@ private fun WearApp(openFollowed: MutableStateFlow<Boolean>) {
                             ),
                         )
                     }
+                    composable("journey") {
+                        JourneyScreen(
+                            onEnded = { navController.popBackStack("home", inclusive = false) },
+                            onMap = { navController.navigate("journeyMap") },
+                        )
+                    }
+                    composable("journeyMap") {
+                        JourneyMapScreen(onEnded = { navController.popBackStack("home", inclusive = false) })
+                    }
                     composable("pair") {
                         PairScreen(onDone = {
                             // Back on home at the top, where the copied favorites are.
@@ -218,8 +265,11 @@ private fun WearApp(openFollowed: MutableStateFlow<Boolean>) {
                     }
                 }
                 // Wrist down while following: only the countdown, like Maps shows the next turn.
+                // On a journey from the phone, its current step.
                 val follow = following
+                val trip = journey
                 if (LocalAmbient.current && follow != null) AmbientFollow(follow)
+                else if (LocalAmbient.current && trip != null) AmbientJourney(trip)
             }
         }
     }

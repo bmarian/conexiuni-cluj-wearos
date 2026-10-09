@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,9 +22,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
 import online.bmarian.bus.R
 import online.bmarian.bus.follow.FollowState
+import online.bmarian.bus.follow.JourneySync
 import online.bmarian.bus.logic.CLUJ_ZONE
 import java.time.LocalDateTime
 
@@ -32,6 +37,18 @@ val LocalAmbient = compositionLocalOf { false }
 /** Fires on each ambient update, so screens can move their clocks on. */
 object AmbientTicks {
     val ticks = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+}
+
+private const val CLOCK_TICK_MS = 15_000L
+
+/** The time in epoch milliseconds, moved on every few seconds and on each ambient update. */
+@Composable
+fun rememberClock(): State<Long> = produceState(System.currentTimeMillis()) {
+    launch { AmbientTicks.ticks.collect { value = System.currentTimeMillis() } }
+    while (true) {
+        delay(CLOCK_TICK_MS)
+        value = System.currentTimeMillis()
+    }
 }
 
 /** With the wrist down while following a bus: only the countdown, in white on black. */
@@ -75,6 +92,48 @@ fun AmbientFollow(state: FollowState) {
                     color = Color(0xFFBDBDBD),
                 )
             }
+        }
+    }
+}
+
+/** With the wrist down on a journey from the phone: only its current step, in white on black. */
+@Composable
+fun AmbientJourney(journey: JourneySync) {
+    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 28.dp),
+        ) {
+            journey.line?.let {
+                Text(
+                    it,
+                    modifier = Modifier
+                        .border(1.5.dp, Color.White, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                )
+            }
+            Text(
+                journey.step,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+            journey.detail?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFFBDBDBD),
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            journey.arrivalAt?.let { Countdown(it, MaterialTheme.typography.numeralSmall, Color.White) }
         }
     }
 }

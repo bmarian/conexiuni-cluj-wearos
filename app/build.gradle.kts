@@ -7,12 +7,6 @@ plugins {
     alias(libs.plugins.baselineprofile)
 }
 
-// The CARTO key stays out of the repository: put `carto.key=...` in local.properties.
-val localProperties = Properties().apply {
-    val file = rootProject.file("local.properties")
-    if (file.exists()) file.inputStream().use { load(it) }
-}
-
 // The upload key for Google Play, also kept out of the repository. See the README.
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("keystore.properties")
@@ -34,7 +28,12 @@ android {
 
         buildConfigField("String", "API_BASE", "\"https://bus.bmarian.online/api/\"")
         buildConfigField("String", "SITE_ORIGIN", "\"https://bus.bmarian.online\"")
-        buildConfigField("String", "CARTO_KEY", "\"${localProperties.getProperty("carto.key", "")}\"")
+        // MapLibre's native code: 32-bit watches (most Galaxy Watches still run it), 64-bit ones
+        // and the emulator. `-Pabis=armeabi-v7a` builds for one kind only, a smaller APK to sideload.
+        ndk {
+            abiFilters += providers.gradleProperty("abis").orNull?.split(",")
+                ?: listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+        }
     }
 
     signingConfigs {
@@ -98,6 +97,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
     implementation(libs.play.services.location)
+    implementation(libs.play.services.wearable)
     implementation(libs.ui)
     implementation(libs.ui.graphics)
     implementation(libs.ui.tooling.preview)
@@ -106,7 +106,14 @@ dependencies {
     implementation(libs.wear)
     implementation(libs.wear.ongoing)
     implementation(libs.wear.input)
+    implementation(libs.wear.remote.interactions)
+    implementation(libs.tiles)
+    implementation(libs.protolayout)
+    implementation(libs.protolayout.material3)
+    implementation(libs.complications.data.source.ktx)
+    implementation(libs.concurrent.futures.ktx)
     implementation(libs.material.icons.extended)
+    implementation(libs.maplibre.android)
     implementation(libs.profileinstaller)
     baselineProfile(project(":baselineprofile"))
     testImplementation(libs.junit)

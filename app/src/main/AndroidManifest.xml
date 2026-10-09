@@ -34,6 +34,69 @@
                 android:value="Live arrival countdown for a public transport departure the user chose to follow" />
         </service>
 
+        <!-- The phone app starting, updating or stopping a follow or a journey, and its favorites. -->
+        <service
+            android:name=".follow.PhoneListener"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+
+                <data android:scheme="wear" />
+                <data android:host="*" />
+                <data android:pathPrefix="/follow" />
+                <data android:pathPrefix="/journey" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+
+                <data
+                    android:host="*"
+                    android:pathPrefix="/sync"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
+        <receiver
+            android:name=".follow.StopMirrorReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".follow.EndJourneyReceiver"
+            android:exported="false" />
+
+        <!-- The followed bus and the favorite stops' next departures, a swipe from the watch face. -->
+        <service
+            android:name=".surfaces.BusTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_bus"
+            android:label="@string/app_name"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
+        <!-- The next bus on the watch face. -->
+        <service
+            android:name=".surfaces.NextBusComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_bus"
+            android:label="@string/next_bus"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                android:value="SHORT_TEXT,LONG_TEXT" />
+            <meta-data
+                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                android:value="300" />
+        </service>
+
         <uses-library
             android:name="com.google.android.wearable"
             android:required="true" />
@@ -55,6 +118,17 @@
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- A stop or a line opened from the phone app, as both apps link to them. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="bus.bmarian.online"
+                    android:scheme="conexiunicluj" />
             </intent-filter>
         </activity>
     </application>

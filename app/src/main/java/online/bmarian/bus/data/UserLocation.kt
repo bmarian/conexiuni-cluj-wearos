@@ -17,7 +17,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-class Fix(val lat: Double, val lon: Double, val accuracyMeters: Float)
+class Fix(val lat: Double, val lon: Double, val accuracyMeters: Float, val bearing: Float? = null)
 
 private const val UPDATE_MS = 10_000L
 
@@ -63,7 +63,7 @@ object UserLocation {
         }
         val client = LocationServices.getFusedLocationProviderClient(context)
         fun offer(location: Location?) {
-            trySend(location?.takeIf(::inClujCounty)?.let { Fix(it.latitude, it.longitude, it.accuracy) })
+            trySend(location?.takeIf(::inClujCounty)?.let { Fix(it.latitude, it.longitude, it.accuracy, it.bearing.takeIf { _ -> it.hasBearing() }) })
         }
         client.lastLocation.addOnSuccessListener { if (it != null) offer(it) }
         val callback = object : LocationCallback() {

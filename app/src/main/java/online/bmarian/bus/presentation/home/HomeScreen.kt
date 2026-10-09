@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material.icons.rounded.NearMe
 import androidx.compose.material.icons.rounded.Place
@@ -24,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,6 +39,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
 import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.CardDefaults
+import androidx.wear.compose.material3.CompactButton
 import androidx.wear.compose.material3.FilledTonalButton
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
@@ -51,10 +54,12 @@ import online.bmarian.bus.Services
 import online.bmarian.bus.data.stopSnapshot
 import online.bmarian.bus.data.terminalName
 import online.bmarian.bus.follow.FollowManager
+import online.bmarian.bus.follow.JourneyMirror
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.logic.computeStopDepartures
 import online.bmarian.bus.presentation.ActionRow
+import online.bmarian.bus.presentation.Countdown
 import online.bmarian.bus.presentation.Eta
 import online.bmarian.bus.presentation.PillAction
 import online.bmarian.bus.presentation.LineBadge
@@ -69,36 +74,6 @@ import java.time.Instant
 import java.time.LocalDateTime
 
 private const val SEARCH_KEY = "query"
-private const val SUMMARY_REFRESH_MS = 60_000L
-
-class StopSummary(val departures: List<StopDeparture>, val now: LocalDateTime)
-
-// Next departures at the favorite stops, like the ETAs Google Maps puts on Home and Work.
-class HomeViewModel : ViewModel() {
-    val summaries = MutableStateFlow<Map<Int, StopSummary>>(emptyMap())
-
-    suspend fun live() {
-        Services.favorites.stops.collectLatest { ids ->
-            val repository = Services.repository
-            for (id in ids) {
-                if (id in summaries.value) continue
-                val cached = repository.cachedStopInfo(id) ?: continue
-                val nowMs = System.currentTimeMillis()
-                val now = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), CLUJ_ZONE)
-                summaries.value += id to StopSummary(computeStopDepartures(cached, emptyMap(), emptyMap(), now, nowMs), now)
-            }
-            while (true) {
-                for (id in ids) {
-                    val snapshot = runCatching { stopSnapshot(id) }.getOrNull() ?: continue
-                    val now = LocalDateTime.ofInstant(Instant.ofEpochMilli(snapshot.takenAtMs), CLUJ_ZONE)
-                    summaries.value += id to StopSummary(snapshot.departures, now)
-                }
-                delay(SUMMARY_REFRESH_MS)
-            }
-        }
-    }
-}
-
 /** Opens the watch's voice and keyboard input, and hands back what was said or typed. */
 @Composable
 fun rememberSearchInput(onQuery: (String) -> Unit): () -> Unit {
@@ -132,19 +107,18 @@ fun HomeScreen(
     onBrowseRoutes: () -> Unit,
     onBrowseStops: () -> Unit,
     onCopyFavorites: () -> Unit,
-    vm: HomeViewModel = viewModel(),
+    onOpenJourney: () -> Unit,
 ) {
     val repository = Services.repository
     val routes by repository.routes.collectAsStateWithLifecycle()
     val stops by repository.stops.collectAsStateWithLifecycle()
     val favoriteStopIds by Services.favorites.stops.collectAsStateWithLifecycle()
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
-    val summaries by vm.summaries.collectAsStateWithLifecycle()
     val following by FollowManager.state.collectAsStateWithLifecycle()
+    val journey by JourneyMirror.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val search = rememberSearchInput(onSearch)
 
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(vm) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { vm.live() } }
     LaunchedEffect(Unit) {
         repository.loadCached()
         repository.refreshRoutes()
@@ -162,6 +136,47 @@ fun HomeScreen(
 
     ListScreen(state = state) { spec ->
         item { Title(stringResource(R.string.app_name), spec) }
+        // The phone's journey, shown as it goes; it opens its own screen, End stops it on both.
+        journey?.let { trip ->
+            item {
+                Card(
+                    onClick = onOpenJourney,
+                    modifier = itemModifier(spec),
+                    transformation = surface(spec),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    ),
+                ) {
+                    Text(
+                        stringResource(R.string.journey_to, trip.title),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        trip.line?.let { LineBadge(it, trip.color.orEmpty(), height = 24.dp) }
+                        Text(
+                            trip.step,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        trip.arrivalAt?.let { Countdown(it, MaterialTheme.typography.labelLarge) }
+                    }
+                    trip.detail?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    CompactButton(
+                        onClick = { JourneyMirror.end(context, trip.id) },
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                        icon = { Icon(Icons.Rounded.Close, contentDescription = null) },
+                        label = { Text(stringResource(R.string.end_journey)) },
+                    )
+                }
+            }
+        }
         following?.let { follow ->
             item {
                 Card(
@@ -173,7 +188,10 @@ fun HomeScreen(
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 ) {
-                    Text(stringResource(R.string.following), style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        stringResource(R.string.following),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         LineBadge(follow.followed.shortName, follow.followed.color, height = 24.dp)
                         Text(
@@ -202,26 +220,13 @@ fun HomeScreen(
         }
         items(favoriteStops.size, key = { "fs-${favoriteStops[it].stopId}" }) { i ->
             val stop = favoriteStops[i]
-            val summary = summaries[stop.stopId]
+            // Just the stop: its buses load when it is opened, not every minute for every favourite.
             FilledTonalButton(
                 onClick = { onOpenStop(stop.stopId) },
                 modifier = itemModifier(spec),
                 transformation = surface(spec),
                 icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
                 label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
-                secondaryLabel = summary?.takeIf { it.departures.isNotEmpty() }?.let { s ->
-                    {
-                        // As many whole departures as fit; a small watch has room for one.
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically, maxLines = 1) {
-                            for (departure in s.departures.take(2)) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    LineBadge(departure.shortName, departure.color, height = 16.dp)
-                                    Eta(departure.minutesLeft, !departure.isStatic, s.now, MaterialTheme.typography.labelSmall, arcs = false)
-                                }
-                            }
-                        }
-                    }
-                },
             )
         }
         items(favoriteRouteRows.size, key = { "fr-${favoriteRouteRows[it].first.routeId}-${favoriteRouteRows[it].second}" }) { i ->

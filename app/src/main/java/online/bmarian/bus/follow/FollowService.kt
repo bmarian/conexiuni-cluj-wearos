@@ -40,6 +40,7 @@ import online.bmarian.bus.logic.computeStopDepartures
 import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
 import java.time.Instant
+import java.util.UUID
 import java.time.LocalDateTime
 
 private const val NOTIFICATION_ID = 7
@@ -62,12 +63,15 @@ class FollowService : Service() {
     private var ongoing: OngoingActivity? = null
     // The ongoing activity re-posts this same builder whenever its status changes.
     private var builder: NotificationCompat.Builder? = null
+    // The follow running here, as last sent to the phone, and whether the phone was told it ended.
+    private var current: FollowState? = null
+    private var ended = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            FollowManager.mutableState.value = null
+            if (FollowManager.state.value?.id == current?.id) FollowManager.mutableState.value = null
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
@@ -79,7 +83,13 @@ class FollowService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (FollowManager.state.value?.followed != followed) FollowManager.mutableState.value = FollowState(followed)
+        val id = intent?.getStringExtra(EXTRA_ID) ?: FollowManager.state.value?.id?.takeIf { it.isNotEmpty() } ?: UUID.randomUUID().toString()
+        val state = FollowManager.state.value?.takeIf { it.id == id && !it.remote } ?: FollowState(followed, id = id)
+        FollowManager.mutableState.value = state
+        current = state
+        ended = false
+        // The phone shows it before the first countdown is worked out.
+        PhoneLink.sendState(this, state.toSync())
 
         createChannel()
         val base = baseNotification(followed)
@@ -97,17 +107,20 @@ class FollowService : Service() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0,
         )
         job?.cancel()
-        job = scope.launch { track(followed) }
+        job = scope.launch { track(followed, id) }
         return START_REDELIVER_INTENT
     }
 
     override fun onDestroy() {
         scope.cancel()
-        if (FollowManager.state.value != null) FollowManager.mutableState.value = null
+        val state = current
+        if (state != null && !ended) PhoneLink.sendState(this, state.toSync(end = "stopped"))
+        // A follow from the phone may have replaced this one; that one stays.
+        if (state != null && FollowManager.state.value?.id == state.id) FollowManager.mutableState.value = null
         super.onDestroy()
     }
 
-    private suspend fun track(followed: Followed) = coroutineScope {
+    private suspend fun track(followed: Followed, id: String) = coroutineScope {
         val repository = Services.repository
         val startedAt = System.currentTimeMillis()
         val info = MutableStateFlow(repository.cachedStopInfo(followed.stopId)?.only(followed.routeId))
@@ -137,8 +150,8 @@ class FollowService : Service() {
                     .firstOrNull { it.routeId == followed.routeId && it.tripId == followed.tripId } to nowMs
             }
         }.collect { (departure, nowMs) ->
-            if (nowMs - startedAt > GIVE_UP_MS) return@collect end(followed, null)
-            update(followed, departure, nowMs, progress)
+            if (nowMs - startedAt > GIVE_UP_MS) return@collect end(followed, null, "stopped")
+            update(followed, id, departure, nowMs, progress)
         }
     }
 
@@ -150,13 +163,13 @@ class FollowService : Service() {
     }
 
     @SuppressLint("MissingPermission")
-    private fun update(followed: Followed, departure: StopDeparture?, nowMs: Long, progress: Progress) {
+    private fun update(followed: Followed, id: String, departure: StopDeparture?, nowMs: Long, progress: Progress) {
         val first = departure?.nextTimes?.firstOrNull()
-        if (first == null) return end(followed, getString(R.string.follow_no_bus))
+        if (first == null) return end(followed, getString(R.string.follow_no_bus), "none")
         val minutes = first.minutes
         // Once it has come, the list moves on to the next run: that bus has left.
         if (progress.arrived && minutes > (progress.lastMinutes ?: 0) + 2) {
-            return end(followed, getString(R.string.follow_ended, followed.stopName))
+            return end(followed, getString(R.string.follow_ended, followed.stopName), "left")
         }
         if (minutes <= SOON_MINUTES && !progress.buzzedSoon && minutes > 0) {
             progress.buzzedSoon = true
@@ -170,14 +183,21 @@ class FollowService : Service() {
         progress.lastMinutes = minutes
 
         val live = !departure.isStatic
-        FollowManager.mutableState.value = FollowState(followed, minutes, live, departure.nextTimes.drop(1).map { it.minutes })
         val arrival = nowMs + minutes * 60_000L
+        val state = FollowState(followed, minutes, live, departure.nextTimes.drop(1).map { it.minutes }, id, arrival)
+        current = state
+        // Stopped meanwhile, here or from the phone.
+        if (FollowManager.state.value?.id != id) return
+        FollowManager.mutableState.value = state
+        PhoneLink.sendState(this, state.toSync())
         builder?.let { describe(it, followed, minutes, arrival) }
         ongoing?.update(this, status(followed, minutes, arrival))
     }
 
     @SuppressLint("MissingPermission")
-    private fun end(followed: Followed, message: String?) {
+    private fun end(followed: Followed, message: String?, reason: String) {
+        ended = true
+        current?.let { PhoneLink.sendState(this, it.toSync(end = reason)) }
         if (message != null) {
             val done = NotificationCompat.Builder(this, FOLLOW_CHANNEL)
                 .setSmallIcon(R.drawable.ic_bus)
@@ -189,7 +209,7 @@ class FollowService : Service() {
                 .build()
             getSystemService(NotificationManager::class.java).notify(ENDED_NOTIFICATION_ID, done)
         }
-        FollowManager.mutableState.value = null
+        if (FollowManager.state.value?.id == current?.id) FollowManager.mutableState.value = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
         job?.cancel()
@@ -262,6 +282,7 @@ class FollowService : Service() {
 
     companion object {
         const val EXTRA_FOLLOWED = "followed"
+        const val EXTRA_ID = "id"
         const val ACTION_STOP = "online.bmarian.bus.STOP_FOLLOWING"
     }
 }

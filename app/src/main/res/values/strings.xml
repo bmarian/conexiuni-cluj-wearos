@@ -46,7 +46,6 @@
     <string name="no_results">Nothing found for “%1$s”.</string>
     <string name="lines">Lines</string>
     <string name="stops">Stops</string>
-    <string name="nearby">Nearby</string>
     <string name="eta_minutes" translatable="false">%1$d min</string>
     <string name="then_times">Then %1$s</string>
     <string name="from_stop">From %1$s</string>
@@ -65,4 +64,15 @@
     <string name="favorite_line">Favorite line</string>
     <string name="favorite_stop">Favorite stop</string>
     <string name="open_map">Map</string>
+    <string name="follow_alerts_channel">Bus arriving</string>
+    <string name="open_on_phone">Open on phone</string>
+    <string name="phone_unreachable">Phone not connected</string>
+    <string name="journey_to">To %1$s</string>
+    <string name="end_journey">End</string>
+    <string name="journey_alerts_channel">Journey alerts</string>
+    <string name="tile_empty">Add favorite stops in the app</string>
+    <string name="next_bus">Next bus</string>
+    <string name="journey_plan_loading">Getting the trip from your phone…</string>
+    <string name="journey_recenter">Re-centre</string>
+    <string name="journey_overview">See the whole leg</string>
 </resources>
