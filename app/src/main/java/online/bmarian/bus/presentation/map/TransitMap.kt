@@ -44,6 +44,7 @@ import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.location.LocationComponentActivationOptions
 import org.maplibre.android.location.LocationComponentOptions
 import org.maplibre.android.location.OnCameraTrackingChangedListener
+import org.maplibre.android.location.OnLocationCameraTransitionListener
 import org.maplibre.android.location.modes.CameraMode
 import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapLibreMap
@@ -316,6 +317,9 @@ private class MapSession(
     private val added = HashSet<String>()
     private var me: Fix? = null
     private var follow: MapFollow? = null
+    private var followed: MapFollow? = null
+    private var followMove = 0
+    private var settling = false
 
     init {
         listOf(SRC_LINES, SRC_STOPS, SRC_LABELS, SRC_VEHICLES).forEach { style.addSource(GeoJsonSource(it)) }
@@ -502,6 +506,9 @@ private class MapSession(
         val component = map.locationComponent
         if (!component.isLocationComponentActivated || !component.isLocationComponentEnabled) return
         if (camera == null) {
+            followMove++
+            settling = false
+            followed = null
             if (component.cameraMode == CameraMode.NONE && component.renderMode == RenderMode.NORMAL) return
             // Otherwise its own animations keep moving the camera.
             component.cancelZoomWhileTrackingAnimation()
@@ -513,8 +520,57 @@ private class MapSession(
             return
         }
         component.renderMode = RenderMode.GPS
-        component.setCameraMode(CameraMode.TRACKING_GPS, 600L, camera.zoom, null, camera.tilt, null)
-        component.paddingWhileTracking(doubleArrayOf(0.0, map.height * FOLLOW_TOP_SHARE, 0.0, 0.0), 600L)
+        if (settling) return
+        val top = map.height * FOLLOW_TOP_SHARE
+        if (component.cameraMode == CameraMode.TRACKING_GPS) {
+            if (camera == followed) return
+            followed = camera
+            component.zoomWhileTracking(camera.zoom, 600L)
+            component.tiltWhileTracking(camera.tilt, 600L)
+            component.paddingWhileTracking(doubleArrayOf(0.0, top, 0.0, 0.0), 600L)
+            return
+        }
+        val fix = component.lastKnownLocation ?: return
+        val move = ++followMove
+        settling = true
+        // MapLibre's own tracking transition drops padding changes made while it runs.
+        val target = CameraPosition.Builder()
+            .target(LatLng(fix.latitude, fix.longitude))
+            .zoom(camera.zoom)
+            .tilt(camera.tilt)
+            .bearing(fix.bearing.toDouble())
+            .padding(0.0, top, 0.0, 0.0)
+            .build()
+        map.animateCamera(
+            CameraUpdateFactory.newCameraPosition(target),
+            600,
+            object : MapLibreMap.CancelableCallback {
+                override fun onFinish() {
+                    if (move != followMove) return
+                    component.setCameraMode(
+                        CameraMode.TRACKING_GPS,
+                        object : OnLocationCameraTransitionListener {
+                            override fun onLocationCameraTransitionFinished(cameraMode: Int) = settled(move, camera)
+
+                            override fun onLocationCameraTransitionCanceled(cameraMode: Int) = settled(move, null)
+                        },
+                    )
+                }
+
+                override fun onCancel() {
+                    if (move != followMove) return
+                    settling = false
+                    onFollowLost()
+                }
+            },
+        )
+    }
+
+    private fun settled(move: Int, camera: MapFollow?) {
+        if (move != followMove) return
+        settling = false
+        followed = camera
+        applyFollow()
     }
 
     /** Ambient mode: mostly black. */

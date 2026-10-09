@@ -43,7 +43,7 @@ Stops, lines, timetables and route shapes are kept on the watch, so a stop you'v
 
 You'll need Android Studio with the Android SDK, and a Wear OS emulator or a watch with Wireless debugging turned on.
 
-The map is the phone app's: [MapLibre](https://maplibre.org/) with [OpenFreeMap](https://openfreemap.org/)'s dark style, bundled in [`assets/styles`](app/src/main/assets/styles). No key is needed.
+The map is [MapLibre](https://maplibre.org/), as on the phone, with [OpenFreeMap](https://openfreemap.org/)'s Dark style, bundled in [`assets/styles`](app/src/main/assets/styles). No key is needed.
 
 Run the `app` configuration from Android Studio, or:
 
