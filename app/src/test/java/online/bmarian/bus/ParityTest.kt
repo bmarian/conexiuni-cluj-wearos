@@ -40,8 +40,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.zip.GZIPInputStream
 
-// Expected values come from the website's own TypeScript (arrivals.ts, time.ts,
-// useVehicleTracking.ts) run on the same prod snapshot, so this fails if the port drifts.
+// Expected values from the website's TypeScript on the same snapshot.
 class ParityTest {
     @Serializable
     private class FixtureRoute(val route: Route, val timetable: Timetable? = null, val stop_times: List<StopTime> = emptyList())
@@ -157,7 +156,6 @@ class ParityTest {
         assertEquals(sample["plain"], opened)
 
         val summary = Transfer.describe(opened)!!
-        // Bad entries are dropped the same way parseFavoriteRoutes and parseStopIds drop them.
         assertEquals(Transfer.Summary(stops = 2, lines = 2), summary)
         assertEquals("ro", Transfer.localeOf(opened))
         val favorites = (opened as JsonObject)["favorites"]!!.jsonObject
@@ -166,7 +164,6 @@ class ParityTest {
             listOf(online.bmarian.bus.data.FavoriteRoute(49, "1"), online.bmarian.bus.data.FavoriteRoute(13, "0")),
             Favorites.parseFavoriteRoutes(favorites["routes"]),
         )
-        // A plain payload (a typed code) passes through untouched.
         assertEquals(sample["plain"], Transfer.open(sample["plain"]!!, sample["key"]!!.jsonPrimitive.content))
         assertEquals(null, Transfer.describe(JsonArray(emptyList())))
     }

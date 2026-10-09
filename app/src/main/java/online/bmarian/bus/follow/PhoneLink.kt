@@ -35,11 +35,6 @@ import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
 
-/**
- * Talks to the phone app directly over the Wear OS data layer, like Maps puts the phone's
- * navigation on the watch. Both apps declare [CAPABILITY], so each only talks to a device
- * that has the other.
- */
 object PhoneLink {
     const val CAPABILITY = "conexiuni_follow"
     const val PATH_STATE = "/follow/state"
@@ -51,7 +46,6 @@ object PhoneLink {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    // A watch without a phone has no one to talk to; that's fine, it follows on its own.
     private suspend fun peers(context: Context): Set<Node> = runCatching {
         Wearable.getCapabilityClient(context).getCapability(CAPABILITY, CapabilityClient.FILTER_REACHABLE).await().nodes
     }.getOrDefault(emptySet())
@@ -62,15 +56,13 @@ object PhoneLink {
         for (node in peers(context)) runCatching { client.sendMessage(node.id, path, data).await() }
     }
 
-    // Debug builds only: every message also goes to the log, for the phone project's
-    // tools/wear-relay.py to carry to a phone emulator that can't be paired.
+    // Debug only: logged for the phone project's tools/wear-relay.py.
     private const val RELAY_TAG = "WearRelay"
 
     internal fun relay(path: String, data: ByteArray) {
         if (BuildConfig.DEBUG) Log.d(RELAY_TAG, "$path ${Base64.encodeToString(data, Base64.NO_WRAP)}")
     }
 
-    /** A message from the phone, whichever way it came. */
     internal fun onMessage(context: Context, path: String, data: ByteArray) {
         when (path) {
             PATH_STATE -> runCatching { Api.json.decodeFromString<FollowSync>(data.decodeToString()) }
@@ -102,7 +94,6 @@ object PhoneLink {
         scope.launch { send(app, PATH_JOURNEY_STOP, id.encodeToByteArray()) }
     }
 
-    // Asked at most once a minute per journey: the phone may simply be out of reach.
     private var planAsked: Pair<String, Long>? = null
 
     fun requestJourneyPlan(context: Context, id: String) {
@@ -114,10 +105,6 @@ object PhoneLink {
         scope.launch { send(app, PATH_JOURNEY_PLAN_REQUEST, id.encodeToByteArray()) }
     }
 
-    /**
-     * Opens the same stop or line on the phone: in the phone app when it is there, otherwise on
-     * the website. True once it was sent.
-     */
     suspend fun openOnPhone(context: Context, path: String): Boolean {
         val app = context.applicationContext
         val helper = RemoteActivityHelper(app, Dispatchers.Default.asExecutor())
@@ -128,10 +115,6 @@ object PhoneLink {
     }
 }
 
-/**
- * Wakes the app when the phone starts, updates or stops following a bus, moves its journey on,
- * or changes the favorites.
- */
 class PhoneListener : WearableListenerService() {
     override fun onMessageReceived(event: MessageEvent) {
         PhoneLink.onMessage(applicationContext, event.path, event.data)
@@ -149,12 +132,7 @@ private const val FOLLOW_CHANNEL = "follow"
 private const val ALERT_CHANNEL = "follow_alerts"
 private const val SOON_MINUTES = 2
 
-/**
- * The phone's follow on the watch: the same countdown on the watch face, and the same buzz
- * before the bus comes, without a service of its own. The phone sends every change.
- */
 object Mirror {
-    // Buzzes already given for the follow on show, so each comes once.
     private var alerted: Pair<String, MutableSet<String>>? = null
 
     private fun manager(context: Context) = context.getSystemService(NotificationManager::class.java)
@@ -199,7 +177,6 @@ object Mirror {
             .setSilent(true)
             .setContentIntent(openApp(context))
             .addAction(0, context.getString(R.string.stop_following), stopIntent(context, state.id))
-        // Nobody to update it if the phone goes out of reach: it goes once the bus should have come.
         val left = (arrival ?: System.currentTimeMillis()) - System.currentTimeMillis()
         builder.setTimeoutAfter(left.coerceAtLeast(0) + 5 * 60_000L)
         val counting = minutes != null && minutes > 0 && arrival != null
@@ -237,7 +214,6 @@ object Mirror {
         }
     }
 
-    // The watch's own follow buzzes from its service; here a heads-up does it.
     @SuppressLint("MissingPermission")
     private fun alert(context: Context, followed: Followed, minutes: Int) {
         val text = if (minutes <= 0) context.getString(R.string.follow_now)
@@ -275,6 +251,11 @@ object Mirror {
         runCatching { manager(context).notify(ENDED_NOTIFICATION_ID, done) }
     }
 
+    fun reshow(context: Context) {
+        val state = FollowManager.state.value?.takeIf { it.remote } ?: return
+        show(context, state, isNew = false)
+    }
+
     fun clear(context: Context) {
         alerted = null
         manager(context).cancel(MIRROR_NOTIFICATION_ID)
@@ -294,12 +275,10 @@ object Mirror {
     )
 }
 
-/** Stop on the phone's countdown: stops it on the phone too. */
 class StopMirrorReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra(EXTRA_ID) ?: return
         if (FollowManager.state.value?.id == id) return FollowManager.stop(context)
-        // The app was closed since: the countdown is still up, and the phone still following.
         Mirror.clear(context)
         PhoneLink.sendStop(context, id)
     }

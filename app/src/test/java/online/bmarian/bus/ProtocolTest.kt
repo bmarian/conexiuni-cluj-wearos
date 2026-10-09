@@ -10,7 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The JSON the phone app writes and reads too: a change here breaks the other side. */
+/** Shared with the phone app. */
 class ProtocolTest {
     @Test
     fun favoritesAreWrittenAsThePhoneReadsThem() {
@@ -28,7 +28,6 @@ class ProtocolTest {
         assertEquals(listOf(4, 391), snapshot?.stops)
         assertEquals(listOf(FavoriteRoute(7, "1"), FavoriteRoute(25, "0")), snapshot?.routes)
         assertEquals(5L, snapshot?.updatedAt)
-        // Without a time there is no telling whether it is newer.
         assertNull(FavoritesSync.decode("""{"stops":[1],"routes":[]}"""))
         assertNull(FavoritesSync.decode("not json"))
     }

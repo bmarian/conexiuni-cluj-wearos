@@ -48,22 +48,15 @@ private const val ENDED_NOTIFICATION_ID = 8
 private const val FOLLOW_CHANNEL = "follow"
 private const val TICK_MS = 15_000L
 private const val STOP_INFO_REFRESH_MS = 120_000L
-// Buzz this many minutes before the bus, and again when it's due.
 private const val SOON_MINUTES = 2
-// Nobody waits this long for one bus; a forgotten follow shouldn't drain the battery.
 private const val GIVE_UP_MS = 90 * 60_000L
 
-/**
- * Keeps one departure's countdown live while the app is closed: an ongoing activity on the
- * watch face, a buzz before the bus comes, and it ends itself once the bus has left.
- */
 class FollowService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var job: Job? = null
     private var ongoing: OngoingActivity? = null
-    // The ongoing activity re-posts this same builder whenever its status changes.
+    // OngoingActivity re-posts this builder on status changes.
     private var builder: NotificationCompat.Builder? = null
-    // The follow running here, as last sent to the phone, and whether the phone was told it ended.
     private var current: FollowState? = null
     private var ended = false
 
@@ -88,7 +81,6 @@ class FollowService : Service() {
         FollowManager.mutableState.value = state
         current = state
         ended = false
-        // The phone shows it before the first countdown is worked out.
         PhoneLink.sendState(this, state.toSync())
 
         createChannel()
@@ -115,7 +107,7 @@ class FollowService : Service() {
         scope.cancel()
         val state = current
         if (state != null && !ended) PhoneLink.sendState(this, state.toSync(end = "stopped"))
-        // A follow from the phone may have replaced this one; that one stays.
+        // A newer follow from the phone may have replaced this one.
         if (state != null && FollowManager.state.value?.id == state.id) FollowManager.mutableState.value = null
         super.onDestroy()
     }
@@ -155,7 +147,6 @@ class FollowService : Service() {
         }
     }
 
-    // What has already happened to this bus, so each buzz comes once and the end is noticed.
     private class Progress {
         var lastMinutes: Int? = null
         var buzzedSoon = false
@@ -167,7 +158,6 @@ class FollowService : Service() {
         val first = departure?.nextTimes?.firstOrNull()
         if (first == null) return end(followed, getString(R.string.follow_no_bus), "none")
         val minutes = first.minutes
-        // Once it has come, the list moves on to the next run: that bus has left.
         if (progress.arrived && minutes > (progress.lastMinutes ?: 0) + 2) {
             return end(followed, getString(R.string.follow_ended, followed.stopName), "left")
         }
@@ -186,7 +176,6 @@ class FollowService : Service() {
         val arrival = nowMs + minutes * 60_000L
         val state = FollowState(followed, minutes, live, departure.nextTimes.drop(1).map { it.minutes }, id, arrival)
         current = state
-        // Stopped meanwhile, here or from the phone.
         if (FollowManager.state.value?.id != id) return
         FollowManager.mutableState.value = state
         PhoneLink.sendState(this, state.toSync())

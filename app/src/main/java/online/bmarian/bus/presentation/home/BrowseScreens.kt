@@ -80,7 +80,6 @@ private fun TransformingLazyColumnScope.routeItems(routes: List<Route>, spec: Tr
     }
 }
 
-/** Every line as a button in its colour; a tap opens it on the map, direction 0. */
 @Composable
 fun RoutesScreen(onOpenRoute: (Int) -> Unit) {
     val repository = Services.repository
@@ -109,7 +108,6 @@ fun RoutesScreen(onOpenRoute: (Int) -> Unit) {
     }
 }
 
-/** Stops by initial, then by the first two letters when an initial holds too many. */
 @Composable
 fun StopsScreen(letter: String?, prefix: String?, onBrowse: (letter: String, prefix: String?) -> Unit, onOpenStop: (Int) -> Unit) {
     val repository = Services.repository
@@ -147,7 +145,6 @@ fun StopsScreen(letter: String?, prefix: String?, onBrowse: (letter: String, pre
     }
 }
 
-/** Lines whose number starts with what was said or typed, then stops whose name contains it. */
 @Composable
 fun SearchScreen(query: String, onSearch: (String) -> Unit, onOpenRoute: (Int) -> Unit, onOpenStop: (Int) -> Unit) {
     val repository = Services.repository

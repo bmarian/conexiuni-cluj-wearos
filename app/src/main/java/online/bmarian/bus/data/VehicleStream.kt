@@ -6,6 +6,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -17,10 +24,44 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
-/** Live vehicles for some trips, grouped by trip. Reconnects until the collector stops. */
+class VehicleMerge(private val tripIds: List<String>) {
+    private val byId = LinkedHashMap<Int, JsonObject>()
+
+    fun apply(type: String?, data: String): Map<String, List<Vehicle>>? {
+        val root = runCatching { Api.json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return null
+        when (type) {
+            "snapshot" -> {
+                byId.clear()
+                for (v in root["vehicles"]?.jsonArray.orEmpty()) put(v.jsonObject)
+            }
+            "delta" -> {
+                for (v in root["upsert"]?.jsonArray.orEmpty()) put(v.jsonObject)
+                for (id in root["remove"]?.jsonArray.orEmpty()) runCatching { byId.remove(id.jsonPrimitive.int) }
+            }
+            else -> return null
+        }
+        return grouped()
+    }
+
+    private fun grouped(): Map<String, List<Vehicle>> {
+        val grouped = tripIds.associateWith { mutableListOf<Vehicle>() }
+        for (v in byId.values) {
+            val vehicle = runCatching { Api.json.decodeFromJsonElement(Vehicle.serializer(), v) }.getOrNull() ?: continue
+            grouped[vehicle.tripId]?.add(vehicle)
+        }
+        return grouped
+    }
+
+    private fun put(update: JsonObject) {
+        val id = update["id"]?.jsonPrimitive?.intOrNull ?: return
+        byId[id] = JsonObject(byId[id].orEmpty() + update)
+    }
+
+    private fun JsonArray?.orEmpty(): List<kotlinx.serialization.json.JsonElement> = this ?: emptyList()
+}
+
 object VehicleStream {
-    // The server pings every 25 s, so a minute of silence means the connection is gone.
-    // No cache: it would try to store the never-ending body.
+    // The server pings every 25 s.
     private val client: OkHttpClient by lazy {
         Api.client.newBuilder().cache(null).readTimeout(60, TimeUnit.SECONDS).build()
     }
@@ -50,15 +91,13 @@ object VehicleStream {
     private fun connection(ids: List<String>): Flow<Map<String, List<Vehicle>>> = callbackFlow {
         val query = URLEncoder.encode(ids.joinToString(","), "UTF-8")
         val request = Request.Builder()
-            .url(Api.url("vehicles/stream?trip_ids=$query"))
+            .url(Api.url("vehicles/stream?v=2&trip_ids=$query"))
             .header("Accept", "text/event-stream")
             .build()
+        val merge = VehicleMerge(ids)
         val source = EventSources.createFactory(client).newEventSource(request, object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                val raw = runCatching { Api.json.decodeFromString<List<Vehicle>>(data) }.getOrNull() ?: return
-                val grouped = ids.associateWith { mutableListOf<Vehicle>() }
-                for (v in raw) grouped[v.tripId]?.add(v)
-                trySend(grouped)
+                merge.apply(type, data)?.let { trySend(it) }
             }
 
             override fun onClosed(eventSource: EventSource) {

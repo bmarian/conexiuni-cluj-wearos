@@ -9,7 +9,6 @@ import androidx.wear.compose.material3.ColorScheme
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.dynamicColorScheme
 
-// Map-only colours: the map draws on its own dark tiles.
 object Palette {
     val Sub = Color(0xFF94A3B8)
     val Accent = Color(0xFF34D399)
@@ -21,7 +20,6 @@ object Palette {
     val StopGray = Color(0xFF64748B)
 }
 
-// Material 3 tones around the app's emerald, like Google Maps keeps its own colours.
 private val BrandColors = ColorScheme(
     primary = Color(0xFF63DBA6),
     primaryDim = Color(0xFF4CC390),
@@ -52,7 +50,6 @@ private val BrandColors = ColorScheme(
 fun routeColor(hex: String): Color =
     runCatching { Color(hex.toColorInt()) }.getOrDefault(Palette.StopGray)
 
-/** The watch's own Material You colours when it has them, the app's emerald otherwise. */
 @Composable
 fun ConexiuniClujWearOSTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current

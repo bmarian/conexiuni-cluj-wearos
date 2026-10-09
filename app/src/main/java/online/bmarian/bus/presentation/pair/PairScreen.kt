@@ -67,8 +67,7 @@ private const val POLL_MS = 2000L
 
 enum class PairState { Loading, Waiting, Review, Done, Expired, Failed, Broken }
 
-// Shows a code, waits for another device to send its export to it, and holds what arrived
-// until it is confirmed: anyone who guesses a waiting code can send too.
+// Held until confirmed: anyone who guesses the code can send.
 class PairViewModel : ViewModel() {
     val state = MutableStateFlow(PairState.Loading)
     val link = MutableStateFlow<TransferLink?>(null)
@@ -108,7 +107,6 @@ class PairViewModel : ViewModel() {
                 state.value = PairState.Expired
                 return
             }
-            // Offline for a moment: the next poll tries again.
             val result = runCatching { Api.readTransfer(current) }.getOrNull() ?: continue
             when (result) {
                 Api.TransferRead.Waiting -> {}
@@ -170,7 +168,6 @@ fun PairScreen(onDone: () -> Unit, vm: PairViewModel = viewModel()) {
     val link by vm.link.collectAsStateWithLifecycle()
     val summary by vm.summary.collectAsStateWithLifecycle()
 
-    // The code has to stay up while the other device scans or types it.
     val view = LocalView.current
     DisposableEffect(view) {
         view.keepScreenOn = true

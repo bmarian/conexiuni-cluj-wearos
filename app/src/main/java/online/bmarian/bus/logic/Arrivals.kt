@@ -3,9 +3,9 @@ package online.bmarian.bus.logic
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-// Port of frontend/src/utils/arrivals.ts. Keep the two in step.
+// Port of frontend/src/utils/arrivals.ts.
 
-/** Signed minutes from now until [absMinutes]; differences past half a day cross midnight. */
+/** Wraps around midnight past half a day. */
 fun minutesUntil(absMinutes: Int, nowMinutes: Int): Int {
     val diff = absMinutes - nowMinutes
     if (diff < -720) return diff + 1440
@@ -13,10 +13,9 @@ fun minutesUntil(absMinutes: Int, nowMinutes: Int): Int {
     return diff
 }
 
-// A run this many minutes late is still listed rather than treated as gone.
 const val SCHEDULE_LATE_GRACE_MIN = 3
 
-/** Upcoming timetable arrivals at one stop, soonest first. May start slightly negative. */
+/** Soonest first; may start slightly negative. */
 fun scheduledArrivals(
     departureMinutes: List<Int>,
     offsetMinutes: Int,
@@ -29,10 +28,6 @@ fun scheduledArrivals(
 
 data class Arrival(val minutes: Int, val isLive: Boolean)
 
-/**
- * Live estimate and timetable reconciled on time: the tracked bus is one of the scheduled
- * runs, so the slots at or before it come out of the list.
- */
 fun mergeArrivals(
     liveMinutes: Int?,
     scheduled: List<Int>,
@@ -52,7 +47,7 @@ data class MarkedArrival(val minutes: Int, val isLive: Boolean, val soon: Boolea
 
 private fun readsNow(arrival: Arrival?): Boolean = arrival != null && arrival.minutes.toDouble().roundToInt() == 0
 
-/** The first of consecutive zeros down a column keeps "now"; the rest read "soon". */
+/** The first of consecutive zeros in a column keeps "now"; the rest read "soon". */
 fun markRepeatedNow(rows: List<List<Arrival>>): List<List<MarkedArrival>> =
     rows.mapIndexed { stop, row ->
         row.mapIndexed { column, arrival ->

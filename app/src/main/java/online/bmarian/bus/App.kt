@@ -33,8 +33,10 @@ object Services {
         Api.init(app)
         repository = Repository(app)
         favorites = Favorites(app) { stops, routes, updatedAt -> FavoritesSync.publish(app, stops, routes, updatedAt) }
-        scope.launch { repository.loadCached() }
-        // Favorites changed on the phone while the app wasn't running.
+        scope.launch {
+            repository.loadCached()
+            repository.refreshNetwork(now = true)
+        }
         FavoritesSync.pull(app)
         scope.launch { updateSurfacesOnChange(app) }
     }

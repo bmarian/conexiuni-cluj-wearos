@@ -23,7 +23,7 @@ android {
     }
 }
 
-// Runs on whatever ANDROID_SERIAL names. Never the watch: the test run uninstalls the app.
+// Uses ANDROID_SERIAL; uninstalls the app.
 baselineProfile {
     useConnectedDevices = true
 }

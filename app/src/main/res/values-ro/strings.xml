@@ -70,4 +70,12 @@
     <string name="journey_plan_loading">Se aduce călătoria de pe telefon…</string>
     <string name="journey_recenter">Recentrează</string>
     <string name="journey_overview">Vezi toată porțiunea</string>
+
+    <string name="setup_notifications_title">Autobuzul pe cadran</string>
+    <string name="setup_notifications_body">Permite notificările ca autobuzul urmărit sau călătoria să rămână pe cadran.</string>
+    <string name="setup_location_title">Stații în apropiere</string>
+    <string name="setup_location_body">Permite locația ca să vezi stațiile din jur.</string>
+    <string name="setup_allow">Permite</string>
+    <string name="setup_open_settings">Setări</string>
+    <string name="setup_not_now">Nu acum</string>
 </resources>

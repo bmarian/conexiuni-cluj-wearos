@@ -80,7 +80,6 @@ class RouteViewModel(val routeId: Int, initialDirection: String, val fromStopId:
         viewModelScope.launch {
             try {
                 val route = repository.route(routeId) ?: throw IllegalStateException("unknown route")
-                // The last copy first, so the map and the timetable show at once; then the fresh one.
                 if (shapeInfo.value == null) repository.cachedShapeInfo(route)?.let { show(it) }
                 show(repository.shapeInfo(route))
             } catch (e: Exception) {

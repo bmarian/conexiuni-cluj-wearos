@@ -9,13 +9,10 @@ import online.bmarian.bus.data.routeIdFromTripId
 import java.time.LocalDateTime
 import kotlin.math.ceil
 
-// Times per departure row. One more is asked of the timetable, because merging in a live
-// estimate consumes the slot that same run occupies.
 const val DEPARTURES_SHOWN = 3
 private const val STOP_HORIZON_MIN = 480
 const val SCHEDULE_HORIZON_MIN = 480
 
-/** Trips at the stop whose route has a timetable: what to stream and which shapes to load. */
 fun trackableTripIds(info: StopInfo): List<String> {
     val routeIds = info.shapesInfo.filter { hasTimetableEntries(it.timetable) }.map { it.routeId }.toSet()
     return (info.outgoingTripIds + info.incomingTripIds).filter { routeIdFromTripId(it) in routeIds }
@@ -72,7 +69,6 @@ fun computeStopDepartures(
 
 class IndexedStop(val stop: StopTime, val offsetFromStart: Int)
 
-/** One direction's stops in order, with the minutes each is from the start of the trip. */
 fun stopsForDirection(shapeInfo: ShapeInfo, tripId: String): List<IndexedStop> {
     var cumulativeSec = 0.0
     return shapeInfo.stopTimes.filter { it.tripId == tripId }.sortedBy { it.stopSequence }.map {
@@ -93,7 +89,7 @@ fun directionShape(shapeInfo: ShapeInfo, tripId: String, shape: List<ShapePoint>
     return DirectionShape(shape, buildShapeIndex(shape), buildStopShapeIdxByStopId(tripStops, shape))
 }
 
-/** Port of stopTimesByStop in useRouteArrivals: next arrivals at every stop of a direction. */
+/** Port of stopTimesByStop in useRouteArrivals. */
 fun routeStopArrivals(
     shapeInfo: ShapeInfo,
     stops: List<IndexedStop>,

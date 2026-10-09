@@ -12,8 +12,7 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-// Same format as frontend/src/utils/transferLink.ts. A scanned code carries a key after
-// the #, which never reaches the server, and the sender seals the data with it.
+// Same format as frontend/src/utils/transferLink.ts.
 object Transfer {
     private val random = SecureRandom()
 
@@ -26,7 +25,6 @@ object Transfer {
 
     fun spaced(code: String) = if (code.length == 6) "${code.take(3)} ${code.drop(3)}" else code
 
-    /** Throws when the data is sealed and this key can't open it. */
     fun open(payload: JsonElement, key: String): JsonElement {
         val sealed = payload as? JsonObject ?: return payload
         if ((sealed["sealed"] as? JsonPrimitive)?.intOrNull != 1) return payload
@@ -40,7 +38,6 @@ object Transfer {
 
     data class Summary(val stops: Int, val lines: Int)
 
-    /** Null for anything that isn't a settings export. */
     fun describe(data: JsonElement): Summary? {
         val export = data as? JsonObject ?: return null
         val favorites = export["favorites"] as? JsonObject
@@ -51,7 +48,7 @@ object Transfer {
         )
     }
 
-    /** Only favorites and the language: the rest of the settings belong to the website. */
+    /** Only favorites and language; other settings are web-only. */
     fun localeOf(data: JsonElement): String? {
         val settings = (data as? JsonObject)?.get("settings") as? JsonObject ?: return null
         return (settings["locale"] as? JsonPrimitive)?.contentOrNull?.takeIf { it == "ro" || it == "en" }

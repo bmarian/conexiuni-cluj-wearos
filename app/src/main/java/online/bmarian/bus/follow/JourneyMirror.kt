@@ -23,38 +23,28 @@ import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.presentation.MainActivity
 
-/**
- * The step-by-step trip the phone app runs, as it sends it after every change. The watch only
- * shows it. The phone app sends the same JSON.
- */
+/** Wire format shared with the phone app. */
 @Serializable
 data class JourneySync(
     val id: String,
-    // Where the journey goes.
     val title: String,
-    // The current instruction, already in the phone's language.
+    // In the phone's language.
     val step: String,
     val detail: String? = null,
-    // The line number for a badge, when a bus is involved, in its colour as the API gives it.
     val line: String? = null,
     val color: String? = null,
-    // When the countdown reaches zero, in epoch milliseconds.
+    // Epoch ms.
     val arrivalAt: Long? = null,
-    // Moves on with each step: one buzz.
     val stepIndex: Int = 0,
-    // A step that needs the user, like getting off next or the bus being here: a stronger buzz.
+    // Needs the user now: stronger buzz.
     val alert: Boolean = false,
-    // The journey is over.
     val end: Boolean = false,
-    // Version 2: what the step is (StepType), the leg under way, stops left on the bus, when
-    // you get there and how much of the trip is behind you (0 to 1). Older phones leave them out.
     val stepType: String? = null,
     val legIndex: Int = 0,
     val stopsLeft: Int? = null,
     val totalStops: Int? = null,
     val etaAt: Long? = null,
     val progress: Float? = null,
-    // Where the phone is, for the map when the watch has no position of its own.
     val lat: Double? = null,
     val lon: Double? = null,
     val bearing: Float? = null,
@@ -65,20 +55,13 @@ private const val STEP_NOTIFICATION_ID = 12
 private const val FOLLOW_CHANNEL = "follow"
 private const val ALERT_CHANNEL = "follow_alerts"
 private const val URGENT_CHANNEL = "journey_alerts"
-// Nobody updates it once the phone is out of reach: it goes this long after the last word,
-// or this long after the time it was counting down to, whichever is later.
 private const val STALE_MS = 15 * 60_000L
 private const val PAST_ARRIVAL_MS = 10 * 60_000L
 
-/**
- * The phone's journey on the watch, like Maps puts its navigation there: the current step on the
- * watch face, and a buzz each time it moves on, stronger when the step needs the user.
- */
 object JourneyMirror {
     private val mutableState = MutableStateFlow<JourneySync?>(null)
     val state: StateFlow<JourneySync?> = mutableState
 
-    // The whole trip, for the journey screen's map; the phone sends it at the start.
     private val mutablePlan = MutableStateFlow<Journey?>(null)
     val plan: StateFlow<Journey?> = mutablePlan
 
@@ -95,11 +78,9 @@ object JourneyMirror {
             return
         }
         mutableState.value = sync
-        // Opened late, or the plan got lost on the way: ask the phone for it again.
         if (plan.value?.id != sync.id) PhoneLink.requestJourneyPlan(context, sync.id)
         val now = System.currentTimeMillis()
         show(context, sync, now)
-        // The first step of a new journey was just seen on the phone; only the ones after buzz.
         val moved = if (current?.id == sync.id) current.stepIndex != sync.stepIndex else sync.alert
         if (moved) alert(context, sync)
         expiry?.cancel()
@@ -114,7 +95,12 @@ object JourneyMirror {
         mutablePlan.value = journey
     }
 
-    /** End pressed on the watch: it ends on the phone too. */
+    @Synchronized
+    fun reshow(context: Context) {
+        val sync = state.value ?: return
+        show(context, sync, System.currentTimeMillis())
+    }
+
     @Synchronized
     fun end(context: Context, id: String) {
         if (state.value.let { it == null || it.id == id }) clear(context)
@@ -185,7 +171,6 @@ object JourneyMirror {
         runCatching { manager(context).notify(JOURNEY_NOTIFICATION_ID, builder.build()) }
     }
 
-    // A heads-up for the new step; its channel decides how hard it buzzes.
     @SuppressLint("MissingPermission")
     private fun alert(context: Context, sync: JourneySync) {
         val notification = NotificationCompat.Builder(context, if (sync.alert) URGENT_CHANNEL else ALERT_CHANNEL)
@@ -213,7 +198,6 @@ object JourneyMirror {
     )
 }
 
-/** End on the journey's notification. */
 class EndJourneyReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra(EXTRA_ID) ?: return

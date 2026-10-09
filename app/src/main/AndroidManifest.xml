@@ -24,7 +24,6 @@
         android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault">
-        <!-- Keeps a followed bus's countdown live, as an ongoing activity, until it arrives. -->
         <service
             android:name=".follow.FollowService"
             android:exported="false"
@@ -34,7 +33,6 @@
                 android:value="Live arrival countdown for a public transport departure the user chose to follow" />
         </service>
 
-        <!-- The phone app starting, updating or stopping a follow or a journey, and its favorites. -->
         <service
             android:name=".follow.PhoneListener"
             android:exported="true">
@@ -62,7 +60,6 @@
             android:name=".follow.EndJourneyReceiver"
             android:exported="false" />
 
-        <!-- The followed bus and the favorite stops' next departures, a swipe from the watch face. -->
         <service
             android:name=".surfaces.BusTileService"
             android:exported="true"
@@ -78,7 +75,6 @@
                 android:resource="@drawable/tile_preview" />
         </service>
 
-        <!-- The next bus on the watch face. -->
         <service
             android:name=".surfaces.NextBusComplicationService"
             android:exported="true"
@@ -103,7 +99,6 @@
         <uses-library
             android:name="wear-sdk"
             android:required="false" />
-        <!-- Works on its own, without a phone app. -->
         <meta-data
             android:name="com.google.android.wearable.standalone"
             android:value="true" />
@@ -119,7 +114,6 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- A stop or a line opened from the phone app, as both apps link to them. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 

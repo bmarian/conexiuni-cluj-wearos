@@ -59,15 +59,13 @@ import online.bmarian.bus.presentation.surface
 import online.bmarian.bus.presentation.theme.Palette
 import kotlin.math.ceil
 
-// Same reach and count as the website's nearby list.
+// Same as the website's nearby list.
 private const val NEARBY_RADIUS_METERS = 700.0
 private const val NEARBY_COUNT = 6
-// The website's walking pace, for the minutes on foot.
+// The website's walking pace.
 private const val WALKING_METERS_PER_MINUTE = 80.0
 
-// GPS wanders by a few tens of metres standing still; past this the list is worked out again.
 private const val MOVED_METERS = 50.0
-// How long to wait for a first position before saying location is off.
 private const val FIRST_FIX_TIMEOUT_MS = 20_000L
 
 private val LOCATION_PERMISSIONS = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -82,7 +80,6 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit, onOpenMap: () -> Unit) {
         permitted = result.values.any { it }
         asked = true
     }
-    // The last place first, so the list is there at once; it only moves when the wearer does.
     var shown by remember { mutableStateOf(if (permitted) UserLocation.saved(context) else null) }
     var gaveUp by remember { mutableStateOf(false) }
     val updates = remember(permitted) { UserLocation.updates(context) }
@@ -157,7 +154,6 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit, onOpenMap: () -> Unit) {
 
 private const val NEARBY_MAP_ZOOM = 13.5f
 
-/** The same stops as the list, on the map with their names; a tap opens one. */
 @Composable
 fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
     val context = LocalContext.current
@@ -188,12 +184,10 @@ fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
         Box(Modifier.fillMaxSize()) {
             TransitMap(
                 camera = camera,
-                // All six stops and you in view, as close in as that allows.
                 frame = center?.takeIf { stops.isNotEmpty() }?.let { here ->
                     MapFrame.Fit(around.map { (stop, _) -> stop.lat to stop.lon } + (here.lat to here.lon), side = 0.22, top = 0.38, bottom = 0.34)
                 },
                 stops = around.map { (stop, _) -> MapStop("${stop.stopId}", stop.lat, stop.lon, Palette.StopGray) },
-                // Nearest first, drawn on top where two names meet.
                 labels = around.mapIndexed { i, (stop, _) -> MapLabel("${stop.stopId}", stop.lat, stop.lon, stop.name, live = false, rank = i) },
                 me = live,
                 ambient = LocalAmbient.current,
@@ -218,4 +212,3 @@ fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
         }
     }
 }
-

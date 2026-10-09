@@ -58,7 +58,6 @@ class StopViewModel(val stopId: Int) : ViewModel() {
         StopUi(computeStopDepartures(info, shapes, vehicles, now, nowMs), now)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    // Like the website: only favorite lines, their buses and the routes they run.
     val mapLayer: StateFlow<StopMapLayer> = combine(ui, shapes, vehicles, Services.favorites.routes) { ui, shapes, vehicles, _ ->
         if (ui == null) return@combine StopMapLayer(emptyList(), emptyList())
         val nowMs = System.currentTimeMillis()
@@ -84,7 +83,6 @@ class StopViewModel(val stopId: Int) : ViewModel() {
     fun load() {
         failed.value = false
         viewModelScope.launch {
-            // The last copy first, so the timetable shows at once; then the fresh one.
             if (info.value == null) repository.cachedStopInfo(stopId)?.let { show(it) }
             try {
                 show(repository.stopInfo(stopId))
@@ -104,7 +102,6 @@ class StopViewModel(val stopId: Int) : ViewModel() {
         shapes.value = loadedShapes
     }
 
-    /** Runs while the screen is visible: the clock ticks and live positions stream in. */
     suspend fun live() = coroutineScope {
         launch { AmbientTicks.ticks.collect { clock.value = System.currentTimeMillis() } }
         launch {

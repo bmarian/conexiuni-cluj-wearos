@@ -76,7 +76,6 @@ import online.bmarian.bus.presentation.theme.Palette
 import online.bmarian.bus.presentation.theme.routeColor
 import java.time.LocalDateTime
 
-// Opened from a stop, the map starts on that stop.
 private const val FROM_STOP_ZOOM = 13f
 private const val ME_ZOOM = 14f
 private val MAP_BUTTON = 44.dp
@@ -242,8 +241,6 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
     val isFavorite = favoriteRoutes.any { it.routeId == vm.routeId && it.direction == direction }
     val openOnPhone = rememberOpenOnPhone(Links.route(vm.routeId, direction))
 
-    // Opened from a stop, the times are when the bus gets there. After a swap that is the
-    // stop of the same name on the other side, if this direction has one.
     val allStops by Services.repository.stops.collectAsStateWithLifecycle()
     val names = remember(allStops) { allStops.associate { it.stopId to it.name } }
     val atStop = remember(info, direction, names) {
@@ -261,7 +258,6 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
         schedule?.let { departureMinutes(it, outgoing).map { minutes -> minutes + offset }.sorted() }.orEmpty()
     }
     val nowMinutes = minutesOfDay(now)
-    // From the current hour on: only what is still to come matters here.
     val hours = remember(departures, nowMinutes) {
         departures.filter { it / 60 >= nowMinutes / 60 }
             .groupBy { it / 60 }
@@ -280,7 +276,6 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
             val heading = atStop?.second ?: terminal.takeIf { it.isNotEmpty() }?.let { "→\u00A0$it" }
             LineHeader(spec, info?.shortName, info?.color, heading.orEmpty())
         }
-        // The times are what this screen is for, so its actions stay small.
         item {
             Row(contentModifier(spec), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
                 IconToggleButton(

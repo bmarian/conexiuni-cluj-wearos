@@ -33,10 +33,6 @@ import kotlin.math.roundToInt
 private val BusStop by lazy { PathParser().parsePathString(Glyphs.BUS_STOP_PATH).toPath() }
 private val NavArrow by lazy { PathParser().parsePathString("M12 2L21 21l-9-4-9 4 9-19z").toPath() }
 
-/**
- * The phone app's marker art, sized for the watch, as bitmaps for the map's symbol layers:
- * stops with the bus glyph, buses with their number and heading, and the time labels.
- */
 internal class MapImages(context: Context) {
     private val density = Density(context)
     private val measurer = TextMeasurer(createFontFamilyResolver(context), density, LayoutDirection.Ltr)
@@ -87,7 +83,6 @@ internal class MapImages(context: Context) {
         }
     }
 
-    /** A time or a name in a dark pill, green-edged when the time is live. */
     fun label(text: String, live: Boolean): Bitmap {
         val style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (live) Palette.Accent else Color(0xFFE2E8F0))
         val layout = measurer.measure(text, style)

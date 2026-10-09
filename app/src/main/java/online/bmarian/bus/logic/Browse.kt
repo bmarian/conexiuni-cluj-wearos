@@ -5,12 +5,10 @@ import online.bmarian.bus.data.Stop
 import java.text.Normalizer
 import java.util.Locale
 
-// 800 stops is far too many to scroll with a bezel, so they are picked by initial first,
-// and by the first two letters when one initial holds more than this.
 const val SPLIT_OVER = 40
-// Metropolitan stops are named "M-Name", "M - Name" or "M Name" and filed under the name.
+// Metropolitan stops: "M-Name", "M - Name" or "M Name".
 private val METRO_PREFIX = Regex("""^M(\s*-\s*|\s+)(?=\S)""")
-// CTP writes squares both as "P-ța" and "Piața"; both belong under "Pi".
+// CTP writes both "P-ța" and "Piața".
 private val SQUARE_PREFIX = Regex("""^P-ța\b""")
 private val COMBINING_MARKS = Regex("[\\u0300-\\u036f]")
 
@@ -21,13 +19,8 @@ fun stopSortKey(name: String): String {
 
 fun initialOf(key: String): String = key.firstOrNull()?.takeIf { it in 'A'..'Z' }?.toString() ?: "#"
 
-/**
- * Like the browser's localeCompare with numeric: true on these keys: spaces, then
- * punctuation, then numbers by value, then letters. java.text.Collator skips spaces and
- * punctuation altogether, which put "A. VLAICU" after "ACADEMIA".
- */
+/** JS localeCompare with numeric: true. java.text.Collator ignores spaces and punctuation. */
 object NaturalOrder : Comparator<String> {
-    // The root collation order of the punctuation and symbols that show up in names.
     private const val PUNCTUATION = """_-,;:!?.'"()[]{}@*/\&#%`^+<=>|~${'$'}"""
 
     private fun rank(c: Char): Int = when {

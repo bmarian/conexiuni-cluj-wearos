@@ -12,12 +12,11 @@ import java.time.ZoneId
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
-// Ports of frontend/src/utils/time.ts and the trip helpers in utils/trips.ts.
+// Ports of frontend/src/utils/time.ts and utils/trips.ts.
 
-// Timetables are in Cluj time, whatever zone the device is set to.
 val CLUJ_ZONE: ZoneId = ZoneId.of("Europe/Bucharest")
 
-// Like JS parseInt: leading digits count, anything after them is ignored.
+// JS parseInt.
 private fun parseLeadingInt(text: String): Int? {
     val trimmed = text.trimStart()
     var end = 0
@@ -36,7 +35,6 @@ fun timeStringToMinutes(time: String): Int? {
 
 fun minutesOfDay(time: LocalDateTime): Int = time.hour * 60 + time.minute
 
-/** "now", "7m", or the clock time once it is an hour or more away. */
 fun formatMinutesFromNow(rawMinutes: Int, reference: LocalDateTime, nowLabel: String): String {
     val minutes = rawMinutes.toDouble().roundToInt()
     if (minutes == 0) return nowLabel
@@ -61,7 +59,6 @@ fun reverseRouteLongName(name: String): String = name.split(" - ").reversed().jo
 fun tripIdForRouteAtStop(outgoing: List<String>, incoming: List<String>, routeId: Int): String? =
     (outgoing + incoming).firstOrNull { routeIdFromTripId(it) == routeId }
 
-/** Minutes from the trip's departure until it reaches [stopId], the stop's own ride included. */
 fun timeOffsetToStop(stopTimes: List<StopTime>, tripId: String, stopId: Int): Int {
     var seconds = 0.0
     for (st in stopTimes.filter { it.tripId == tripId }.sortedBy { it.stopSequence }) {
@@ -79,14 +76,13 @@ data class StopDeparture(
     val shortName: String,
     val color: String,
     val tripId: String,
-    // Already turned around for the incoming direction.
     val longName: String,
     val nextTimes: List<Arrival>,
     val minutesLeft: Int,
     val isStatic: Boolean,
 )
 
-/** Timetable-only departures at a stop, soonest first. Port of getAvailableBusesForStop. */
+/** Port of getAvailableBusesForStop. */
 fun availableBusesForStop(
     info: StopInfo,
     now: LocalDateTime,

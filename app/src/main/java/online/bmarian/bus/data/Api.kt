@@ -50,8 +50,8 @@ object Api {
 
     private fun encode(value: String) = URLEncoder.encode(value, "UTF-8")
 
-    private suspend fun send(request: Request): Response = suspendCancellableCoroutine { cont ->
-        val call = client.newCall(request)
+    private suspend fun send(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->
+        val call = via.newCall(request)
         cont.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -64,10 +64,8 @@ object Api {
         })
     }
 
-    // The callback comes with the headers; the body is still on its way, so it is read off
-    // the main thread.
-    private suspend fun <T> fetch(request: Request, read: (Response) -> T): T {
-        val response = send(request)
+    private suspend fun <T> fetch(request: Request, via: OkHttpClient = client, read: (Response) -> T): T {
+        val response = send(request, via)
         try {
             return withContext(Dispatchers.IO) { read(response) }
         } finally {
@@ -80,13 +78,11 @@ object Api {
         response.body?.string() ?: ""
     }
 
-    // The watch CPU is slow, so parsing stays off the main thread.
     suspend inline fun <reified T> get(path: String): T {
         val text = getText(path)
         return withContext(Dispatchers.Default) { json.decodeFromString<T>(text) }
     }
 
-    // Whatever the HTTP cache holds, however old, without touching the network.
     suspend fun cachedText(path: String): String? = runCatching {
         fetch(Request.Builder().url(url(path)).cacheControl(CacheControl.FORCE_CACHE).build()) { response ->
             if (response.isSuccessful) response.body?.string() else null
@@ -107,7 +103,23 @@ object Api {
     suspend fun stopInfo(stopId: Int): StopInfo = get(stopInfoPath(stopId))
     suspend fun timetable(shortName: String): Timetable = get(timetablePath(shortName))
     suspend fun stopTimes(shortName: String): List<StopTime> = get(stopTimesPath(shortName))
-    suspend fun shapes(shapeIds: List<String>): List<ShapePoint> = get("shapes?shape_ids=${shapeIds.joinToString(",")}")
+    suspend fun shapePolylines(shapeIds: List<String>): Map<String, String> =
+        get("shapes?format=polyline&shape_ids=${shapeIds.joinToString(",")}")
+
+    suspend fun networkVersion(): NetworkVersion {
+        val text = fetch(Request.Builder().url(url("network/version")).cacheControl(CacheControl.FORCE_NETWORK).build()) { response ->
+            if (!response.isSuccessful) throw HttpException(response.code)
+            response.body?.string() ?: ""
+        }
+        return json.decodeFromString(text)
+    }
+
+    private val bundleClient: OkHttpClient by lazy { client.newBuilder().cache(null).build() }
+
+    suspend fun networkText(): String = fetch(Request.Builder().url(url("network")).build(), bundleClient) { response ->
+        if (!response.isSuccessful) throw HttpException(response.code)
+        response.body?.string() ?: ""
+    }
     suspend fun vehicles(tripIds: List<String>): List<Vehicle> = get("vehicles?trip_ids=${tripIds.joinToString(",")}")
 
     suspend fun createTransfer(): TransferLink {

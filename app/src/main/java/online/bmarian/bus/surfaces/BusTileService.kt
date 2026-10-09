@@ -43,13 +43,11 @@ import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
 import kotlin.time.Duration.Companion.seconds
 
-// Three rows is what a round screen has room for under the title: the followed bus takes one.
 private const val ROWS_SHOWN = 3
 private const val ROW_HEIGHT = 34f
 private const val ROW_SPACING = 4f
 private const val GRAY = 0xFF64748B.toInt()
 
-// The app's own emerald, as on its screens.
 private val TILE_COLORS = ColorScheme(
     primary = 0xFF63DBA6.argb,
     onPrimary = 0xFF003824.argb,
@@ -62,10 +60,6 @@ private val TILE_COLORS = ColorScheme(
     onBackground = 0xFFDEE4DF.argb,
 )
 
-/**
- * The tile: the followed bus, then the next departure at the first favorite stops, like the Maps
- * tile puts Home and Work. A row opens its bus or stop in the app.
- */
 class BusTileService : Material3TileService(allowDynamicTheme = false, defaultColorScheme = TILE_COLORS) {
     override suspend fun MaterialScope.tileResponse(requestParams: RequestBuilders.TileRequest): TileBuilders.Tile {
         val follow = FollowManager.state.value
@@ -95,7 +89,6 @@ class BusTileService : Material3TileService(allowDynamicTheme = false, defaultCo
                         line = departure?.shortName,
                         color = departure?.color,
                         label = stop.name,
-                        // Worked out from the timetable alone, so always marked as such.
                         time = stop.minutes?.let { etaLabel(context, it, stop.nowMs, scheduled = true) },
                         highlighted = false,
                     ),
@@ -122,7 +115,6 @@ class BusTileService : Material3TileService(allowDynamicTheme = false, defaultCo
         return tile(timeline(timelineEntry(layout)), freshness = 60.seconds)
     }
 
-    // One tappable line: the bus's badge, where it is, and when it comes.
     private fun MaterialScope.tileRow(
         id: String,
         action: LaunchAction,
@@ -163,7 +155,6 @@ class BusTileService : Material3TileService(allowDynamicTheme = false, defaultCo
         )
     }
 
-    // The line number in its CTP colour, like the badges in the app.
     private fun MaterialScope.badge(line: String, color: String?): LayoutElement = box(
         text(line.layoutString, typography = Typography.LABEL_SMALL, color = 0xFFFFFFFF.argb),
         modifier = LayoutModifier

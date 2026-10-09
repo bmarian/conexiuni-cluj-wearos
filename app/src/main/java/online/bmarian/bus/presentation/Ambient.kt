@@ -31,17 +31,14 @@ import online.bmarian.bus.follow.JourneySync
 import online.bmarian.bus.logic.CLUJ_ZONE
 import java.time.LocalDateTime
 
-/** Whether the watch is in always-on: dim, black and redrawn about once a minute. */
 val LocalAmbient = compositionLocalOf { false }
 
-/** Fires on each ambient update, so screens can move their clocks on. */
 object AmbientTicks {
     val ticks = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 }
 
 private const val CLOCK_TICK_MS = 15_000L
 
-/** The time in epoch milliseconds, moved on every few seconds and on each ambient update. */
 @Composable
 fun rememberClock(): State<Long> = produceState(System.currentTimeMillis()) {
     launch { AmbientTicks.ticks.collect { value = System.currentTimeMillis() } }
@@ -51,7 +48,6 @@ fun rememberClock(): State<Long> = produceState(System.currentTimeMillis()) {
     }
 }
 
-/** With the wrist down while following a bus: only the countdown, in white on black. */
 @Composable
 fun AmbientFollow(state: FollowState) {
     val followed = state.followed
@@ -96,7 +92,6 @@ fun AmbientFollow(state: FollowState) {
     }
 }
 
-/** With the wrist down on a journey from the phone: only its current step, in white on black. */
 @Composable
 fun AmbientJourney(journey: JourneySync) {
     Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {

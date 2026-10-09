@@ -11,19 +11,21 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.security.MessageDigest
 
 private const val LIST_REFRESH_MS = 30 * 60_000L
 private const val SHAPE_INFO_TTL_MS = 10 * 60_000L
 private const val SHAPE_TTL_MS = 3 * 24 * 60 * 60_000L
 
-/**
- * Routes and stops start from the last session's copy so favorites show before the
- * network answers; everything else is fetched when a screen asks for it.
- */
 class Repository(context: Context) {
     private val routesFile = File(context.filesDir, "routes.json")
     private val stopsFile = File(context.filesDir, "stops.json")
-    private val shapeDir = File(context.filesDir, "shapes").apply { mkdirs() }
+    private val shapeDir = File(context.filesDir, "shapes").apply {
+        mkdirs()
+        listFiles { f -> f.extension == "json" }?.forEach { it.delete() }
+    }
+
+    val network = NetworkStore(context)
 
     private val _routes = MutableStateFlow<List<Route>>(emptyList())
     val routes: StateFlow<List<Route>> = _routes
@@ -38,16 +40,33 @@ class Repository(context: Context) {
     private val shapeInfoCache = HashMap<Int, Pair<Long, ShapeInfo>>()
     private val shapeCache = LruCache<String, List<ShapePoint>>(24)
 
-    suspend fun loadCached() = withContext(Dispatchers.IO) {
-        if (_routes.value.isEmpty()) readList<Route>(routesFile)?.let { _routes.value = it }
-        if (_stops.value.isEmpty()) readList<Stop>(stopsFile)?.let { _stops.value = it }
+    suspend fun loadCached() {
+        withContext(Dispatchers.IO) {
+            if (_routes.value.isEmpty()) readList<Route>(routesFile)?.let { _routes.value = it }
+            if (_stops.value.isEmpty()) readList<Stop>(stopsFile)?.let { _stops.value = it }
+        }
+        network.load()
+        network.index.value?.let(::useLists)
     }
+
+    suspend fun refreshNetwork(now: Boolean = false): Boolean {
+        val ok = network.refresh(now)
+        network.index.value?.let(::useLists)
+        return ok
+    }
+
+    private fun useLists(index: NetworkIndex) {
+        if (index.routes.isNotEmpty() && _routes.value != index.routes) _routes.value = index.routes
+        if (index.stops.isNotEmpty() && _stops.value != index.stops) _stops.value = index.stops
+    }
+
+    private fun nowMs() = System.currentTimeMillis()
 
     private inline fun <reified T> readList(file: File): List<T>? =
         runCatching { Api.json.decodeFromString<List<T>>(file.readText()) }.getOrNull()?.takeIf { it.isNotEmpty() }
 
-    /** False when the list could not be fetched; the cached copy stays in place. */
     suspend fun refreshRoutes(force: Boolean = false): Boolean = routesMutex.withLock {
+        if (!force && network.index.value != null) return true
         if (!force && System.currentTimeMillis() - routesFetchedAt < LIST_REFRESH_MS) return true
         runCatching {
             val text = Api.routesText()
@@ -61,6 +80,7 @@ class Repository(context: Context) {
     }
 
     suspend fun refreshStops(force: Boolean = false): Boolean = stopsMutex.withLock {
+        if (!force && network.index.value != null) return true
         if (!force && System.currentTimeMillis() - stopsFetchedAt < LIST_REFRESH_MS) return true
         runCatching {
             val text = Api.stopsText()
@@ -80,19 +100,21 @@ class Repository(context: Context) {
         return _routes.value.find { it.routeId == routeId }
     }
 
-    suspend fun stopInfo(stopId: Int): StopInfo = Api.stopInfo(stopId)
+    suspend fun stopInfo(stopId: Int): StopInfo =
+        network.index.value?.stopInfo(stopId, nowMs()) ?: Api.stopInfo(stopId)
 
-    /** The last copy of a stop, to show while the fresh one loads. */
-    suspend fun cachedStopInfo(stopId: Int): StopInfo? = Api.cached(Api.stopInfoPath(stopId))
+    suspend fun cachedStopInfo(stopId: Int): StopInfo? =
+        network.index.value?.stopInfo(stopId, nowMs()) ?: Api.cached(Api.stopInfoPath(stopId))
 
     suspend fun cachedShapeInfo(route: Route): ShapeInfo? {
+        network.index.value?.shapeInfo(route, nowMs())?.let { return it }
         synchronized(shapeInfoCache) { shapeInfoCache[route.routeId]?.let { return it.second } }
         val stopTimes = Api.cached<List<StopTime>>(Api.stopTimesPath(route.shortName)) ?: return null
         return assembleShapeInfo(route, Api.cached<Timetable>(Api.timetablePath(route.shortName)), stopTimes)
     }
 
-    /** Timetable and stop times for one route. Port of useRouteShapeInfoApi.fetchShapeInfo. */
     suspend fun shapeInfo(route: Route): ShapeInfo {
+        network.index.value?.shapeInfo(route, nowMs())?.let { return it }
         synchronized(shapeInfoCache) {
             shapeInfoCache[route.routeId]?.let { (at, info) ->
                 if (System.currentTimeMillis() - at < SHAPE_INFO_TTL_MS) return info
@@ -107,44 +129,45 @@ class Repository(context: Context) {
         return info
     }
 
-    /**
-     * Shape points per trip id, in order. Trips the server has no shape for map to an empty list.
-     * Shapes almost never change, so they are kept on disk for days.
-     */
+    private class SavedShape(val hash: String, val points: List<ShapePoint>, val savedAt: Long)
+
     suspend fun shapes(tripIds: List<String>): Map<String, List<ShapePoint>> {
         val ids = tripIds.distinct().sorted()
+        val index = network.index.value
         val result = HashMap<String, List<ShapePoint>>()
         val stale = HashMap<String, List<ShapePoint>>()
         val missing = withContext(Dispatchers.IO) {
             ids.filter { id ->
-                shapeCache.get(id)?.let { result[id] = it; return@filter false }
-                val file = shapeFile(id)
-                val saved = if (file.exists()) readList<ShapePoint>(file) else null
-                if (saved != null && System.currentTimeMillis() - file.lastModified() < SHAPE_TTL_MS) {
-                    shapeCache.put(id, saved)
-                    result[id] = saved
+                val wanted = index?.shapeHash(id)
+                shapeCache.get("$id@$wanted")?.let { result[id] = it; return@filter false }
+                val saved = readShape(id)
+                val good = saved != null &&
+                    if (wanted != null) saved.hash == wanted else nowMs() - saved.savedAt < SHAPE_TTL_MS
+                if (good) {
+                    shapeCache.put("$id@$wanted", saved!!.points)
+                    result[id] = saved.points
                     false
                 } else {
-                    if (saved != null) stale[id] = saved
+                    if (saved != null) stale[id] = saved.points
                     true
                 }
             }
         }
         if (missing.isEmpty()) return result
-        val points = try {
-            Api.shapes(missing)
+        val encoded = try {
+            Api.shapePolylines(missing)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException || stale.isEmpty()) throw e
             result.putAll(stale)
             return result
         }
         withContext(Dispatchers.IO) {
-            val grouped = points.groupBy { it.shapeId }
             for (id in missing) {
-                val shape = grouped[id].orEmpty().sortedBy { it.sequence }
+                val polyline = encoded[id].orEmpty()
+                val shape = decodeShape(id, polyline)
                 if (shape.isNotEmpty()) {
-                    shapeCache.put(id, shape)
-                    runCatching { shapeFile(id).writeText(Api.json.encodeToString(shape)) }
+                    shapeCache.put("$id@${index?.shapeHash(id)}", shape)
+                    runCatching { shapeFile(id).writeText(shapeHash(polyline) + "\n" + polyline) }
                 }
                 result[id] = shape
             }
@@ -152,10 +175,23 @@ class Repository(context: Context) {
         return result
     }
 
-    private fun shapeFile(tripId: String) = File(shapeDir, "${tripId.filter { it.isLetterOrDigit() || it == '_' }}.json")
+    private fun readShape(tripId: String): SavedShape? {
+        val file = shapeFile(tripId)
+        if (!file.exists()) return null
+        val lines = runCatching { file.readLines() }.getOrNull() ?: return null
+        val points = decodeShape(tripId, lines.getOrNull(1).orEmpty()).takeIf { it.isNotEmpty() } ?: return null
+        return SavedShape(lines[0], points, file.lastModified())
+    }
+
+    private fun decodeShape(tripId: String, polyline: String): List<ShapePoint> =
+        decodePolyline(polyline, precision = 6).mapIndexed { i, (lat, lon) -> ShapePoint(tripId, lat, lon, i) }
+
+    private fun shapeFile(tripId: String) = File(shapeDir, "${tripId.filter { it.isLetterOrDigit() || it == '_' }}.poly")
 }
 
-/** A route's timetable and stop times, with names the timetable lacks taken from the route. */
+fun shapeHash(polyline: String): String =
+    MessageDigest.getInstance("SHA-256").digest(polyline.toByteArray()).take(6).joinToString("") { "%02x".format(it) }
+
 fun assembleShapeInfo(route: Route, timetable: Timetable?, stopTimes: List<StopTime>): ShapeInfo {
     val outbound = stopTimes.filter { it.tripId.endsWith(OUTGOING_SUFFIX) }.sortedBy { it.stopSequence }
     var tt = timetable ?: Timetable(routeLongName = route.longName)

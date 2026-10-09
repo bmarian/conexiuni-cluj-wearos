@@ -27,7 +27,7 @@ data class Stop(
 data class StopTime(
     @SerialName("trip_id") val tripId: String,
     @SerialName("stop_id") val stopId: Int,
-    // Seconds from the previous stop into this one.
+    // Seconds from the previous stop.
     @SerialName("offset_arrival_time") val offsetArrivalTime: Double = 0.0,
     @SerialName("stop_sequence") val stopSequence: Int = 0,
     @SerialName("stop_headsign") val headsign: String = "",
@@ -120,7 +120,6 @@ fun directionFromTripId(tripId: String): String = if (tripId.endsWith(INCOMING_S
 fun tripIdFor(routeId: Int, direction: String): String =
     "$routeId${if (direction == "1") INCOMING_SUFFIX else OUTGOING_SUFFIX}"
 
-// "Origin - Destination": direction 0 runs to the part after the last " - ", 1 back to the part before.
 fun terminalName(routeLongName: String, direction: String): String {
     val i = routeLongName.lastIndexOf(" - ")
     if (i < 0) return routeLongName

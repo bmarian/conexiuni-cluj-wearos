@@ -84,46 +84,39 @@ import org.maplibre.geojson.Point
 import kotlin.math.min
 import kotlin.math.sign
 
-// MapLibre's zoom levels: two below the old canvas map's, which counted 128 dp tiles.
+// Two below the old canvas map's levels (128 dp tiles).
 private const val MIN_ZOOM = 8.0
 private const val MAX_ZOOM = 17.0
-// Fitted routes stop here, like the website's watch map.
 private const val FIT_MAX_ZOOM = 14.0
-// One bezel click. The website zoomed a whole level per click, which jumps too far.
+// Per bezel click.
 private const val ZOOM_PER_DETENT = 0.5
-// A finger is wider than a stop marker.
 private val TAP_REACH = 22.dp
-// Following you, the top this share of the screen is kept for the way ahead.
 private const val FOLLOW_TOP_SHARE = 0.25
-// Same width as Wear's own edge swipe-to-dismiss zone.
+// Same width as Wear's edge swipe-to-dismiss zone.
 private val BACK_EDGE = 30.dp
 private val CLUJ_CENTER = LatLng(46.7712, 23.6236)
 
 private var started = false
 
-/** MapLibre on the app's own HTTP client, with a tile cache a watch can spare. */
 private fun startMapLibre(context: Context) {
     if (started) return
     started = true
     val app = context.applicationContext
     MapLibre.getInstance(app)
-    // The app's client without its HTTP cache: MapLibre keeps tiles in its own.
+    // MapLibre caches tiles itself.
     HttpRequestUtil.setOkHttpClient(Api.client.newBuilder().cache(null).build())
     OfflineManager.getInstance(app).setMaximumAmbientCacheSize(40L * 1024 * 1024, null)
 }
 
-/** A route or, [dotted], a walk. */
 class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false)
 class MapStop(val id: String, val lat: Double, val lon: Double, val color: Color, val selected: Boolean = false)
 class MapLabel(val id: String, val lat: Double, val lon: Double, val text: String, val live: Boolean, val rank: Int)
 class MapVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: Color, val heading: Double)
 
-/** Following you the way Maps navigation does: close in, tilted, turned the way you go. */
 data class MapFollow(val zoom: Double, val tilt: Double)
 
 sealed interface MapFrame {
-    // Margins are shares of the screen: room for the title chip with the times standing above
-    // the stops under it, the buttons, and the round screen's edge.
+    // Fractions of the screen.
     class Fit(
         val points: List<Pair<Double, Double>>,
         val side: Double = 0.14,
@@ -133,10 +126,6 @@ sealed interface MapFrame {
     class Focus(val lat: Double, val lon: Double, val zoom: Float) : MapFrame
 }
 
-/**
- * Where a screen's map looks. It outlives the map view, so a map that comes back (the line's
- * timetable and back) opens where it was left.
- */
 @Stable
 class MapCamera {
     internal var map: MapLibreMap? = null
@@ -144,7 +133,6 @@ class MapCamera {
     private var pending: CameraPosition? = null
     var framed by mutableStateOf(false)
 
-    /** Flies to a place, now or as soon as the map is there. */
     fun centerOn(lat: Double, lon: Double, zoom: Float) {
         val target = CameraPosition.Builder().target(LatLng(lat, lon)).zoom(zoom.toDouble()).build()
         val m = map
@@ -162,11 +150,6 @@ class MapCamera {
 @Composable
 fun rememberMapCamera() = remember { MapCamera() }
 
-/**
- * The phone app's map on the watch: OpenFreeMap's dark streets drawn by MapLibre, with routes,
- * walks (dotted), stops, buses, you and the times above the stops, which always show. Drag and
- * pinch to move it, the crown zooms, a swipe from the left edge goes back.
- */
 @Composable
 fun TransitMap(
     camera: MapCamera,
@@ -179,9 +162,7 @@ fun TransitMap(
     me: Fix? = null,
     ambient: Boolean = false,
     onStopTap: ((String) -> Unit)? = null,
-    // Off when something else over the map takes the drags; the crown still zooms.
     interactive: Boolean = true,
-    // Follows [me] while set; moving the map by hand lets go and calls [onFollowLost].
     follow: MapFollow? = null,
     onFollowLost: (() -> Unit)? = null,
 ) {
@@ -260,10 +241,7 @@ fun TransitMap(
         host.setBackgroundColor(if (ambient) android.graphics.Color.BLACK else 0xFF0C0C0C.toInt())
     }
 
-    // Framed once: moving it by hand afterwards is never undone, unless the screen asks again.
-    // Following you, the camera is yours already.
     val following = follow != null && me != null
-    // The first frame is just there; a later one (the trip's overview, the next leg) moves to it.
     val shown = remember { booleanArrayOf(false) }
     LaunchedEffect(session, frame, camera.framed, following) {
         val s = session ?: return@LaunchedEffect
@@ -271,7 +249,6 @@ fun TransitMap(
         if (camera.framed || frame == null || following) return@LaunchedEffect
         while (host.width == 0 || host.height == 0) withFrameNanos {}
         val animate = shown[0]
-        // Letting go of you eases the camera flat: this move replaces that one.
         s.map.cancelTransitions()
         when (frame) {
             is MapFrame.Focus -> s.move(
@@ -302,7 +279,6 @@ fun TransitMap(
     )
 }
 
-/** The map view, leaving the left edge to swipe-to-dismiss, and everything when not interactive. */
 @SuppressLint("ViewConstructor")
 private class MapHost(context: Context, val map: MapView) : FrameLayout(context) {
     var edgePx = 0f
@@ -330,7 +306,6 @@ private const val SRC_LABELS = "ct-labels"
 private const val SRC_VEHICLES = "ct-vehicles"
 private const val LAYER_STOPS = "ct-stops"
 
-/** The watch map's own layers over the basemap, kept up to date as the screen changes them. */
 private class MapSession(
     private val context: Context,
     val map: MapLibreMap,
@@ -345,7 +320,7 @@ private class MapSession(
     init {
         listOf(SRC_LINES, SRC_STOPS, SRC_LABELS, SRC_VEHICLES).forEach { style.addSource(GeoJsonSource(it)) }
         style.addImage("heading", images.heading())
-        // Routes over the streets, under their names, like the phone's map.
+        // Under the basemap's labels.
         val layers = style.layers
         val lastGround = layers.indexOfLast { it !is SymbolLayer && !it.id.startsWith("boundary") }
         val firstLabel = layers.drop(lastGround + 1).firstOrNull { it is SymbolLayer }?.id
@@ -374,8 +349,6 @@ private class MapSession(
             style.addLayer(layer)
         }
         over(SymbolLayer(LAYER_STOPS, SRC_STOPS).withProperties(iconImage(get("img")), symbolSortKey(get("z"))))
-        // The times sit above their stops, always: they never hide or jump about.
-        // Under the buses and you, which move and matter more.
         over(
             SymbolLayer("ct-labels", SRC_LABELS).withProperties(
                 iconImage(get("img")),
@@ -444,7 +417,6 @@ private class MapSession(
                     image(name) { images.label(label.text, label.live) }
                     Feature.fromGeometry(Point.fromLngLat(label.lon, label.lat)).apply {
                         addStringProperty("img", name)
-                        // Soonest drawn last, on top where two meet.
                         addNumberProperty("z", -label.rank.toDouble().coerceIn(-1e6, 1e6))
                     }
                 },
@@ -468,7 +440,6 @@ private class MapSession(
         )
     }
 
-    /** You, as the phone's map draws you: MapLibre's dot, its arrow when following. */
     fun setMe(fix: Fix?) {
         me = fix
         applyMe()
@@ -480,8 +451,7 @@ private class MapSession(
         applyFollow()
     }
 
-    // No location engine of its own: the fixes come from the watch or the phone, so it needs
-    // no location permission.
+    // Fixes are pushed in: no location engine or permission needed.
     @SuppressLint("MissingPermission")
     private fun applyMe() {
         val component = map.locationComponent
@@ -533,7 +503,7 @@ private class MapSession(
         if (!component.isLocationComponentActivated || !component.isLocationComponentEnabled) return
         if (camera == null) {
             if (component.cameraMode == CameraMode.NONE && component.renderMode == RenderMode.NORMAL) return
-            // Its own zoom, tilt and padding animations would keep moving the camera after it lets go.
+            // Otherwise its own animations keep moving the camera.
             component.cancelZoomWhileTrackingAnimation()
             component.cancelTiltWhileTrackingAnimation()
             component.cancelPaddingWhileTrackingAnimation()
@@ -544,11 +514,10 @@ private class MapSession(
         }
         component.renderMode = RenderMode.GPS
         component.setCameraMode(CameraMode.TRACKING_GPS, 600L, camera.zoom, null, camera.tilt, null)
-        // You low on the screen, the way ahead above you, as on Maps.
         component.paddingWhileTracking(doubleArrayOf(0.0, map.height * FOLLOW_TOP_SHARE, 0.0, 0.0), 600L)
     }
 
-    /** Always-on wants a mostly black screen: the streets go; the lines, markers and you stay. */
+    /** Ambient mode: mostly black. */
     fun setAmbient(on: Boolean) {
         for (layer in style.layers) {
             if (layer.id.startsWith("ct-") || layer.id.startsWith("mapbox-location")) continue
@@ -565,7 +534,6 @@ private class MapSession(
         if (animate) map.easeCamera(update, 600) else map.moveCamera(update)
     }
 
-    /** North up and flat, as the overview is wherever following you had turned and tilted it. */
     fun fit(frame: MapFrame.Fit, width: Int, height: Int, animate: Boolean) {
         val lats = frame.points.map { it.first }
         val lons = frame.points.map { it.second }

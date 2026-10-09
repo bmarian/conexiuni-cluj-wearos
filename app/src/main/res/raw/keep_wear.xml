@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Release builds drop resources the code never names. Google Play services reads this list by
-    name to tell the phone and watch apps they have each other, so it must stay, under its name.
--->
+<!-- Play services reads this by name; R8 would drop it. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
     tools:keep="@array/android_wear_capabilities" />

@@ -23,10 +23,6 @@ import online.bmarian.bus.presentation.MainActivity
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-/**
- * "Next bus" on the watch face: the countdown to the followed bus, here or on the phone, or else
- * the next departure at the first favorite stop. The watch face counts it down by itself.
- */
 class NextBusComplicationService : SuspendingComplicationDataSourceService() {
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
         val type = request.complicationType
@@ -63,7 +59,7 @@ class NextBusComplicationService : SuspendingComplicationDataSourceService() {
         scheduled: Boolean,
         tap: PendingIntent,
     ): ComplicationData? {
-        // Names are plain text, but a ^ would read as a placeholder.
+        // A ^ would read as a placeholder.
         val about = listOfNotNull(line, where).joinToString(", ").replace("^", "^^")
         val description = if (at != null) countdown(at, TimeDifferenceStyle.WORDS_SINGLE_UNIT, "$about ^1")
         else plain(about.ifEmpty { getString(R.string.next_bus) })

@@ -71,12 +71,9 @@ import online.bmarian.bus.presentation.map.rememberUserLocation
 import online.bmarian.bus.presentation.stop.MapChip
 import online.bmarian.bus.presentation.theme.routeColor
 
-// Many stops make the segments too thin to read; past this the ring is plain.
 private const val MAX_SEGMENTS = 20
 private const val BUS_OFF_PATH_M = 150.0
-// Moved at least this far, the way it went is its heading.
 private const val HEADING_MIN_MOVE_M = 8.0
-// A walk ending this close to a stop is the one that leads to it.
 private const val WALK_JOIN_M = 80.0
 private val Walk = Color(0xFF38BDF8)
 private val Boarding = Color(0xFF10B981)
@@ -91,16 +88,11 @@ private fun stepIcon(type: String?): ImageVector = when (type) {
     else -> Icons.AutoMirrored.Rounded.DirectionsWalk
 }
 
-/**
- * The phone's trip on the wrist, the way Maps puts its navigation on the watch: the step with a
- * ring for how far it has come, the map at the bottom edge and a small X under the step to end.
- */
 @Composable
 fun JourneyScreen(onEnded: () -> Unit, onMap: () -> Unit) {
     val context = LocalContext.current
     val sync by JourneyMirror.state.collectAsStateWithLifecycle()
     val current = sync
-    // Ended here, on the phone or by arriving: back to where it was opened from.
     LaunchedEffect(current == null) { if (current == null) onEnded() }
     if (current == null) return
 
@@ -136,7 +128,6 @@ fun JourneyScreen(onEnded: () -> Unit, onMap: () -> Unit) {
                 )
                 val arrival = current.arrivalAt
                 val countdown = arrival != null && (current.stepType == StepType.WALK || current.stepType == StepType.WAIT)
-                // The countdown says what the detail would ("Arriving in 3 min"): one or the other.
                 if (countdown) Countdown(arrival!!, MaterialTheme.typography.numeralSmall, MaterialTheme.colorScheme.primary)
                 current.detail?.takeIf { !countdown }?.let {
                     Text(
@@ -148,7 +139,6 @@ fun JourneyScreen(onEnded: () -> Unit, onMap: () -> Unit) {
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                // Out of the way of the thumb going for the map, the way Maps ends navigation.
                 FilledTonalIconButton(
                     onClick = { JourneyMirror.end(context, current.id) },
                     modifier = Modifier.size(IconButtonDefaults.ExtraSmallButtonSize),
@@ -163,11 +153,6 @@ fun JourneyScreen(onEnded: () -> Unit, onMap: () -> Unit) {
     }
 }
 
-/**
- * The whole trip on the map, the same one as the phone's: the rides in their colours, the walks
- * dotted, the stops to get on and off at, the bus and you. Framed on the leg under way, then
- * yours to move about.
- */
 @Composable
 fun JourneyMapScreen(onEnded: () -> Unit) {
     val sync by JourneyMirror.state.collectAsStateWithLifecycle()
@@ -195,7 +180,6 @@ fun JourneyMapScreen(onEnded: () -> Unit) {
 @Composable
 private fun TripMap(sync: JourneySync, plan: Journey) {
     val camera = rememberMapCamera()
-    // The phone's position, which the trip moves on; the watch's own only when the phone has none.
     val phoneFix = sync.lat?.let { lat -> sync.lon?.let { lon -> Fix(lat, lon, 0f, sync.bearing) } }
     val me = withHeading(phoneFix ?: watchFix(needed = phoneFix == null))
     val leg = plan.legs.getOrNull(sync.legIndex) ?: plan.legs.last()
@@ -219,14 +203,12 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
             )
         }
     }
-    // Where to go now, named over its stop: the stop to get on at, then the one to get off at.
     val target = when (sync.stepType) {
         StepType.RIDE -> leg.alighting
         StepType.WALK_END, StepType.ARRIVED -> plan.destination
         else -> leg.boarding
     }
     val labels = listOf(MapLabel("target", target.lat, target.lon, target.name, live = false, rank = 0))
-    // The overview: the ride ahead and the walk to it.
     val frame = remember(plan.id, sync.legIndex) {
         val walk = plan.walks.firstOrNull { w ->
             w.isNotEmpty() && haversineMeters(w.last().lat, w.last().lon, leg.boarding.lat, leg.boarding.lon) < WALK_JOIN_M
@@ -234,7 +216,6 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
         MapFrame.Fit(walk + pathOf(leg), side = 0.24, top = 0.28, bottom = 0.28)
     }
     LaunchedEffect(plan.id, sync.legIndex) { camera.framed = false }
-    // Like Maps: it follows you, closer in on foot than on the bus. Moving the map lets go.
     var following by rememberSaveable { mutableStateOf(true) }
     val follow = when (sync.stepType) {
         StepType.RIDE -> MapFollow(zoom = 14.8, tilt = 45.0)
@@ -254,7 +235,6 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
             ambient = ambient,
             follow = follow.takeIf { following },
             onFollowLost = {
-                // Left where it was moved to, not framed again.
                 camera.framed = true
                 following = false
             },
@@ -266,7 +246,6 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
             }
         }
         if (me != null && !ambient) {
-            // Following: the whole leg at a glance. Moved away: back to following.
             FilledTonalIconButton(
                 onClick = {
                     if (following) camera.framed = false
@@ -281,7 +260,6 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
     }
 }
 
-/** The watch's own position, only listened for when [needed]: the phone's spares its battery. */
 @Composable
 private fun watchFix(needed: Boolean): Fix? {
     if (!needed) return null
@@ -289,10 +267,6 @@ private fun watchFix(needed: Boolean): Fix? {
     return fix
 }
 
-/**
- * [fix] with a heading: its own when the GPS gives one, else the way it last moved, so the arrow
- * still points where you go.
- */
 @Composable
 private fun withHeading(fix: Fix?): Fix? {
     var last by remember { mutableStateOf<Fix?>(null) }
@@ -310,13 +284,11 @@ private fun withHeading(fix: Fix?): Fix? {
 private fun pathOf(leg: JourneyLeg): List<Pair<Double, Double>> =
     (leg.path.takeIf { it.size >= 2 }?.map { it.lat to it.lon }) ?: leg.stops.map { it.lat to it.lon }
 
-/** A bus of the ride, turned the way the path goes where it is. */
 private fun busOf(leg: JourneyLeg, v: Vehicle): MapVehicle? {
     if (v.latitude == 0.0 || v.longitude == 0.0) return null
     val i = leg.routeIds.indexOf(v.routeId).takeIf { it >= 0 } ?: 0
     val path = pathOf(leg)
     val nearest = path.indices.minByOrNull { haversineMeters(path[it].first, path[it].second, v.latitude, v.longitude) } ?: 0
-    // Only buses on the part ridden: one past your stop, or on another line's road, isn't yours.
     if (haversineMeters(path[nearest].first, path[nearest].second, v.latitude, v.longitude) > BUS_OFF_PATH_M) return null
     val from = path[nearest.coerceAtMost(path.lastIndex - 1).coerceAtLeast(0)]
     val to = path[(nearest + 1).coerceAtMost(path.lastIndex)]

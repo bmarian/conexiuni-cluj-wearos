@@ -86,7 +86,6 @@ import online.bmarian.bus.presentation.theme.Palette
 import online.bmarian.bus.presentation.theme.routeColor
 import java.time.LocalDateTime
 
-// Far enough out to see the buses that are a few minutes away.
 private const val STOP_MAP_ZOOM = 13f
 private const val ME_ZOOM = 14f
 
@@ -183,7 +182,6 @@ fun StopScreen(
     }
 }
 
-/** One departure, like a Google Maps trip: when it comes, and a button to follow it. */
 @Composable
 fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute: () -> Unit) {
     LiveWhileVisible(vm)
@@ -195,7 +193,6 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
     val departure = ui?.departures?.firstOrNull { it.routeId == routeId && it.tripId == tripId }
     val direction = directionFromTripId(tripId)
     val isFollowing = following?.followed?.let { it.stopId == vm.stopId && it.routeId == routeId && it.tripId == tripId } == true
-    // The phone app has no page for one departure; its stop lists it.
     val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
 
     fun follow() {
@@ -205,7 +202,7 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
             Followed(vm.stopId, name.orEmpty(), routeId, tripId, d.shortName, d.color, d.destination()),
         )
     }
-    // Wear OS 4 and later ask before an app may show its countdown on the watch face.
+    // POST_NOTIFICATIONS needs a runtime grant on Wear OS 4+.
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { follow() }
 
     val onFollow = {
@@ -244,7 +241,6 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
                 )
             }
         }
-        // Follow sits with the other actions; filled while this bus is being followed.
         item {
             val favorite = favoriteRoutes.any { it.routeId == routeId && it.direction == direction }
             ActionRow(spec) {

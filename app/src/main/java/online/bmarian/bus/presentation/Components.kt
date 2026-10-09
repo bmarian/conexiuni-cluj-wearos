@@ -58,7 +58,6 @@ import online.bmarian.bus.logic.formatMinutesFromNow
 import online.bmarian.bus.presentation.theme.routeColor
 import java.time.LocalDateTime
 
-/** A list screen, optionally with the screen's main action hugging the bottom edge. */
 @Composable
 fun ListScreen(
     state: TransformingLazyColumnState = rememberTransformingLazyColumnState(),
@@ -87,11 +86,9 @@ fun ListScreen(
     }
 }
 
-/** Size and scroll effect for a Material component in a [ListScreen]; pass it [surface] too. */
 fun TransformingLazyColumnItemScope.itemModifier(spec: TransformationSpec): Modifier =
     Modifier.fillMaxWidth().transformedHeight(this, spec)
 
-/** The same for anything else, which has to be scaled along with the space it gets. */
 fun TransformingLazyColumnItemScope.contentModifier(spec: TransformationSpec): Modifier =
     Modifier.fillMaxWidth()
         .transformedHeight(this, spec)
@@ -129,7 +126,6 @@ fun TransformingLazyColumnItemScope.Loading(spec: TransformationSpec) {
     }
 }
 
-/** A line's badge and where it goes, as a screen's title. */
 @Composable
 fun TransformingLazyColumnItemScope.LineHeader(spec: TransformationSpec, shortName: String?, color: String?, text: String) {
     ListHeader(modifier = itemModifier(spec), transformation = surface(spec)) {
@@ -145,7 +141,6 @@ fun TransformingLazyColumnItemScope.LineHeader(spec: TransformationSpec, shortNa
     }
 }
 
-/** A line number in its CTP colour. */
 @Composable
 fun LineBadge(shortName: String, color: String, modifier: Modifier = Modifier, height: Dp = 28.dp) {
     Box(
@@ -167,7 +162,6 @@ fun LineBadge(shortName: String, color: String, modifier: Modifier = Modifier, h
     }
 }
 
-/** The arcs Google Maps puts next to a time that comes from a tracked vehicle. */
 @Composable
 fun RealtimeIcon(color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) {
     Canvas(modifier.size(size)) {
@@ -189,14 +183,11 @@ fun RealtimeIcon(color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) 
     }
 }
 
-/** Whole minutes left until [atMs], rounded up the way the departure lists count them. */
-// To the nearest minute: the phone sends whole minutes, and the two clocks are a few seconds apart.
+// Rounded: the phone sends whole minutes and the clocks drift a few seconds.
 fun minutesUntil(atMs: Long, nowMs: Long): Int = ((atMs - nowMs + 30_000) / 60_000).toInt().coerceAtLeast(0)
 
-/** A countdown to [atMs] that moves on by itself. */
 @Composable
 fun Countdown(atMs: Long, style: TextStyle, color: Color = Color.Unspecified) {
-    // The clock only redraws it; the time is read fresh, so a new arrival shows right at once.
     rememberClock().value
     val minutes = minutesUntil(atMs, System.currentTimeMillis())
     Text(etaText(minutes, LocalDateTime.now(CLUJ_ZONE)), style = style, color = color, maxLines = 1)
@@ -209,7 +200,6 @@ fun etaText(minutes: Int, now: LocalDateTime): String {
     else formatMinutesFromNow(minutes, now, nowLabel)
 }
 
-/** Live times in the accent colour with the realtime arcs; timetable times plain. */
 @Composable
 fun Eta(minutes: Int, live: Boolean, now: LocalDateTime, style: TextStyle = MaterialTheme.typography.labelLarge, arcs: Boolean = true) {
     val color = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -219,7 +209,6 @@ fun Eta(minutes: Int, live: Boolean, now: LocalDateTime, style: TextStyle = Mate
     }
 }
 
-/** The row of actions under a screen's title: equal pills, icon only, filled when on. */
 @Composable
 fun TransformingLazyColumnItemScope.ActionRow(spec: TransformationSpec, content: @Composable RowScope.() -> Unit) {
     Row(contentModifier(spec), horizontalArrangement = Arrangement.spacedBy(6.dp), content = content)

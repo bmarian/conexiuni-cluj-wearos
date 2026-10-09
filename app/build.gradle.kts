@@ -7,7 +7,6 @@ plugins {
     alias(libs.plugins.baselineprofile)
 }
 
-// The upload key for Google Play, also kept out of the repository. See the README.
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("keystore.properties")
     if (file.exists()) file.inputStream().use { load(it) }
@@ -28,8 +27,7 @@ android {
 
         buildConfigField("String", "API_BASE", "\"https://bus.bmarian.online/api/\"")
         buildConfigField("String", "SITE_ORIGIN", "\"https://bus.bmarian.online\"")
-        // MapLibre's native code: 32-bit watches (most Galaxy Watches still run it), 64-bit ones
-        // and the emulator. `-Pabis=armeabi-v7a` builds for one kind only, a smaller APK to sideload.
+        // -Pabis=armeabi-v7a for a 32-bit-only APK.
         ndk {
             abiFilters += providers.gradleProperty("abis").orNull?.split(",")
                 ?: listOf("armeabi-v7a", "arm64-v8a", "x86_64")
@@ -48,9 +46,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            (project.findProperty("apiBase") as String?)?.let { buildConfigField("String", "API_BASE", "\"$it\"") }
+        }
         release {
-            // Without the upload key the debug one still lets the fast build go on a watch;
-            // Play refuses anything signed with it.
             signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
             optimization {
                 enable = true
@@ -68,15 +67,13 @@ android {
     }
 }
 
-// The baseline profile plugin copies release but only turns off the old minify flag. Recorded
-// on an obfuscated build, the profile names classes the real one doesn't have.
+// The baseline profile plugin leaves R8 on for this variant.
 androidComponents {
     finalizeDsl { android ->
         android.buildTypes.findByName("nonMinifiedRelease")?.optimization?.enable = false
     }
 }
 
-// Generated with `gradlew :app:generateBaselineProfile` on an emulator; see the README.
 baselineProfile {
     dexLayoutOptimization = true
 }

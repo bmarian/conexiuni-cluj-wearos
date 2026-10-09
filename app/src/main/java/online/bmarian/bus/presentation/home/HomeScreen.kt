@@ -74,7 +74,6 @@ import java.time.Instant
 import java.time.LocalDateTime
 
 private const val SEARCH_KEY = "query"
-/** Opens the watch's voice and keyboard input, and hands back what was said or typed. */
 @Composable
 fun rememberSearchInput(onQuery: (String) -> Unit): () -> Unit {
     val label = stringResource(R.string.search_label)
@@ -121,6 +120,7 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         repository.loadCached()
+        repository.refreshNetwork()
         repository.refreshRoutes()
         repository.refreshStops()
     }
@@ -136,7 +136,6 @@ fun HomeScreen(
 
     ListScreen(state = state) { spec ->
         item { Title(stringResource(R.string.app_name), spec) }
-        // The phone's journey, shown as it goes; it opens its own screen, End stops it on both.
         journey?.let { trip ->
             item {
                 Card(
@@ -220,7 +219,6 @@ fun HomeScreen(
         }
         items(favoriteStops.size, key = { "fs-${favoriteStops[it].stopId}" }) { i ->
             val stop = favoriteStops[i]
-            // Just the stop: its buses load when it is opened, not every minute for every favourite.
             FilledTonalButton(
                 onClick = { onOpenStop(stop.stopId) },
                 modifier = itemModifier(spec),

@@ -7,7 +7,7 @@ import java.time.Instant
 import kotlin.math.max
 import kotlin.math.min
 
-// Port of frontend/src/composables/useVehicleTracking.ts. Keep the two in step.
+// Port of frontend/src/composables/useVehicleTracking.ts.
 
 const val TERMINUS_RADIUS_METERS = 200.0
 private const val MAX_OFF_ROUTE_METERS = 150.0
@@ -158,15 +158,13 @@ fun indexVehicles(
 
 fun isOnRoute(v: IndexedVehicle) = v.shapeIdx >= 0 && v.offRouteMeters <= MAX_OFF_ROUTE_METERS
 
-// Shape index of the trip's first stop after the terminus; MAX_VALUE without stops.
 private fun firstStopShapeIdx(shape: List<ShapePoint>, sortedStops: List<StopTime>): Int {
     val first = sortedStops.getOrNull(1)
     if (first == null || first.lat == 0.0 || first.lon == 0.0) return Int.MAX_VALUE
     return findClosestShapeIdx(first.lat, first.lon, shape)
 }
 
-// What every stop of a trip needs about that trip. A route screen asks for each of its stops
-// in turn with the same lists, so the last one is kept rather than worked out forty times.
+// Cached: a route screen asks once per stop with the same lists.
 private class PreparedTrip(val stops: List<StopTime>, val positions: IntArray, val firstStopIdx: Int)
 
 private val lastPrepared = ThreadLocal<Triple<List<StopTime>, List<ShapePoint>, PreparedTrip>>()
@@ -203,7 +201,7 @@ fun etaForStop(
     return StopEta(candidate, max(0, Math.round(seconds / 60).toInt()), seconds)
 }
 
-// Not aged against the clock: between fixes there is no evidence the bus moved.
+// Not aged: between fixes there's no evidence the bus moved.
 private fun vehicleEtaSeconds(
     vehicle: IndexedVehicle,
     stopShapeIdx: Int,
@@ -218,7 +216,6 @@ private fun vehicleEtaSeconds(
     return max(estimated, remainingMeters / MAX_PLAUSIBLE_SPEED_MPS)
 }
 
-// The learned segment times from here to the stop, minus how old the position fix is.
 private fun profileAwareEtaSeconds(
     vehicle: IndexedVehicle,
     index: ShapeIndex,

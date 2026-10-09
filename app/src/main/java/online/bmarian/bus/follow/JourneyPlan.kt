@@ -2,8 +2,7 @@ package online.bmarian.bus.follow
 
 import kotlinx.serialization.Serializable
 
-// The phone's journey as it sends it at the start: the same JSON the phone app writes. Only
-// what the watch draws is read; the rest is skipped.
+// The phone's JSON; only what the watch draws is read.
 
 @Serializable
 data class JourneyStop(val id: Int, val name: String, val lat: Double, val lon: Double)
@@ -11,7 +10,6 @@ data class JourneyStop(val id: Int, val name: String, val lat: Double, val lon: 
 @Serializable
 data class JourneyPoint(val lat: Double, val lon: Double)
 
-/** One bus ride: its lines (alternatives like 45 / 44), colours, stops and the path it takes. */
 @Serializable
 data class JourneyLeg(
     val routeIds: List<Int>,
@@ -33,7 +31,6 @@ data class Journey(
     val walks: List<List<JourneyPoint>> = emptyList(),
 )
 
-/** What a step is, as the phone marks it. */
 object StepType {
     const val WALK = "walk"
     const val WAIT = "wait"

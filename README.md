@@ -34,7 +34,7 @@ The [Conexiuni Cluj](https://github.com/bmarian/conexiuni-cluj) bus and tram tra
 
 ## How it works
 
-It talks to the same API as [bus.bmarian.online](https://bus.bmarian.online) and needs no phone app, so it works over Wi-Fi or LTE on its own.
+It talks to the same API as [bus.bmarian.online](https://bus.bmarian.online) and needs no phone app, so it works over Wi-Fi or LTE on its own. The whole network (lines, stops, timetables and learned travel times) is kept on the watch as one bundle from `/api/network`, fetched again only when the lines change or the copy is half a day old; stops and lines open from it without a request. Only the buses come live, from the version 2 stream (a snapshot, then what moved, gzipped).
 
 The arrival times are worked out on the watch, with the same logic as the website, ported from TypeScript to Kotlin in [`logic/`](app/src/main/java/online/bmarian/bus/logic). [`ParityTest`](app/src/test/java/online/bmarian/bus/ParityTest.kt) runs both on the same snapshot of real data and fails if a single minute differs.
 Stops, lines, timetables and route shapes are kept on the watch, so a stop you've opened before shows up at once and refreshes in the background.

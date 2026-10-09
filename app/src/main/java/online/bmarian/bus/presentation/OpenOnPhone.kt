@@ -18,15 +18,10 @@ import kotlinx.coroutines.launch
 import online.bmarian.bus.R
 import online.bmarian.bus.follow.PhoneLink
 
-/**
- * Opens a stop or a line ([online.bmarian.bus.Links]) on the phone, then shows the standard
- * "continue on phone" animation, or that no phone could be reached.
- */
 @Composable
 fun rememberOpenOnPhone(path: String): () -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Null until it was tried; then whether it went.
     var sent by remember { mutableStateOf<Boolean?>(null) }
 
     val openText = OpenOnPhoneDialogDefaults.text
