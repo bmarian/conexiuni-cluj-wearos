@@ -14,8 +14,8 @@ The [Conexiuni Cluj](https://github.com/bmarian/conexiuni-cluj) bus and tram tra
 - Favorite stops on the first screen, like Google Maps shows Home and Work
 - Search for a stop or a line by voice or keyboard
 - Departures for any stop. Tracked buses get a live countdown and the realtime arcs, the rest show the timetable
-- Follow a bus: the countdown stays on the watch face, the watch buzzes two minutes before and when it comes, and it lets go once the bus has left
-- With the phone app: follow a bus on either device and it shows on both, like Maps navigation on a watch. Stop it on one and it stops on both
+- Follow buses, several at once: the countdown stays on the watch face, the watch buzzes two minutes before and when it comes, and it lets go once the bus has left
+- With the phone app: follow a bus on either device and it shows on both, like Maps navigation on a watch. Stop it on one and it stops on both. A reminder set on the phone shows "Leave in 8 min" and buzzes when it's time to go
 - With the phone app: favorites stay the same on both, a stop or a line opens on the phone with one tap, and a journey started on the phone opens on the watch: the current step with a buzz at each new one, and the whole trip on the map, walks included
 - A tile with the followed bus and the next departure at your favorite stops, and a Next bus complication for the watch face
 - With the wrist down while following, the screen stays on the countdown in always-on mode
@@ -84,7 +84,7 @@ keyAlias=upload
 keyPassword=...
 ```
 
-Raise `versionCode` in [`app/build.gradle.kts`](app/build.gradle.kts) for every upload, then build the bundle:
+Raise `versionCode` in [`app/build.gradle.kts`](app/build.gradle.kts) for every upload. The watch and phone apps share one package, so their codes can't collide: the watch's are 2xxxx and the phone's 1xxxx, followed by the release number, the same on both. Then build the bundle:
 
 ```bash
 ./gradlew bundleRelease

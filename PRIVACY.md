@@ -15,9 +15,13 @@ When you follow a bus, the app shows a notification and a countdown on the watch
 ## What the app downloads
 
 - Stops, lines, timetables and live bus positions from [bus.bmarian.online](https://bus.bmarian.online), the server behind the Conexiuni Cluj website.
-- Map tiles from [CARTO](https://carto.com/), whose [privacy policy](https://carto.com/privacy) applies to those requests.
+- Map tiles, fonts and icons from [OpenFreeMap](https://openfreemap.org/).
 
-Like any website, these servers see your IP address when the app connects to them. bus.bmarian.online doesn't store it: it keeps a salted one-way hash of it, which it uses to count daily users and how often stops and lines are opened.
+Like any website, these servers see your IP address when the app connects to them. bus.bmarian.online doesn't store it: its logs keep a salted one-way hash instead, with the address of each request, and delete them after 5 days. The same hash is used to count daily users and how often stops and lines are opened.
+
+## With the phone app
+
+Your favorites, followed buses and trips go between the watch and the Conexiuni Cluj phone app through Google Play services' Wear OS connection, which Google relays when the two aren't connected directly.
 
 ## Favorites
 
@@ -33,4 +37,4 @@ The app isn't directed at children and collects nothing about anyone.
 
 Changes to this policy will be published here. Questions go to the [issue tracker](https://github.com/bmarian/conexiuni-cluj-wearos/issues).
 
-Last updated: October 7, 2026.
+Last updated: October 10, 2026.
