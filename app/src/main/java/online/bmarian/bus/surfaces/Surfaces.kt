@@ -64,7 +64,7 @@ fun requestSurfaceUpdates(context: Context) {
 }
 
 suspend fun updateSurfacesOnChange(context: Context) {
-    combine(FollowManager.state, Services.favorites.stops) { follow, stops -> Triple(follow?.id, follow?.minutes, stops) }
+    combine(FollowManager.follows, Services.favorites.stops) { follows, stops -> follows.map { it.id to it.minutes } to stops }
         .distinctUntilChanged()
         .drop(1)
         .collect { requestSurfaceUpdates(context) }

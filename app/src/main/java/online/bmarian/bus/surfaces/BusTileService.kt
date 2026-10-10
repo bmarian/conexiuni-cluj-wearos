@@ -39,6 +39,7 @@ import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.presentation.EXTRA_LINK
+import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
 import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
 import kotlin.time.Duration.Companion.seconds
@@ -62,16 +63,16 @@ private val TILE_COLORS = ColorScheme(
 
 class BusTileService : Material3TileService(allowDynamicTheme = false, defaultColorScheme = TILE_COLORS) {
     override suspend fun MaterialScope.tileResponse(requestParams: RequestBuilders.TileRequest): TileBuilders.Tile {
-        val follow = FollowManager.state.value
-        val stops = nextAtFavoriteStops(if (follow != null) ROWS_SHOWN - 1 else ROWS_SHOWN)
+        val follows = FollowManager.follows.value.sortedBy { it.minutes ?: Int.MAX_VALUE }.take(ROWS_SHOWN)
+        val stops = nextAtFavoriteStops(ROWS_SHOWN - follows.size)
         val app = ComponentName(context, MainActivity::class.java)
         val rows = buildList {
-            if (follow != null) {
+            for (follow in follows) {
                 val followed = follow.followed
                 add(
                     tileRow(
-                        id = "followed",
-                        action = launchAction(app, mapOf(EXTRA_OPEN_FOLLOWED to booleanExtra(true))),
+                        id = "followed-${follow.id}",
+                        action = launchAction(app, mapOf(EXTRA_OPEN_FOLLOWED to booleanExtra(true), EXTRA_FOLLOW_ID to stringExtra(follow.id))),
                         line = followed.shortName,
                         color = followed.color,
                         label = followed.destination,

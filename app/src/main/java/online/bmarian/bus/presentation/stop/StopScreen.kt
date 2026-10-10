@@ -125,7 +125,7 @@ fun StopScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
-    val following by FollowManager.state.collectAsStateWithLifecycle()
+    val follows by FollowManager.follows.collectAsStateWithLifecycle()
     val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
 
     val sorted = remember(ui, favoriteRoutes) {
@@ -170,7 +170,7 @@ fun StopScreen(
             else -> items(sorted.size, key = { sorted[it].shortName }) { i ->
                 val departure = sorted[i]
                 val now = ui!!.now
-                val followed = following?.followed?.let { it.routeId == departure.routeId && it.tripId == departure.tripId && it.stopId == vm.stopId } == true
+                val followed = follows.any { it.matches(vm.stopId, departure.routeId, departure.tripId) }
                 val press = remember { MutableInteractionSource() }
                 TitleCard(
                     onClick = { onOpenDeparture(departure) },
@@ -202,10 +202,11 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
     val name by vm.name.collectAsStateWithLifecycle()
     val ui by vm.ui.collectAsStateWithLifecycle()
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
-    val following by FollowManager.state.collectAsStateWithLifecycle()
+    val follows by FollowManager.follows.collectAsStateWithLifecycle()
     val departure = ui?.departures?.firstOrNull { it.routeId == routeId && it.tripId == tripId }
     val direction = directionFromTripId(tripId)
-    val isFollowing = following?.followed?.let { it.stopId == vm.stopId && it.routeId == routeId && it.tripId == tripId } == true
+    val following = follows.firstOrNull { it.matches(vm.stopId, routeId, tripId) }
+    val isFollowing = following != null
     val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
 
     fun follow() {
@@ -220,7 +221,7 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
 
     val onFollow = {
         when {
-            isFollowing -> FollowManager.stop(context)
+            following != null -> FollowManager.stop(context, following.id)
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
                 permission.launch(Manifest.permission.POST_NOTIFICATIONS)

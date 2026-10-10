@@ -1,9 +1,9 @@
 <resources>
 
     <string name="favorite_stops">Stații favorite</string>
-    <string name="favorite_routes">Rute favorite</string>
-    <string name="no_favorites">Nu ai favorite încă. Apasă pe inimă la o rută sau stație ca să o salvezi aici.</string>
-    <string name="all_routes">Toate rutele</string>
+    <string name="favorite_routes">Linii favorite</string>
+    <string name="no_favorites">Nu ai favorite încă. Apasă inima la o linie sau stație ca s-o salvezi.</string>
+    <string name="all_routes">Toate liniile</string>
     <string name="all_stops">Toate stațiile</string>
     <string name="copy_favorites">Copiază favoritele</string>
     <string name="load_failed">Nu s-a putut încărca. Verifică conexiunea.</string>
@@ -25,9 +25,9 @@
     <string name="nearby_none">Nicio stație pe o rază de 700 m.</string>
     <string name="nearby_unavailable">Locația este oprită.</string>
 
-    <string name="transfer_hint">Scanează codul sau, pe celălalt dispozitiv, deschide Setări, apasă Trimite și scrie numărul.</string>
+    <string name="transfer_hint">Scanează codul sau scrie numărul la Setări, Trimite pe celălalt dispozitiv.</string>
     <string name="transfer_expired">Codul a expirat.</string>
-    <string name="transfer_failed">Nu s-a putut obține un cod. Încearcă din nou puțin mai târziu.</string>
+    <string name="transfer_failed">Nu s-a putut obține un cod. Încearcă din nou.</string>
     <string name="transfer_broken">Nu a mers. Ia un cod nou și trimite din nou.</string>
     <string name="transfer_new_code">Cod nou</string>
     <string name="pair_review">Copiezi aceste favorite?</string>
@@ -50,7 +50,7 @@
     <string name="follow">Urmărește</string>
     <string name="following">Urmărești</string>
     <string name="stop_following">Oprește</string>
-    <string name="follow_channel">Autobuz urmărit</string>
+    <string name="follow_channel">Autobuze urmărite</string>
     <string name="follow_arriving">Sosește în %1$s</string>
     <string name="follow_now">Sosește acum</string>
     <string name="my_location">Locația mea</string>
@@ -63,17 +63,20 @@
     <string name="journey_to">Spre %1$s</string>
     <string name="end_journey">Încheie</string>
     <string name="journey_alerts_channel">Alerte de călătorie</string>
-    <string name="tile_empty">Adaugă stații favorite în aplicație</string>
+    <string name="tile_empty">Salvează mai întâi o stație în aplicație.</string>
     <string name="next_bus">Următorul autobuz</string>
     <string name="journey_plan_loading">Se aduce călătoria de pe telefon…</string>
     <string name="journey_recenter">Recentrează</string>
-    <string name="journey_overview">Vezi toată porțiunea</string>
+    <string name="journey_overview">Toată porțiunea</string>
 
-    <string name="setup_notifications_title">Autobuzul pe cadran</string>
-    <string name="setup_notifications_body">Permite notificările ca autobuzul urmărit sau călătoria să rămână pe cadran.</string>
-    <string name="setup_location_title">Stații în apropiere</string>
-    <string name="setup_location_body">Permite locația ca să vezi stațiile din jur.</string>
+    <string name="setup_notifications_title">Notificări</string>
+    <string name="setup_notifications_body">Pentru autobuzele urmărite și călătorii.</string>
+    <string name="setup_location_title">Locație</string>
+    <string name="setup_location_body">Pentru stațiile din jur.</string>
     <string name="setup_allow">Permite</string>
     <string name="setup_open_settings">Setări</string>
     <string name="setup_not_now">Nu acum</string>
+    <string name="leave_in">Pleacă în %1$s</string>
+    <string name="leave_now">Pleacă acum</string>
+    <string name="leave_go">Pleacă</string>
 </resources>

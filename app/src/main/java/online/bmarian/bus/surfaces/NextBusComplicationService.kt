@@ -18,6 +18,8 @@ import androidx.wear.watchface.complications.datasource.SuspendingComplicationDa
 import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.follow.FollowManager
+import online.bmarian.bus.follow.soonest
+import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
 import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
 import java.time.Instant
@@ -26,9 +28,9 @@ import java.util.concurrent.TimeUnit
 class NextBusComplicationService : SuspendingComplicationDataSourceService() {
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
         val type = request.complicationType
-        FollowManager.state.value?.let { follow ->
+        FollowManager.follows.value.soonest()?.let { follow ->
             val followed = follow.followed
-            return data(type, followed.shortName, followed.destination, follow.arrivalAt, scheduled = !follow.live, tap = openFollowed())
+            return data(type, followed.shortName, followed.destination, follow.arrivalAt, scheduled = !follow.live, tap = openFollowed(follow.id))
         }
         val next = nextAtFavoriteStops(1).firstOrNull() ?: return data(type, null, null, null, scheduled = false, tap = openApp())
         val at = next.minutes?.let { next.nowMs + it * 60_000L }
@@ -106,9 +108,9 @@ class NextBusComplicationService : SuspendingComplicationDataSourceService() {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    private fun openFollowed(): PendingIntent = PendingIntent.getActivity(
+    private fun openFollowed(id: String): PendingIntent = PendingIntent.getActivity(
         this, 9,
-        Intent(this, MainActivity::class.java).putExtra(EXTRA_OPEN_FOLLOWED, true),
+        Intent(this, MainActivity::class.java).putExtra(EXTRA_OPEN_FOLLOWED, true).putExtra(EXTRA_FOLLOW_ID, id),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 

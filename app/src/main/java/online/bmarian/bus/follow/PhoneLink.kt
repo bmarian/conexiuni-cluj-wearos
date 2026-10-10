@@ -32,6 +32,7 @@ import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.FavoritesSync
+import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
 import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
 
@@ -125,12 +126,11 @@ class PhoneListener : WearableListenerService() {
     }
 }
 
-private const val MIRROR_NOTIFICATION_ID = 9
 private const val FOLLOW_CHANNEL = "follow"
 
 object Mirror {
     // Messages can arrive twice; one buzz per alert.
-    private var buzzed: String? = null
+    private val buzzed = ArrayDeque<String>()
 
     private fun manager(context: Context) = context.getSystemService(NotificationManager::class.java)
 
@@ -148,14 +148,20 @@ object Mirror {
     fun show(context: Context, state: FollowState, alert: Boolean) {
         channels(context)
         val now = (state.minutes ?: 1) <= 0
-        val key = "${state.id}:$now"
-        if (alert && buzzed != key) {
-            buzzed = key
+        val key = "${state.id}:${state.minutes}:${state.leaveAt != null}"
+        if (alert && key !in buzzed) {
+            buzzed.addLast(key)
+            if (buzzed.size > 8) buzzed.removeFirst()
             Buzz.play(context, if (now) Buzz.NOW else Buzz.SOON)
         }
         val followed = state.followed
         val minutes = state.minutes
         val arrival = state.arrivalAt
+        val nowMs = System.currentTimeMillis()
+        // A phone reminder still waiting for the user to set off.
+        val leaveAt = state.leaveAt?.takeIf { minutes != null }
+        val leaveIn = state.leaveIn(nowMs)
+        val leaving = leaveIn != null && leaveIn > 0
         val title = "${followed.shortName} → ${followed.destination}"
         val builder = NotificationCompat.Builder(context, FOLLOW_CHANNEL)
             .setSmallIcon(R.drawable.ic_bus)
@@ -163,6 +169,8 @@ object Mirror {
             .setContentText(
                 when {
                     minutes == null -> followed.stopName
+                    leaveAt != null && !leaving -> context.getString(R.string.leave_now)
+                    leaveIn != null -> context.getString(R.string.leave_in, context.getString(R.string.eta_minutes, leaveIn))
                     minutes <= 0 -> context.getString(R.string.follow_now)
                     else -> context.getString(R.string.follow_arriving, context.getString(R.string.eta_minutes, minutes))
                 },
@@ -171,22 +179,23 @@ object Mirror {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
-            .setContentIntent(openApp(context))
+            .setContentIntent(openApp(context, state.id))
             .addAction(0, context.getString(R.string.stop_following), stopIntent(context, state.id))
-        val left = (arrival ?: System.currentTimeMillis()) - System.currentTimeMillis()
+        val left = (arrival ?: nowMs) - nowMs
         builder.setTimeoutAfter(left.coerceAtLeast(0) + 5 * 60_000L)
-        val counting = minutes != null && minutes > 0 && arrival != null
-        builder.setUsesChronometer(counting).setChronometerCountDown(counting).setShowWhen(counting)
-        if (counting) builder.setWhen(arrival!!)
+        val countTo = if (leaveAt != null) leaveAt.takeIf { leaving } else arrival?.takeIf { minutes != null && minutes > 0 }
+        builder.setUsesChronometer(countTo != null).setChronometerCountDown(countTo != null).setShowWhen(countTo != null)
+        if (countTo != null) builder.setWhen(countTo)
 
         val time: Status.Part = when {
             minutes == null -> Status.TextPart(followed.stopName)
-            minutes <= 0 -> Status.TextPart(context.getString(R.string.now))
-            else -> Status.TimerPart(arrival ?: System.currentTimeMillis())
+            leaveAt != null && !leaving -> Status.TextPart(context.getString(R.string.leave_go))
+            countTo != null -> Status.TimerPart(countTo)
+            else -> Status.TextPart(context.getString(R.string.now))
         }
-        OngoingActivity.Builder(context, MIRROR_NOTIFICATION_ID, builder)
+        OngoingActivity.Builder(context, FollowManager.slot(state.id), builder)
             .setStaticIcon(R.drawable.ic_bus)
-            .setTouchIntent(openApp(context))
+            .setTouchIntent(openApp(context, state.id))
             .setTitle(title)
             .setStatus(
                 Status.Builder()
@@ -197,26 +206,25 @@ object Mirror {
             )
             .build()
             .apply(context)
-        runCatching { manager(context).notify(MIRROR_NOTIFICATION_ID, builder.build()) }
+        runCatching { manager(context).notify(FollowManager.slot(state.id), builder.build()) }
     }
 
     fun reshow(context: Context) {
-        val state = FollowManager.state.value?.takeIf { it.remote } ?: return
-        show(context, state, alert = false)
+        FollowManager.follows.value.filter { it.remote }.forEach { show(context, it, alert = false) }
     }
 
-    fun clear(context: Context) {
-        manager(context).cancel(MIRROR_NOTIFICATION_ID)
+    fun clear(context: Context, id: String) {
+        manager(context).cancel(FollowManager.slot(id))
     }
 
-    private fun openApp(context: Context): PendingIntent = PendingIntent.getActivity(
-        context, 3,
-        Intent(context, MainActivity::class.java).putExtra(EXTRA_OPEN_FOLLOWED, true),
+    private fun openApp(context: Context, id: String): PendingIntent = PendingIntent.getActivity(
+        context, FollowManager.slot(id),
+        Intent(context, MainActivity::class.java).putExtra(EXTRA_OPEN_FOLLOWED, true).putExtra(EXTRA_FOLLOW_ID, id),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
     private fun stopIntent(context: Context, id: String): PendingIntent = PendingIntent.getBroadcast(
-        context, 4,
+        context, FollowManager.slot(id),
         Intent(context, StopMirrorReceiver::class.java).putExtra(StopMirrorReceiver.EXTRA_ID, id),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
@@ -225,8 +233,8 @@ object Mirror {
 class StopMirrorReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra(EXTRA_ID) ?: return
-        if (FollowManager.state.value?.id == id) return FollowManager.stop(context)
-        Mirror.clear(context)
+        if (FollowManager.follows.value.any { it.id == id }) return FollowManager.stop(context, id)
+        Mirror.clear(context, id)
         PhoneLink.sendStop(context, id)
     }
 

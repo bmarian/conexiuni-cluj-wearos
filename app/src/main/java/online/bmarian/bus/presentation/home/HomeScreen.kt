@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -56,6 +57,7 @@ import online.bmarian.bus.data.stopSnapshot
 import online.bmarian.bus.data.bothWays
 import online.bmarian.bus.data.terminalName
 import online.bmarian.bus.follow.FollowManager
+import online.bmarian.bus.follow.FollowState
 import online.bmarian.bus.follow.JourneyMirror
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
@@ -104,7 +106,7 @@ fun HomeScreen(
     state: TransformingLazyColumnState,
     onOpenStop: (Int) -> Unit,
     onOpenRoute: (Int, String) -> Unit,
-    onOpenFollowed: () -> Unit,
+    onOpenFollowed: (FollowState) -> Unit,
     onSearch: (String) -> Unit,
     onNearby: () -> Unit,
     onBrowseRoutes: () -> Unit,
@@ -117,7 +119,7 @@ fun HomeScreen(
     val stops by repository.stops.collectAsStateWithLifecycle()
     val favoriteStopIds by Services.favorites.stops.collectAsStateWithLifecycle()
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
-    val following by FollowManager.state.collectAsStateWithLifecycle()
+    val follows by FollowManager.follows.collectAsStateWithLifecycle()
     val journey by JourneyMirror.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val search = rememberSearchInput(onSearch)
@@ -187,11 +189,12 @@ fun HomeScreen(
                 }
             }
         }
-        following?.let { follow ->
-            item {
+        items(follows.size, key = { "follow-${follows[it].id}" }) { i ->
+            val follow = follows[i]
+            run {
                 val press = remember { MutableInteractionSource() }
                 Card(
-                    onClick = onOpenFollowed,
+                    onClick = { onOpenFollowed(follow) },
                     modifier = itemModifier(spec).squish(press),
                     interactionSource = press,
                     transformation = surface(spec),
@@ -200,9 +203,16 @@ fun HomeScreen(
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 ) {
+                    // A phone reminder still waiting for the user to set off.
+                    val leave = follow.leaveIn()
                     Text(
-                        stringResource(R.string.following),
+                        when {
+                            leave == null -> stringResource(R.string.following)
+                            leave <= 0 -> stringResource(R.string.leave_now)
+                            else -> stringResource(R.string.leave_in, stringResource(R.string.eta_minutes, leave))
+                        },
                         style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (leave != null) FontWeight.Bold else null,
                     )
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         LineBadge(follow.followed.shortName, follow.followed.color, height = 24.dp)

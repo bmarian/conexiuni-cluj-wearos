@@ -273,11 +273,10 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
     val offset = atStop?.first?.offsetFromStart ?: 0
 
     val context = LocalContext.current
-    val following by FollowManager.state.collectAsStateWithLifecycle()
+    val follows by FollowManager.follows.collectAsStateWithLifecycle()
     val tripId = tripIdFor(vm.routeId, direction)
-    val alerting = atStop != null && following?.followed?.let {
-        it.stopId == atStop.first.stop.stopId && it.routeId == vm.routeId && it.tripId == tripId
-    } == true
+    val following = atStop?.let { (stop, _) -> follows.firstOrNull { it.matches(stop.stop.stopId, vm.routeId, tripId) } }
+    val alerting = following != null
     fun follow() {
         val (stop, name) = atStop ?: return
         val route = info ?: return
@@ -315,7 +314,7 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
                 if (atStop != null) {
                     ToggleAction(Icons.Rounded.NotificationsActive, stringResource(R.string.follow), alerting, {
                         when {
-                            alerting -> FollowManager.stop(context)
+                            following != null -> FollowManager.stop(context, following.id)
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
                                 permission.launch(Manifest.permission.POST_NOTIFICATIONS)

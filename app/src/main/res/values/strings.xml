@@ -2,15 +2,15 @@
     <string name="app_name" translatable="false">Conexiuni Cluj</string>
 
     <string name="favorite_stops">Favorite stops</string>
-    <string name="favorite_routes">Favorite routes</string>
-    <string name="no_favorites">No favorites yet. Tap the heart on a route or stop to save it here.</string>
-    <string name="all_routes">All Routes</string>
-    <string name="all_stops">All Stops</string>
+    <string name="favorite_routes">Favorite lines</string>
+    <string name="no_favorites">No favorites yet. Tap the heart on a line or stop to save it.</string>
+    <string name="all_routes">All lines</string>
+    <string name="all_stops">All stops</string>
     <string name="copy_favorites">Copy favorites</string>
-    <string name="load_failed">Couldn\'t load. Check the connection.</string>
+    <string name="load_failed">Couldn\'t load. Check your connection.</string>
     <string name="retry">Try again</string>
     <string name="loading_route">Loading line…</string>
-    <string name="no_schedule">No schedule data for this direction.</string>
+    <string name="no_schedule">No timetable for this direction.</string>
     <string name="no_departures">No departures soon.</string>
     <string name="map">Map</string>
     <string name="timetable">Timetable</string>
@@ -26,7 +26,7 @@
     <string name="nearby_none">No stops within 700 m.</string>
     <string name="nearby_unavailable">Location is off.</string>
 
-    <string name="transfer_hint">Scan the code, or on your other device open Settings, tap Send and type the number.</string>
+    <string name="transfer_hint">Scan the code, or type the number under Settings, Send on the other device.</string>
     <string name="transfer_expired">The code expired.</string>
     <string name="transfer_failed">Couldn\'t get a code. Try again in a moment.</string>
     <string name="transfer_broken">That didn\'t work. Get a new code and send again.</string>
@@ -55,7 +55,7 @@
     <string name="follow">Follow</string>
     <string name="following">Following</string>
     <string name="stop_following">Stop</string>
-    <string name="follow_channel">Followed bus</string>
+    <string name="follow_channel">Followed buses</string>
     <string name="follow_arriving">Arriving in %1$s</string>
     <string name="follow_now">Arriving now</string>
     <string name="my_location">My location</string>
@@ -68,17 +68,20 @@
     <string name="journey_to">To %1$s</string>
     <string name="end_journey">End</string>
     <string name="journey_alerts_channel">Journey alerts</string>
-    <string name="tile_empty">Add favorite stops in the app</string>
+    <string name="tile_empty">Save a stop in the app first.</string>
     <string name="next_bus">Next bus</string>
     <string name="journey_plan_loading">Getting the trip from your phone…</string>
-    <string name="journey_recenter">Re-centre</string>
-    <string name="journey_overview">See the whole leg</string>
+    <string name="journey_recenter">Re-center</string>
+    <string name="journey_overview">Whole leg</string>
 
-    <string name="setup_notifications_title">Bus on the watch face</string>
-    <string name="setup_notifications_body">Allow notifications to keep a followed bus or trip on the watch face.</string>
-    <string name="setup_location_title">Stops near you</string>
-    <string name="setup_location_body">Allow location to see the stops around you.</string>
+    <string name="setup_notifications_title">Notifications</string>
+    <string name="setup_notifications_body">For buses you follow and trips.</string>
+    <string name="setup_location_title">Location</string>
+    <string name="setup_location_body">For stops near you.</string>
     <string name="setup_allow">Allow</string>
     <string name="setup_open_settings">Settings</string>
     <string name="setup_not_now">Not now</string>
+    <string name="leave_in">Leave in %1$s</string>
+    <string name="leave_now">Leave now</string>
+    <string name="leave_go">Go</string>
 </resources>

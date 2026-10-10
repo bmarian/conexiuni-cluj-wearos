@@ -31,11 +31,14 @@ import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import online.bmarian.bus.Links
 import online.bmarian.bus.data.directionFromTripId
 import online.bmarian.bus.follow.FollowManager
+import online.bmarian.bus.follow.FollowState
+import online.bmarian.bus.follow.soonest
 import online.bmarian.bus.follow.JourneyMirror
 import online.bmarian.bus.presentation.home.HomeScreen
 import online.bmarian.bus.presentation.home.NearbyMapScreen
@@ -58,11 +61,14 @@ import online.bmarian.bus.presentation.stop.stopViewModel
 import online.bmarian.bus.presentation.theme.ConexiuniClujWearOSTheme
 
 const val EXTRA_OPEN_FOLLOWED = "openFollowed"
+// Which follow to open; without it, the latest.
+const val EXTRA_FOLLOW_ID = "followId"
 // Tiles can't set intent data.
 const val EXTRA_LINK = "link"
 
 class MainActivity : ComponentActivity() {
-    private val openFollowed = MutableStateFlow(false)
+    // A follow's id, or "" for the latest.
+    private val openFollowed = MutableStateFlow<String?>(null)
     private val openLink = MutableStateFlow<String?>(null)
     private val ambient = MutableStateFlow(false)
 
@@ -100,10 +106,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun take(intent: Intent?) {
-        if (intent?.getBooleanExtra(EXTRA_OPEN_FOLLOWED, false) == true) openFollowed.value = true
+        if (intent?.getBooleanExtra(EXTRA_OPEN_FOLLOWED, false) == true) openFollowed.value = intent.getStringExtra(EXTRA_FOLLOW_ID).orEmpty()
         val link = intent?.data ?: intent?.getStringExtra(EXTRA_LINK)?.toUri()
         when (link?.takeIf { it.scheme == Links.SCHEME }?.pathSegments?.firstOrNull()) {
-            Links.FOLLOWING -> openFollowed.value = true
+            Links.FOLLOWING -> openFollowed.value = ""
             Links.JOURNEY -> openLink.value = "journey"
             else -> link?.let(Links::destination)?.let { openLink.value = it }
         }
@@ -113,13 +119,13 @@ class MainActivity : ComponentActivity() {
 private const val DEPARTURE_ROUTE = "departure/{stopId}/{routeId}/{tripId}"
 
 @Composable
-private fun WearApp(openFollowed: MutableStateFlow<Boolean>, openLink: MutableStateFlow<String?>) {
+private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableStateFlow<String?>) {
     val navController = rememberSwipeDismissableNavController()
     val homeState = rememberTransformingLazyColumnState()
     val scope = rememberCoroutineScope()
     val toOpen by openFollowed.collectAsStateWithLifecycle()
     val linked by openLink.collectAsStateWithLifecycle()
-    val following by FollowManager.state.collectAsStateWithLifecycle()
+    val follows by FollowManager.follows.collectAsStateWithLifecycle()
     val journey by JourneyMirror.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var setup by remember { mutableStateOf(Setup.firstRun(context)) }
@@ -127,21 +133,23 @@ private fun WearApp(openFollowed: MutableStateFlow<Boolean>, openLink: MutableSt
         if (setup.isEmpty() && !Setup.notificationsAllowed(context)) setup = listOf(SetupStep.Notifications)
     }
 
-    fun openFollowed() {
-        val followed = FollowManager.state.value?.followed ?: return
+    fun openFollowed(follow: FollowState) {
+        val followed = follow.followed
         navController.navigate("departure/${followed.stopId}/${followed.routeId}/${followed.tripId}")
     }
 
     LaunchedEffect(toOpen) {
-        if (!toOpen) return@LaunchedEffect
-        openFollowed.value = false
+        val wanted = toOpen ?: return@LaunchedEffect
+        openFollowed.value = null
         // The link can arrive before the follow state.
-        val followed = withTimeoutOrNull(10_000) { FollowManager.state.filterNotNull().first() }?.followed ?: return@LaunchedEffect
+        val follow = withTimeoutOrNull(10_000) {
+            FollowManager.follows.map { list -> if (wanted.isEmpty()) list.lastOrNull() else list.firstOrNull { it.id == wanted } }.filterNotNull().first()
+        } ?: return@LaunchedEffect
         val here = navController.currentBackStackEntry
         askForNotifications()
-        if (here?.destination?.route == DEPARTURE_ROUTE && here.arguments?.getString("tripId") == followed.tripId) return@LaunchedEffect
+        if (here?.destination?.route == DEPARTURE_ROUTE && here.arguments?.getString("tripId") == follow.followed.tripId) return@LaunchedEffect
         navController.popBackStack("home", inclusive = false)
-        openFollowed()
+        openFollowed(follow)
     }
 
     LaunchedEffect(linked) {
@@ -278,7 +286,7 @@ private fun WearApp(openFollowed: MutableStateFlow<Boolean>, openLink: MutableSt
                         setup = emptyList()
                     }
                 }
-                val follow = following
+                val follow = follows.soonest()
                 val trip = journey
                 if (LocalAmbient.current && follow != null) AmbientFollow(follow)
                 else if (LocalAmbient.current && trip != null) AmbientJourney(trip)
