@@ -90,7 +90,7 @@ Raise `versionCode` in [`app/build.gradle.kts`](app/build.gradle.kts) for every 
 ./gradlew bundleRelease
 ```
 
-It lands in `app/build/outputs/bundle/release/app-release.aab`. The store listing text, the icon, the feature graphic and the screenshots are in [`store/`](store), and the privacy policy is [`PRIVACY.md`](PRIVACY.md).
+It lands in `app/build/outputs/bundle/release/app-release.aab` and goes on the Wear OS track of the phone app's listing. The listing text, images (watch screenshots included) and privacy policy live with the phone app, in [its `store/`](https://github.com/bmarian/conexiuni-cluj-mobile/tree/main/store).
 
 ## Credits
 

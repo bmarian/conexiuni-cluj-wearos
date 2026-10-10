@@ -54,7 +54,7 @@ class BaselineProfileGenerator {
         device.pressBack()
 
         await(By.desc("Search"))
-        scrollTo(By.text("All Routes")).click()
+        scrollTo(By.text("All lines")).click()
         await(By.text(Pattern.compile("\\d+[A-Z]*"))).click()
         Thread.sleep(3_000)
         device.pressBack()
