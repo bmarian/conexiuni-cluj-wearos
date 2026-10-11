@@ -90,7 +90,7 @@ Raise `versionCode` in [`app/build.gradle.kts`](app/build.gradle.kts) for every 
 ./gradlew bundleRelease
 ```
 
-It lands in `app/build/outputs/bundle/release/app-release.aab` and goes on the Wear OS track of the phone app's listing. The listing text, images (watch screenshots included) and privacy policy live with the phone app, in [its `store/`](https://github.com/bmarian/conexiuni-cluj-mobile/tree/main/store).
+It lands in `app/build/outputs/bundle/release/app-release.aab` and goes on the Wear OS track of the phone app's listing. The listing text, images (watch screenshots included) and privacy policy live with the phone app, in [its `store/`](https://github.com/bmarian/conexiuni-cluj-mobile/tree/master/store).
 
 ## Credits
 
