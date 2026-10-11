@@ -2,6 +2,8 @@
 
 The [Conexiuni Cluj](https://github.com/bmarian/conexiuni-cluj) bus and tram tracker as a Wear OS app. The website ran in the watch browser, but it couldn't get my location and froze every time I lowered my wrist, so I built this.
 
+**[Download the latest APK](https://github.com/bmarian/conexiuni-cluj-wearos/releases/latest/download/conexiuni-cluj-wear.apk)** (Wear OS 3 or newer, install it with `adb install`)
+
 <p align="center">
   <img src="readme/home.png" width="180" alt="Favorite stops with their next departures">
   <img src="readme/stop.png" width="180" alt="Departures from a stop">
