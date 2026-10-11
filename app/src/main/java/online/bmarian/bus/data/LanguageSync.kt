@@ -17,7 +17,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import online.bmarian.bus.Services
 
-/** The phone app's language: picked once on the watch, then each change on the phone wins. */
 object LanguageSync {
     const val PATH = "/sync/language"
 
