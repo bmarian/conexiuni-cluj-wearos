@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -46,6 +47,7 @@ import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import online.bmarian.bus.R
+import online.bmarian.bus.data.LanguageSync
 import online.bmarian.bus.data.UserLocation
 import online.bmarian.bus.follow.JourneyMirror
 import online.bmarian.bus.follow.Mirror
@@ -56,7 +58,7 @@ import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
 import online.bmarian.bus.presentation.surface
 
-enum class SetupStep { Notifications, Location }
+enum class SetupStep { Language, Notifications, Location }
 
 object Setup {
     private fun prefs(context: Context) = context.getSharedPreferences("setup", Context.MODE_PRIVATE)
@@ -67,6 +69,7 @@ object Setup {
     fun firstRun(context: Context): List<SetupStep> =
         if (prefs(context).getBoolean("done", false)) emptyList()
         else buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(SetupStep.Language)
             if (!notificationsAllowed(context)) add(SetupStep.Notifications)
             if (!UserLocation.permitted(context)) add(SetupStep.Location)
         }
@@ -80,6 +83,7 @@ object Setup {
             SetupStep.Notifications ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Manifest.permission.POST_NOTIFICATIONS else return false
             SetupStep.Location -> Manifest.permission.ACCESS_FINE_LOCATION
+            SetupStep.Language -> return false
         }
         return prefs(activity).getBoolean("asked_${step.name}", false) &&
             !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
@@ -123,10 +127,15 @@ fun SetupScreen(steps: List<SetupStep>, onDone: () -> Unit) {
     BackHandler(onBack = ::next)
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        key(step) {
+        if (step == SetupStep.Language) {
+            LanguageStep { tag ->
+                LanguageSync.choose(context, tag)
+                next()
+            }
+        } else key(step) {
             val (icon, title, body) = when (step) {
                 SetupStep.Notifications -> Triple(Icons.Rounded.NotificationsActive, R.string.setup_notifications_title, R.string.setup_notifications_body)
-                SetupStep.Location -> Triple(Icons.Rounded.MyLocation, R.string.setup_location_title, R.string.setup_location_body)
+                else -> Triple(Icons.Rounded.MyLocation, R.string.setup_location_title, R.string.setup_location_body)
             }
             ListScreen { spec ->
                 item {
@@ -160,6 +169,33 @@ fun SetupScreen(steps: List<SetupStep>, onDone: () -> Unit) {
                         CompactButton(onClick = ::next, colors = ButtonDefaults.childButtonColors(), label = { Text(stringResource(R.string.setup_not_now)) })
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguageStep(onPick: (String) -> Unit) {
+    ListScreen { spec ->
+        item {
+            Box(contentModifier(spec).padding(top = 4.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Translate, contentDescription = null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
+        }
+        item { Title(stringResource(R.string.setup_language_title), spec) }
+        for ((tag, name) in listOf("ro" to "Română", "en" to "English")) {
+            item {
+                Button(
+                    onClick = { onPick(tag) },
+                    modifier = itemModifier(spec),
+                    transformation = surface(spec),
+                    label = { Text(name, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
+                )
             }
         }
     }

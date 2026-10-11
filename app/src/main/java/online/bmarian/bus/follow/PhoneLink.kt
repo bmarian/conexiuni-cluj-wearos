@@ -32,6 +32,7 @@ import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.FavoritesSync
+import online.bmarian.bus.data.LanguageSync
 import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
 import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
@@ -123,6 +124,7 @@ class PhoneListener : WearableListenerService() {
 
     override fun onDataChanged(events: DataEventBuffer) {
         FavoritesSync.onDataChanged(applicationContext, events)
+        LanguageSync.onDataChanged(applicationContext, events)
     }
 }
 

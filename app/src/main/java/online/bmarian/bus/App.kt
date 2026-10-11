@@ -8,6 +8,7 @@ import android.os.LocaleList
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Favorites
 import online.bmarian.bus.data.FavoritesSync
+import online.bmarian.bus.data.LanguageSync
 import online.bmarian.bus.data.Repository
 import online.bmarian.bus.surfaces.updateSurfacesOnChange
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +39,7 @@ object Services {
             repository.refreshNetwork(now = true)
         }
         FavoritesSync.pull(app)
+        LanguageSync.pull(app)
         scope.launch { updateSurfacesOnChange(app) }
     }
 
