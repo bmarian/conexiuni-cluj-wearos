@@ -82,6 +82,8 @@ import online.bmarian.bus.presentation.map.MapFrame
 import online.bmarian.bus.presentation.map.MapLine
 import online.bmarian.bus.presentation.map.MapStop
 import online.bmarian.bus.presentation.map.MapVehicle
+import online.bmarian.bus.presentation.map.MapControls
+import online.bmarian.bus.presentation.map.rememberMapChrome
 import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
@@ -310,11 +312,13 @@ fun StopMapScreen(vm: StopViewModel) {
     val me by rememberUserLocation()
     val camera = rememberMapCamera()
     val frame = location?.let { MapFrame.Focus(it.first, it.second, STOP_MAP_ZOOM) }
+    val chrome = rememberMapChrome()
     ScreenScaffold {
         Box(Modifier.fillMaxSize()) {
             TransitMap(
                 camera = camera,
                 frame = frame,
+                onMapTap = chrome::toggle,
                 lines = layer.lines.map { MapLine(it.points, routeColor(it.color)) },
                 stops = listOfNotNull(location?.let { MapStop("${vm.stopId}", it.first, it.second, Palette.AccentStrong, selected = true) }),
                 vehicles = layer.vehicles.map { MapVehicle(it.id, it.lat, it.lon, it.name, routeColor(it.color), it.heading) },
@@ -322,16 +326,17 @@ fun StopMapScreen(vm: StopViewModel) {
                 ambient = LocalAmbient.current,
             )
             name?.let {
-                MapChip(Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
-                    Text(it, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
+                    MapChip {
+                        Text(it, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
             me?.let { fix ->
-                FilledTonalIconButton(
-                    onClick = { camera.centerOn(fix.lat, fix.lon, ME_ZOOM) },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
-                ) {
-                    Icon(Icons.Rounded.MyLocation, contentDescription = stringResource(R.string.my_location))
+                MapControls(chrome, Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)) {
+                    FilledTonalIconButton(onClick = { camera.centerOn(fix.lat, fix.lon, ME_ZOOM) }) {
+                        Icon(Icons.Rounded.MyLocation, contentDescription = stringResource(R.string.my_location))
+                    }
                 }
             }
         }

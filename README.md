@@ -1,6 +1,6 @@
 # Conexiuni Cluj for Wear OS
 
-The [Conexiuni Cluj](https://github.com/bmarian/conexiuni-cluj) bus and tram tracker as a native Wear OS app. The website ran in the watch browser, but the browser couldn't get my location, the bezel could only scroll the page, and the page froze every time I lowered my wrist. So I rebuilt it for the watch.
+The [Conexiuni Cluj](https://github.com/bmarian/conexiuni-cluj) bus and tram tracker as a Wear OS app. The website ran in the watch browser, but it couldn't get my location and froze every time I lowered my wrist, so I built this.
 
 <p align="center">
   <img src="readme/home.png" width="180" alt="Favorite stops with their next departures">
@@ -11,20 +11,17 @@ The [Conexiuni Cluj](https://github.com/bmarian/conexiuni-cluj) bus and tram tra
 
 ## What it does
 
-- Favorite stops on the first screen, like Google Maps shows Home and Work
+- Favorite stops on the first screen
 - Search for a stop or a line by voice or keyboard
-- Departures for any stop. Tracked buses get a live countdown and the realtime arcs, the rest show the timetable
-- Follow buses, several at once: the countdown stays on the watch face, the watch buzzes two minutes before and when it comes, and it lets go once the bus has left
-- With the phone app: follow a bus on either device and it shows on both, like Maps navigation on a watch. Stop it on one and it stops on both. A reminder set on the phone shows "Leave in 8 min" and buzzes when it's time to go
-- With the phone app: favorites stay the same on both, a stop or a line opens on the phone with one tap, and a journey started on the phone opens on the watch: the current step with a buzz at each new one, and the whole trip on the map, walks included
-- A tile with the followed bus and the next departure at your favorite stops, and a Next bus complication for the watch face
-- With the wrist down while following, the screen stays on the countdown in always-on mode
-- A line opens on the map with the next arrival above each stop, and one tap swaps the direction or shows the timetable
-- The stop map shows your favorite lines' buses on their way, with their routes
-- The stops within walking distance, as a list or on a map, and your position on every map
-- The same map as the phone app: drag and pinch it, turn the bezel to zoom, and the names and times above the stops always show
-- Turn the bezel to scroll lists
-- Copy your favorites from the website by scanning a code, or typing it on another device
+- Departures for any stop. Tracked buses get a live countdown, the rest show the timetable
+- Follow a bus. The countdown stays on the watch face and it buzzes when the bus is close
+- Lines on the map with the next arrival at each stop, and their timetables
+- The stops around you, as a list or on a map
+- A tile and a watch face complication with the next bus
+- Turn the bezel to scroll and zoom
+- Works on its own over Wi-Fi or LTE
+- Works with the [Android app](https://github.com/bmarian/conexiuni-cluj-mobile): followed buses, trips, reminders and favorites show on both
+- Copy your favorites from the website by scanning a code
 
 <p align="center">
   <img src="readme/nearby-map.png" width="180" alt="The stops around you on the map">
@@ -32,50 +29,25 @@ The [Conexiuni Cluj](https://github.com/bmarian/conexiuni-cluj) bus and tram tra
   <img src="readme/timetable.png" width="180" alt="A line's timetable from the current hour on">
 </p>
 
-## How it works
+---
 
-It talks to the same API as [bus.bmarian.online](https://bus.bmarian.online) and needs no phone app, so it works over Wi-Fi or LTE on its own. The whole network (lines, stops, timetables and learned travel times) is kept on the watch as one bundle from `/api/network`, fetched again only when the lines change or the copy is half a day old; stops and lines open from it without a request. Only the buses come live, from the version 2 stream (a snapshot, then what moved, gzipped).
+## Running it yourself
 
-The arrival times are worked out on the watch, with the same logic as the website, ported from TypeScript to Kotlin in [`logic/`](app/src/main/java/online/bmarian/bus/logic). [`ParityTest`](app/src/test/java/online/bmarian/bus/ParityTest.kt) runs both on the same snapshot of real data and fails if a single minute differs.
-Stops, lines, timetables and route shapes are kept on the watch, so a stop you've opened before shows up at once and refreshes in the background.
-
-## Building it
-
-You'll need Android Studio with the Android SDK, and a Wear OS emulator or a watch with Wireless debugging turned on.
-
-The map is [MapLibre](https://maplibre.org/), as on the phone, with [OpenFreeMap](https://openfreemap.org/)'s Dark style, bundled in [`assets/styles`](app/src/main/assets/styles). No key is needed.
-
-Run the `app` configuration from Android Studio, or:
+You'll need Android Studio with the Android SDK, and a Wear OS emulator or a watch with Wireless debugging on. The map needs no key.
 
 ```bash
 ./gradlew installRelease
 ```
 
-The release build is much faster on a watch than the debug one. Without an upload key (below) it's signed with the debug key, so it still installs straight from Android Studio.
-
 ```bash
 ./gradlew testDebugUnitTest
 ```
 
-runs the parity test.
+**The release build** is much faster on a watch than the debug one. Without a key it's signed with the debug key, so it still installs.
 
-The release build ships a baseline profile, so the screens people use most are compiled ahead of time. After big UI changes, generate it again on an emulator in English, with its location set near a few Cluj stops:
+**The logic** is the website's, ported to Kotlin in [`logic/`](app/src/main/java/online/bmarian/bus/logic). [`ParityTest`](app/src/test/java/online/bmarian/bus/ParityTest.kt) runs both on the same real data and fails if a single minute differs.
 
-```bash
-ANDROID_SERIAL=emulator-5554 ./gradlew :app:generateBaselineProfile
-```
-
-The run uninstalls the app from the device when it ends, so don't point it at your watch.
-
-## Releasing
-
-Google Play needs an upload key. Make one once and keep it somewhere safe, outside the repository:
-
-```bash
-keytool -genkeypair -v -keystore upload.jks -alias upload -keyalg RSA -keysize 4096 -validity 10000
-```
-
-Then point a `keystore.properties` next to this README at it. Git ignores the file, and the path is relative to this folder:
+**Releasing** needs a `keystore.properties` next to this README, with the same key as the Android app. Git ignores it.
 
 ```properties
 storeFile=../keys/upload.jks
@@ -84,14 +56,15 @@ keyAlias=upload
 keyPassword=...
 ```
 
-Raise `versionCode` in [`app/build.gradle.kts`](app/build.gradle.kts) for every upload. The watch and phone apps share one package, so their codes can't collide: the watch's are 2xxxx and the phone's 1xxxx, followed by the release number, the same on both. Then build the bundle:
-
-```bash
-./gradlew bundleRelease
-```
-
-It lands in `app/build/outputs/bundle/release/app-release.aab` and goes on the Wear OS track of the phone app's listing. The listing text, images (watch screenshots included) and privacy policy live with the phone app, in [its `store/`](https://github.com/bmarian/conexiuni-cluj-mobile/tree/master/store).
+Watch version codes are 2xxxx and the phone's 1xxxx. `./gradlew bundleRelease` builds the bundle, which goes on the Android app's Google Play listing.
 
 ## Credits
 
-Same sources as [the main app](https://github.com/bmarian/conexiuni-cluj#credits): live positions and GTFS from [Tranzy.ai](https://tranzy.ai/), timetables from [CTP Cluj-Napoca](https://www.ctpcj.ro/), map data © [OpenStreetMap](https://www.openstreetmap.org/) contributors, tiles by [OpenFreeMap](https://openfreemap.org/) and [OpenMapTiles](https://openmaptiles.org/), drawn by [MapLibre](https://maplibre.org/). QR codes by [ZXing](https://github.com/zxing/zxing).
+| Source                                                       | Used for                                             |
+| ------------------------------------------------------------ | ---------------------------------------------------- |
+| [Tranzy.ai](https://tranzy.ai/)                              | Live GPS positions and GTFS data for CTP Cluj-Napoca |
+| [CTP Cluj-Napoca](https://www.ctpcj.ro/)                     | Official timetables                                  |
+| [OpenStreetMap](https://www.openstreetmap.org/) contributors | Map data                                             |
+| [OpenFreeMap](https://openfreemap.org/)                      | Map tiles                                            |
+| [MapLibre](https://maplibre.org/)                            | The map                                              |
+| [ZXing](https://github.com/zxing/zxing)                      | QR codes                                             |

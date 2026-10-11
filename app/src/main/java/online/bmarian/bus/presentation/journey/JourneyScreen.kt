@@ -65,6 +65,8 @@ import online.bmarian.bus.presentation.map.MapLabel
 import online.bmarian.bus.presentation.map.MapLine
 import online.bmarian.bus.presentation.map.MapStop
 import online.bmarian.bus.presentation.map.MapVehicle
+import online.bmarian.bus.presentation.map.MapControls
+import online.bmarian.bus.presentation.map.rememberMapChrome
 import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
@@ -223,10 +225,12 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
         else -> MapFollow(zoom = 16.5, tilt = 40.0)
     }
     val ambient = LocalAmbient.current
+    val chrome = rememberMapChrome()
     Box(Modifier.fillMaxSize()) {
         TransitMap(
             camera = camera,
             frame = frame,
+            onMapTap = chrome::toggle,
             lines = lines,
             stops = stops,
             labels = labels,
@@ -239,22 +243,25 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
                 following = false
             },
         )
-        MapChip(Modifier.align(Alignment.TopCenter).padding(top = 22.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(stepIcon(sync.stepType), null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                Text(sync.step, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = 22.dp)) {
+            MapChip {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(stepIcon(sync.stepType), null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                    Text(sync.step, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
         if (me != null && !ambient) {
-            FilledTonalIconButton(
-                onClick = {
-                    if (following) camera.framed = false
-                    following = !following
-                },
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
-            ) {
-                if (following) Icon(Icons.Rounded.ZoomOutMap, contentDescription = stringResource(R.string.journey_overview))
-                else Icon(Icons.Rounded.Navigation, contentDescription = stringResource(R.string.journey_recenter))
+            MapControls(chrome, Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)) {
+                FilledTonalIconButton(
+                    onClick = {
+                        if (following) camera.framed = false
+                        following = !following
+                    },
+                ) {
+                    if (following) Icon(Icons.Rounded.ZoomOutMap, contentDescription = stringResource(R.string.journey_overview))
+                    else Icon(Icons.Rounded.Navigation, contentDescription = stringResource(R.string.journey_recenter))
+                }
             }
         }
     }

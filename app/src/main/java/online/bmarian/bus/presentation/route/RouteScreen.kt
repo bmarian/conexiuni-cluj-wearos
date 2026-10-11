@@ -82,6 +82,8 @@ import online.bmarian.bus.presentation.map.MapLabel
 import online.bmarian.bus.presentation.map.MapLine
 import online.bmarian.bus.presentation.map.MapStop
 import online.bmarian.bus.presentation.map.MapVehicle
+import online.bmarian.bus.presentation.map.MapControls
+import online.bmarian.bus.presentation.map.rememberMapChrome
 import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
@@ -188,11 +190,13 @@ private fun RouteMapView(
         }
     }
 
+    val chrome = rememberMapChrome()
     ScreenScaffold {
         Box(Modifier.fillMaxSize()) {
             TransitMap(
                 camera = camera,
                 frame = frame,
+                onMapTap = chrome::toggle,
                 lines = current?.shape?.let { listOf(MapLine(it.shape.map { p -> p.lat to p.lon }, color)) }.orEmpty(),
                 stops = mapStops,
                 labels = labels,
@@ -203,11 +207,13 @@ private fun RouteMapView(
                 ambient = LocalAmbient.current,
             )
             if (info != null) {
-                MapChip(Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        LineBadge(info.shortName, info.color, height = 20.dp)
-                        if (terminal.isNotEmpty()) {
-                            Text("→\u00A0$terminal", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
+                    MapChip {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            LineBadge(info.shortName, info.color, height = 20.dp)
+                            if (terminal.isNotEmpty()) {
+                                Text("→\u00A0$terminal", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }
@@ -223,9 +229,9 @@ private fun RouteMapView(
                     Text(note, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
                 }
             }
-            if (!LocalAmbient.current) {
+            if (!LocalAmbient.current) MapControls(chrome, Modifier.align(Alignment.BottomCenter)) {
                 Row(
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 22.dp),
+                    modifier = Modifier.padding(bottom = 22.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

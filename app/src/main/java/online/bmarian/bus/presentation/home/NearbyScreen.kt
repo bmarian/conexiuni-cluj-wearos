@@ -53,6 +53,8 @@ import online.bmarian.bus.presentation.itemModifier
 import online.bmarian.bus.presentation.map.MapFrame
 import online.bmarian.bus.presentation.map.MapLabel
 import online.bmarian.bus.presentation.map.MapStop
+import online.bmarian.bus.presentation.map.MapControls
+import online.bmarian.bus.presentation.map.rememberMapChrome
 import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
@@ -187,10 +189,12 @@ fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
             .take(NEARBY_COUNT)
     }
 
+    val chrome = rememberMapChrome()
     ScreenScaffold {
         Box(Modifier.fillMaxSize()) {
             TransitMap(
                 camera = camera,
+                onMapTap = chrome::toggle,
                 frame = center?.takeIf { stops.isNotEmpty() }?.let { here ->
                     MapFrame.Fit(around.map { (stop, _) -> stop.lat to stop.lon } + (here.lat to here.lon), side = 0.22, top = 0.38, bottom = 0.34)
                 },
@@ -200,8 +204,10 @@ fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
                 ambient = LocalAmbient.current,
                 onStopTap = { id -> id.toIntOrNull()?.let(onOpenStop) },
             )
-            MapChip(Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
-                Text(stringResource(R.string.nearby_stops), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
+                MapChip {
+                    Text(stringResource(R.string.nearby_stops), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                }
             }
             if (center == null) {
                 MapChip(Modifier.align(Alignment.Center)) {
@@ -209,11 +215,13 @@ fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
                 }
             }
             live?.let { fix ->
-                FilledTonalIconButton(
-                    onClick = { camera.centerOn(fix.lat, fix.lon, NEARBY_MAP_ZOOM) },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 22.dp).size(44.dp),
-                ) {
-                    Icon(Icons.Rounded.MyLocation, contentDescription = stringResource(R.string.my_location))
+                MapControls(chrome, Modifier.align(Alignment.BottomCenter).padding(bottom = 22.dp)) {
+                    FilledTonalIconButton(
+                        onClick = { camera.centerOn(fix.lat, fix.lon, NEARBY_MAP_ZOOM) },
+                        modifier = Modifier.size(44.dp),
+                    ) {
+                        Icon(Icons.Rounded.MyLocation, contentDescription = stringResource(R.string.my_location))
+                    }
                 }
             }
         }

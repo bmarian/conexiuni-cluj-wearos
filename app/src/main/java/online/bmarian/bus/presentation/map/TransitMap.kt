@@ -163,6 +163,7 @@ fun TransitMap(
     me: Fix? = null,
     ambient: Boolean = false,
     onStopTap: ((String) -> Unit)? = null,
+    onMapTap: (() -> Unit)? = null,
     interactive: Boolean = true,
     follow: MapFollow? = null,
     onFollowLost: (() -> Unit)? = null,
@@ -171,6 +172,7 @@ fun TransitMap(
     val density = LocalDensity.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val currentOnStopTap by rememberUpdatedState(onStopTap)
+    val currentOnMapTap by rememberUpdatedState(onMapTap)
     val currentOnFollowLost by rememberUpdatedState(onFollowLost)
     var session by remember { mutableStateOf<MapSession?>(null) }
 
@@ -218,10 +220,9 @@ fun TransitMap(
             map.setStyle(Style.Builder().fromJson(darkStyle(context))) { style ->
                 val created = MapSession(context, map, style) { currentOnFollowLost?.invoke() }
                 map.addOnMapClickListener { latLng ->
-                    val tap = currentOnStopTap ?: return@addOnMapClickListener false
-                    val id = created.stopAt(map.projection.toScreenLocation(latLng), with(density) { TAP_REACH.toPx() })
-                        ?: return@addOnMapClickListener false
-                    tap(id)
+                    val tap = currentOnStopTap
+                    val id = tap?.let { created.stopAt(map.projection.toScreenLocation(latLng), with(density) { TAP_REACH.toPx() }) }
+                    if (tap != null && id != null) tap(id) else currentOnMapTap?.invoke()
                     true
                 }
                 camera.attach(map)
@@ -291,7 +292,11 @@ private class MapHost(context: Context, val map: MapView) : FrameLayout(context)
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (!interactive) return false
-        if (ev.actionMasked == MotionEvent.ACTION_DOWN && ev.x < edgePx) return false
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            // Swiping back only from the edge; anywhere else the map keeps the touch.
+            if (ev.x < edgePx) return false
+            parent?.requestDisallowInterceptTouchEvent(true)
+        }
         return super.dispatchTouchEvent(ev)
     }
 }
