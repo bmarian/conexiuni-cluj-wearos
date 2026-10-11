@@ -51,6 +51,7 @@ import androidx.wear.input.WearableRemoteInputExtender
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import online.bmarian.bus.BuildConfig
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.stopSnapshot
@@ -307,6 +308,13 @@ fun HomeScreen(
                 Text(
                     stringResource(R.string.credits),
                     modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyExtraSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    stringResource(R.string.app_version, BuildConfig.VERSION_NAME),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     style = MaterialTheme.typography.bodyExtraSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

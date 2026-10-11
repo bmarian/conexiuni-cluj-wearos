@@ -85,4 +85,5 @@
     <string name="leave_in">Pleacă în %1$s</string>
     <string name="leave_now">Pleacă acum</string>
     <string name="leave_go">Pleacă</string>
+    <string name="app_version">Versiunea %1$s</string>
 </resources>

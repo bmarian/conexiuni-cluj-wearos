@@ -81,4 +81,5 @@
     <string name="leave_in">Leave in %1$s</string>
     <string name="leave_now">Leave now</string>
     <string name="leave_go">Go</string>
+    <string name="app_version">Version %1$s</string>
 </resources>
