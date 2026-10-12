@@ -24,8 +24,8 @@ android {
         targetSdk = 37
         // Phone and watch share the package, so each upload needs its own code: phone 1xxxx, watch 2xxxx,
         // then the release number, the same on both.
-        versionCode = 20_003
-        versionName = "1.1.1"
+        versionCode = 20_004
+        versionName = "1.2.0"
 
         buildConfigField("String", "API_BASE", "\"https://bus.bmarian.online/api/\"")
         buildConfigField("String", "SITE_ORIGIN", "\"https://bus.bmarian.online\"")
