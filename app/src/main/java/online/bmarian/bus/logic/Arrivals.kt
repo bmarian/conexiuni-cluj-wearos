@@ -13,6 +13,13 @@ fun minutesUntil(absMinutes: Int, nowMinutes: Int): Int {
     return diff
 }
 
+fun minutesUntil(absMinutes: Double, nowMinutes: Double): Double {
+    val diff = absMinutes - nowMinutes
+    if (diff < -720) return diff + 1440
+    if (diff > 720) return diff - 1440
+    return diff
+}
+
 const val SCHEDULE_LATE_GRACE_MIN = 3
 
 /** Soonest first; may start slightly negative. */
@@ -33,14 +40,23 @@ fun mergeArrivals(
     scheduled: List<Int>,
     tracked: Boolean = false,
     limit: Int = 3,
+): List<Arrival> = mergeArrivals(listOfNotNull(liveMinutes), scheduled, tracked, limit)
+
+/** Each tracked bus first, then only the timetable runs after the last of them. */
+fun mergeArrivals(
+    liveMinutes: List<Int>,
+    scheduled: List<Int>,
+    tracked: Boolean = false,
+    limit: Int = 3,
 ): List<Arrival> {
-    if (liveMinutes == null) {
+    val live = liveMinutes.map { max(it, 0) }.sorted()
+    if (live.isEmpty()) {
         val pending = if (tracked) scheduled.filter { it >= 1 } else scheduled
         return pending.take(limit).map { Arrival(max(it, 0), false) }
     }
-    val live = max(liveMinutes, 0)
-    val later = scheduled.filter { it > live + SCHEDULE_LATE_GRACE_MIN }
-    return listOf(Arrival(live, true)) + later.take(max(limit - 1, 0)).map { Arrival(it, false) }
+    val last = live.last()
+    val later = scheduled.filter { it > last + SCHEDULE_LATE_GRACE_MIN }
+    return (live.map { Arrival(it, true) } + later.map { Arrival(it, false) }).take(limit)
 }
 
 data class MarkedArrival(val minutes: Int, val isLive: Boolean, val soon: Boolean)

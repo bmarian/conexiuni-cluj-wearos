@@ -15,6 +15,7 @@ import online.bmarian.bus.logic.IndexedStop
 import online.bmarian.bus.logic.IndexedVehicle
 import online.bmarian.bus.logic.MarkedArrival
 import online.bmarian.bus.logic.directionShape
+import online.bmarian.bus.logic.feederFor
 import online.bmarian.bus.logic.haversineMeters
 import online.bmarian.bus.logic.indexVehicles
 import online.bmarian.bus.logic.routeStopArrivals
@@ -66,9 +67,14 @@ class RouteViewModel(val routeId: Int, initialDirection: String, val fromStopId:
         val shape = shapes[dir]
         val indexed = if (shape == null) emptyList()
         else indexVehicles(info.shortName, info.color, shape.index, nowMs, vehicles[tripId].orEmpty())
+        val other = if (dir == "0") "1" else "0"
+        val feederShape = shapes[other]
+        val feeder = feederFor(info, tripId, feederShape, feederShape?.let {
+            indexVehicles(info.shortName, info.color, it.index, nowMs, vehicles[tripIdFor(routeId, other)].orEmpty())
+        }.orEmpty())
         RouteDirectionUi(
             stops = stops,
-            arrivals = routeStopArrivals(info, stops, dir == "0", shape, indexed, now, nowMs),
+            arrivals = routeStopArrivals(info, stops, dir == "0", shape, indexed, now, nowMs, feeder),
             shape = shape,
             vehicles = indexed,
             now = now,
