@@ -52,6 +52,7 @@ import online.bmarian.bus.Links
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import online.bmarian.bus.R
+import kotlin.math.roundToInt
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.Services
@@ -201,7 +202,7 @@ private fun RouteMapView(
                 stops = mapStops,
                 labels = labels,
                 vehicles = current?.vehicles.orEmpty().map {
-                    MapVehicle("${it.vehicle.id}", it.vehicle.latitude, it.vehicle.longitude, it.routeShortName, color, it.heading)
+                    MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading)
                 },
                 me = me,
                 ambient = LocalAmbient.current,
@@ -276,7 +277,7 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
             ?: names[id]?.let { name -> stops.find { names[it.stop.stopId] == name } }
         stop?.let { found -> names[found.stop.stopId]?.let { found to it } }
     }
-    val offset = atStop?.first?.offsetFromStart ?: 0
+    val offset = atStop?.first?.let { (it.secondsFromStart / 60).roundToInt() } ?: 0
 
     val context = LocalContext.current
     val follows by FollowManager.follows.collectAsStateWithLifecycle()

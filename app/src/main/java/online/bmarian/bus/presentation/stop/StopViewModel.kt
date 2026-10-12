@@ -4,15 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import online.bmarian.bus.Services
 import online.bmarian.bus.presentation.AmbientTicks
+import online.bmarian.bus.data.LiveState
+import online.bmarian.bus.data.LiveStream
 import online.bmarian.bus.data.ShapePoint
 import online.bmarian.bus.data.StopInfo
-import online.bmarian.bus.data.Vehicle
-import online.bmarian.bus.data.VehicleStream
+import online.bmarian.bus.data.routeIdFromTripId
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
-import online.bmarian.bus.logic.buildShapeIndex
-import online.bmarian.bus.logic.computeStopDepartures
-import online.bmarian.bus.logic.indexVehicles
+import online.bmarian.bus.logic.stopDepartures
 import online.bmarian.bus.logic.trackableTripIds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -25,7 +24,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -47,33 +45,34 @@ class StopViewModel(val stopId: Int) : ViewModel() {
     val failed = MutableStateFlow(false)
 
     private val info = MutableStateFlow<StopInfo?>(null)
-    private val shapes = MutableStateFlow<Map<String, List<ShapePoint>>?>(null)
-    private val vehicles = MutableStateFlow<Map<String, List<Vehicle>>>(emptyMap())
+    private val shapes = MutableStateFlow<Map<String, List<ShapePoint>>>(emptyMap())
+    private val live = MutableStateFlow<LiveState?>(null)
     private val clock = MutableStateFlow(System.currentTimeMillis())
 
-    val ui: StateFlow<StopUi?> = combine(info, shapes, vehicles, clock) { info, shapes, vehicles, nowMs ->
-        if (info == null || shapes == null) return@combine null
+    val ui: StateFlow<StopUi?> = combine(info, live, clock) { info, live, nowMs ->
+        if (info == null) return@combine null
         val now = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), CLUJ_ZONE)
-        StopUi(computeStopDepartures(info, shapes, vehicles, now, nowMs), now)
+        StopUi(stopDepartures(info, live, now, nowMs), now)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val mapLayer: StateFlow<StopMapLayer> = combine(ui, shapes, vehicles, Services.favorites.routes) { ui, shapes, vehicles, _ ->
-        if (ui == null) return@combine StopMapLayer(emptyList(), emptyList())
-        val nowMs = System.currentTimeMillis()
+    val mapLayer: StateFlow<StopMapLayer> = combine(ui, shapes, live, Services.favorites.routes) { ui, shapes, live, _ ->
+        if (ui == null || live == null) return@combine StopMapLayer(emptyList(), emptyList())
         val lines = mutableListOf<StopMapLine>()
         val buses = mutableListOf<StopVehicle>()
         for (departure in ui.departures.filter(::isDepartureFavorite)) {
-            val shape = shapes?.get(departure.tripId).orEmpty()
-            if (shape.isEmpty()) continue
-            val tracked = indexVehicles(departure.shortName, departure.color, buildShapeIndex(shape), nowMs, vehicles[departure.tripId].orEmpty())
-            if (tracked.isEmpty()) continue
+            val shape = shapes[departure.tripId].orEmpty()
+            val vehicles = live.vehicles(departure.tripId)
+            if (shape.isEmpty() || vehicles.isEmpty()) continue
             lines += StopMapLine(shape.map { it.lat to it.lon }, departure.color)
-            tracked.mapTo(buses) {
-                StopVehicle("${it.vehicle.id}", it.vehicle.latitude, it.vehicle.longitude, departure.shortName, departure.color, it.heading)
-            }
+            vehicles.mapTo(buses) { StopVehicle("${it.id}", it.latitude, it.longitude, departure.shortName, departure.color, it.heading) }
         }
         StopMapLayer(lines, buses)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, StopMapLayer(emptyList(), emptyList()))
+
+    // Buses are drawn for favourite lines only, so only their trips are subscribed.
+    private val favoriteTripIds = combine(info.filterNotNull(), Services.favorites.routes) { info, _ ->
+        trackableTripIds(info).filter { tripId -> routeIdFromTripId(tripId)?.let(Services.favorites::isRouteFavorite) == true }
+    }.distinctUntilChanged()
 
     init {
         load()
@@ -93,12 +92,10 @@ class StopViewModel(val stopId: Int) : ViewModel() {
         }
     }
 
-    private suspend fun show(loaded: StopInfo) {
+    private fun show(loaded: StopInfo) {
         name.value = loaded.name
         location.value = loaded.lat to loaded.lon
-        val loadedShapes = runCatching { repository.shapes(trackableTripIds(loaded)) }.getOrDefault(shapes.value ?: emptyMap())
         info.value = loaded
-        shapes.value = loadedShapes
     }
 
     suspend fun live() = coroutineScope {
@@ -109,8 +106,13 @@ class StopViewModel(val stopId: Int) : ViewModel() {
                 delay(TICK_MS)
             }
         }
-        info.filterNotNull().map { trackableTripIds(it) }.distinctUntilChanged().collectLatest { ids ->
-            VehicleStream.vehicles(ids).collect { vehicles.value = it }
+        launch {
+            favoriteTripIds.collectLatest { ids ->
+                shapes.value = runCatching { repository.shapes(ids) }.getOrDefault(emptyMap())
+            }
+        }
+        favoriteTripIds.collectLatest { ids ->
+            LiveStream.live(listOf(stopId), ids).collect { live.value = it }
         }
     }
 

@@ -62,7 +62,6 @@ import online.bmarian.bus.follow.FollowState
 import online.bmarian.bus.follow.JourneyMirror
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
-import online.bmarian.bus.logic.computeStopDepartures
 import online.bmarian.bus.presentation.ActionRow
 import online.bmarian.bus.presentation.Countdown
 import online.bmarian.bus.presentation.Eta
@@ -128,8 +127,6 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         repository.loadCached()
         repository.refreshNetwork()
-        repository.refreshRoutes()
-        repository.refreshStops()
     }
 
     val favoriteStops = remember(stops, favoriteStopIds) {

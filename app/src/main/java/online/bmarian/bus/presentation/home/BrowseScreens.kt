@@ -92,7 +92,7 @@ private fun TransformingLazyColumnScope.routeItems(routes: List<Route>, spec: Tr
 fun RoutesScreen(onOpenRoute: (Int) -> Unit) {
     val repository = Services.repository
     val routes by repository.routes.collectAsStateWithLifecycle()
-    val failed by produceState(false) { value = !repository.refreshRoutes() }
+    val failed by produceState(false) { value = !repository.refreshNetwork() }
     val rows = sortedRoutes(routes).chunked(3)
 
     ListScreen { spec ->
@@ -120,7 +120,7 @@ fun RoutesScreen(onOpenRoute: (Int) -> Unit) {
 fun StopsScreen(letter: String?, prefix: String?, onBrowse: (letter: String, prefix: String?) -> Unit, onOpenStop: (Int) -> Unit) {
     val repository = Services.repository
     val stops by repository.stops.collectAsStateWithLifecycle()
-    val failed by produceState(false) { value = !repository.refreshStops() }
+    val failed by produceState(false) { value = !repository.refreshNetwork() }
     val screen by produceState<StopBrowse?>(null, stops, letter, prefix) {
         value = withContext(Dispatchers.Default) { browseStops(keyedStops(stops), letter, prefix) }
     }

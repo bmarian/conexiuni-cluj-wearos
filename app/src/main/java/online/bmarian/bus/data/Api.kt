@@ -17,7 +17,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.File
 import java.io.IOException
-import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -47,8 +46,6 @@ object Api {
     }
 
     fun url(path: String) = BuildConfig.API_BASE + path
-
-    private fun encode(value: String) = URLEncoder.encode(value, "UTF-8")
 
     private suspend fun send(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->
         val call = via.newCall(request)
@@ -83,26 +80,16 @@ object Api {
         return withContext(Dispatchers.Default) { json.decodeFromString<T>(text) }
     }
 
-    suspend fun cachedText(path: String): String? = runCatching {
-        fetch(Request.Builder().url(url(path)).cacheControl(CacheControl.FORCE_CACHE).build()) { response ->
-            if (response.isSuccessful) response.body?.string() else null
-        }
-    }.getOrNull()
-
-    suspend inline fun <reified T> cached(path: String): T? {
-        val text = cachedText(path) ?: return null
-        return withContext(Dispatchers.Default) { runCatching { json.decodeFromString<T>(text) }.getOrNull() }
+    suspend fun freshText(path: String): String = fetch(Request.Builder().url(url(path)).cacheControl(CacheControl.FORCE_NETWORK).build()) { response ->
+        if (!response.isSuccessful) throw HttpException(response.code)
+        response.body?.string() ?: ""
     }
 
-    fun stopInfoPath(stopId: Int) = "stop_info?stop_id=$stopId"
-    fun timetablePath(shortName: String) = "timetable?route_short_name=${encode(shortName)}"
-    fun stopTimesPath(shortName: String) = "stop_times?route_short_name=${encode(shortName)}"
+    suspend inline fun <reified T> getFresh(path: String): T {
+        val text = freshText(path)
+        return withContext(Dispatchers.Default) { json.decodeFromString<T>(text) }
+    }
 
-    suspend fun routesText(): String = getText("routes")
-    suspend fun stopsText(): String = getText("stops")
-    suspend fun stopInfo(stopId: Int): StopInfo = get(stopInfoPath(stopId))
-    suspend fun timetable(shortName: String): Timetable = get(timetablePath(shortName))
-    suspend fun stopTimes(shortName: String): List<StopTime> = get(stopTimesPath(shortName))
     suspend fun shapePolylines(shapeIds: List<String>): Map<String, String> =
         get("shapes?format=polyline&shape_ids=${shapeIds.joinToString(",")}")
 
@@ -120,7 +107,6 @@ object Api {
         if (!response.isSuccessful) throw HttpException(response.code)
         response.body?.string() ?: ""
     }
-    suspend fun vehicles(tripIds: List<String>): List<Vehicle> = get("vehicles?trip_ids=${tripIds.joinToString(",")}")
 
     suspend fun createTransfer(): TransferLink {
         val request = Request.Builder().url(url("transfer")).post(ByteArray(0).toRequestBody()).build()

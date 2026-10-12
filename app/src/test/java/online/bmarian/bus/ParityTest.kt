@@ -3,132 +3,30 @@ package online.bmarian.bus
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Favorites
 import online.bmarian.bus.data.Route
-import online.bmarian.bus.data.ShapePoint
 import online.bmarian.bus.data.Stop
-import online.bmarian.bus.data.StopInfo
-import online.bmarian.bus.data.StopTime
-import online.bmarian.bus.data.Timetable
 import online.bmarian.bus.data.Transfer
-import online.bmarian.bus.data.Vehicle
-import online.bmarian.bus.data.assembleShapeInfo
-import online.bmarian.bus.data.tripIdFor
 import online.bmarian.bus.logic.StopBrowse
 import online.bmarian.bus.logic.browseStops
-import online.bmarian.bus.logic.computeStopDepartures
-import online.bmarian.bus.logic.directionShape
-import online.bmarian.bus.logic.feederFor
-import online.bmarian.bus.logic.indexVehicles
 import online.bmarian.bus.logic.initialOf
 import online.bmarian.bus.logic.keyedStops
-import online.bmarian.bus.logic.minutesOfDay
-import online.bmarian.bus.logic.routeStopArrivals
 import online.bmarian.bus.logic.sortedRoutes
-import online.bmarian.bus.logic.stopsForDirection
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
 import java.util.zip.GZIPInputStream
 
 // Expected values from the website's TypeScript on the same snapshot.
 class ParityTest {
-    @Serializable
-    private class FixtureRoute(val route: Route, val timetable: Timetable? = null, val stop_times: List<StopTime> = emptyList())
-
-    @Serializable
-    private class Fixture(
-        val nowMs: Long,
-        val stops: Map<String, StopInfo>,
-        val routes: Map<String, FixtureRoute>,
-        val shapes: Map<String, List<ShapePoint>>,
-        val vehicles: List<Vehicle>,
-    )
-
     private fun read(name: String): String =
         GZIPInputStream(javaClass.classLoader!!.getResourceAsStream("parity/$name.gz")).bufferedReader().readText()
 
-    private val zone = ZoneId.of("Europe/Bucharest")
-
-    @Test
-    fun departuresAndRouteArrivalsMatchTheWebsite() {
-        for (name in listOf("parity_a", "parity_b")) checkParity(name)
-    }
-
-    private fun checkParity(name: String) {
-        val fixture = Api.json.decodeFromString<Fixture>(read("$name.json"))
-        val expected = Api.json.parseToJsonElement(read("${name}_expected.json")).jsonArray
-        val byTrip = fixture.vehicles.groupBy { it.tripId.orEmpty() }
-        var compared = 0
-
-        for (scenario in expected.map { it.jsonObject }) {
-            val label = scenario["label"]!!.jsonPrimitive.content
-            val nowMs = scenario["nowMs"]!!.jsonPrimitive.long
-            val now = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), zone)
-            assertEquals("$label clock", scenario["localMinutes"]!!.jsonPrimitive.int, minutesOfDay(now))
-            val vehicles = if (scenario["live"]!!.jsonPrimitive.boolean) byTrip else emptyMap()
-
-            for ((stopId, rows) in scenario["stops"]!!.jsonObject) {
-                val actual = computeStopDepartures(fixture.stops.getValue(stopId), fixture.shapes, vehicles, now, nowMs)
-                val want = rows.jsonArray.map { it.jsonObject }
-                assertEquals("$label stop $stopId count", want.size, actual.size)
-                for ((w, a) in want.zip(actual)) {
-                    val at = "$label stop $stopId route ${a.shortName}"
-                    assertEquals(at, w["route"]!!.jsonPrimitive.content, a.shortName)
-                    assertEquals(at, w["trip"]!!.jsonPrimitive.content, a.tripId)
-                    assertEquals(at, w["name"]!!.jsonPrimitive.content, a.longName)
-                    assertEquals(at, w["left"]!!.jsonPrimitive.int, a.minutesLeft)
-                    assertEquals(at, w["static"]!!.jsonPrimitive.boolean, a.isStatic)
-                    assertEquals(at, pairs(w["times"]!!), a.nextTimes.map { listOf(it.minutes.toString(), it.isLive.toString()) })
-                    compared++
-                }
-            }
-
-            for ((routeId, want) in scenario["routes"]!!.jsonObject) {
-                val r = fixture.routes.getValue(routeId)
-                val info = assembleShapeInfo(r.route, r.timetable, r.stop_times)
-                assertEquals("$label route $routeId in", want.jsonObject["in"]!!.jsonPrimitive.content, info.timetable.inStopName)
-                assertEquals("$label route $routeId out", want.jsonObject["out"]!!.jsonPrimitive.content, info.timetable.outStopName)
-                for (dir in listOf("0", "1")) {
-                    val w = want.jsonObject[dir]!!.jsonObject
-                    val tripId = tripIdFor(info.routeId, dir)
-                    val stops = stopsForDirection(info, tripId)
-                    val shape = directionShape(info, tripId, fixture.shapes[tripId].orEmpty())
-                    val indexed = if (shape == null) emptyList()
-                    else indexVehicles(info.shortName, info.color, shape.index, nowMs, vehicles[tripId].orEmpty())
-                    val at = "$label route $routeId/$dir"
-                    assertEquals(at, w["vehicles"]!!.jsonPrimitive.int, indexed.size)
-                    assertEquals(at, w["stops"]!!.jsonArray.map { pair(it) }, stops.map { listOf("${it.stop.stopId}", "${it.offsetFromStart}") })
-                    val otherTrip = tripIdFor(info.routeId, if (dir == "0") "1" else "0")
-                    val otherShape = directionShape(info, otherTrip, fixture.shapes[otherTrip].orEmpty())
-                    val feeder = feederFor(info, tripId, otherShape, otherShape?.let {
-                        indexVehicles(info.shortName, info.color, it.index, nowMs, vehicles[otherTrip].orEmpty())
-                    }.orEmpty())
-                    val rows = routeStopArrivals(info, stops, dir == "0", shape, indexed, now, nowMs, feeder)
-                    assertEquals(
-                        at,
-                        w["rows"]!!.jsonArray.map { row -> row.jsonArray.map { a -> a.jsonArray.map { it.jsonPrimitive.content } } },
-                        rows.map { row -> row.map { listOf("${it.minutes}", "${it.isLive}", "${it.soon}") } },
-                    )
-                    compared += rows.size
-                }
-            }
-        }
-        println("$name: compared $compared rows across ${expected.size} scenarios")
-    }
-
     private fun pair(element: JsonElement) = element.jsonArray.map { it.jsonPrimitive.content }
-    private fun pairs(element: JsonElement) = element.jsonArray.map(::pair)
 
     @Test
     fun browsingMatchesTheWebsite() {

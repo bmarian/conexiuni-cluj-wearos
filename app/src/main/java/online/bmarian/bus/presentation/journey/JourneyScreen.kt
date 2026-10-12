@@ -48,7 +48,7 @@ import androidx.wear.compose.material3.Text
 import online.bmarian.bus.R
 import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.Vehicle
-import online.bmarian.bus.data.VehicleStream
+import online.bmarian.bus.data.LiveStream
 import online.bmarian.bus.follow.Journey
 import online.bmarian.bus.follow.JourneyLeg
 import online.bmarian.bus.follow.JourneyMirror
@@ -186,7 +186,7 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
     val me = withHeading(phoneFix ?: watchFix(needed = phoneFix == null))
     val leg = plan.legs.getOrNull(sync.legIndex) ?: plan.legs.last()
     val vehicles by produceState(emptyList<Vehicle>(), leg) {
-        VehicleStream.vehicles(leg.tripIds).collect { byTrip -> value = byTrip.values.flatten() }
+        LiveStream.live(emptyList(), leg.tripIds).collect { value = it.vehiclesByTrip.values.flatten() }
     }
     val lines = remember(plan, sync.legIndex) {
         buildList {
@@ -295,10 +295,6 @@ private fun busOf(leg: JourneyLeg, v: Vehicle): MapVehicle? {
     if (v.latitude == 0.0 || v.longitude == 0.0) return null
     val i = leg.routeIds.indexOf(v.routeId).takeIf { it >= 0 } ?: 0
     val path = pathOf(leg)
-    val nearest = path.indices.minByOrNull { haversineMeters(path[it].first, path[it].second, v.latitude, v.longitude) } ?: 0
-    if (haversineMeters(path[nearest].first, path[nearest].second, v.latitude, v.longitude) > BUS_OFF_PATH_M) return null
-    val from = path[nearest.coerceAtMost(path.lastIndex - 1).coerceAtLeast(0)]
-    val to = path[(nearest + 1).coerceAtMost(path.lastIndex)]
-    val heading = if (from == to) 0.0 else bearingDegrees(from.first, from.second, to.first, to.second)
-    return MapVehicle("${v.id}", v.latitude, v.longitude, leg.lines.getOrNull(i) ?: leg.lines.first(), routeColor(leg.colors.getOrNull(i) ?: leg.colors.first()), heading)
+    if (path.none { haversineMeters(it.first, it.second, v.latitude, v.longitude) <= BUS_OFF_PATH_M }) return null
+    return MapVehicle("${v.id}", v.latitude, v.longitude, leg.lines.getOrNull(i) ?: leg.lines.first(), routeColor(leg.colors.getOrNull(i) ?: leg.colors.first()), v.heading)
 }

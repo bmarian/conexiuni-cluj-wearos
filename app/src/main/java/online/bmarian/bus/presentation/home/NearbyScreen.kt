@@ -91,7 +91,7 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit, onOpenMap: () -> Unit) {
     val latest by updates.collectAsStateWithLifecycle(null)
 
     LaunchedEffect(Unit) {
-        Services.repository.refreshStops()
+        Services.repository.refreshNetwork()
         if (!permitted) launcher.launch(LOCATION_PERMISSIONS)
     }
     LaunchedEffect(latest) {

@@ -18,7 +18,7 @@ import online.bmarian.bus.Services
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
-import online.bmarian.bus.logic.computeStopDepartures
+import online.bmarian.bus.logic.stopDepartures
 import online.bmarian.bus.logic.formatMinutesFromNow
 import java.time.Instant
 import java.time.LocalDateTime
@@ -38,7 +38,7 @@ suspend fun nextAtFavoriteStops(count: Int): List<NextAtStop> = coroutineScope {
             val nowMs = System.currentTimeMillis()
             val now = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), CLUJ_ZONE)
             val departures = info?.let {
-                withContext(Dispatchers.Default) { computeStopDepartures(it, emptyMap(), emptyMap(), now, nowMs) }
+                withContext(Dispatchers.Default) { stopDepartures(it, null, now, nowMs) }
             }.orEmpty()
             // Timetable only: skip runs already due.
             val runs = departures.flatMap { departure -> departure.nextTimes.map { departure to it.minutes } }.sortedBy { it.second }

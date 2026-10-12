@@ -3,7 +3,7 @@ package online.bmarian.bus.logic
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-// Port of frontend/src/utils/arrivals.ts.
+// The timetable half of an arrival list; the live half comes from the server.
 
 /** Wraps around midnight past half a day. */
 fun minutesUntil(absMinutes: Int, nowMinutes: Int): Int {
@@ -20,44 +20,23 @@ fun minutesUntil(absMinutes: Double, nowMinutes: Double): Double {
     return diff
 }
 
-const val SCHEDULE_LATE_GRACE_MIN = 3
-
-/** Soonest first; may start slightly negative. */
+/** Exact minutes until each timetable arrival, soonest first; may start slightly negative. A run up to [graceMinutes] late is still listed. */
 fun scheduledArrivals(
     departureMinutes: List<Int>,
-    offsetMinutes: Int,
-    nowMinutes: Int,
-    horizonMinutes: Int = Int.MAX_VALUE,
-): List<Int> = departureMinutes
-    .map { minutesUntil(it + offsetMinutes, nowMinutes) }
-    .filter { it >= -SCHEDULE_LATE_GRACE_MIN && it < horizonMinutes }
+    offsetSeconds: Double,
+    nowMinutes: Double,
+    horizonMinutes: Int,
+    graceMinutes: Double,
+): List<Double> = departureMinutes
+    .map { minutesUntil(it + offsetSeconds / 60, nowMinutes) }
+    .filter { it >= -graceMinutes && it < horizonMinutes }
     .sorted()
 
 data class Arrival(val minutes: Int, val isLive: Boolean)
 
-fun mergeArrivals(
-    liveMinutes: Int?,
-    scheduled: List<Int>,
-    tracked: Boolean = false,
-    limit: Int = 3,
-): List<Arrival> = mergeArrivals(listOfNotNull(liveMinutes), scheduled, tracked, limit)
-
-/** Each tracked bus first, then only the timetable runs after the last of them. */
-fun mergeArrivals(
-    liveMinutes: List<Int>,
-    scheduled: List<Int>,
-    tracked: Boolean = false,
-    limit: Int = 3,
-): List<Arrival> {
-    val live = liveMinutes.map { max(it, 0) }.sorted()
-    if (live.isEmpty()) {
-        val pending = if (tracked) scheduled.filter { it >= 1 } else scheduled
-        return pending.take(limit).map { Arrival(max(it, 0), false) }
-    }
-    val last = live.last()
-    val later = scheduled.filter { it > last + SCHEDULE_LATE_GRACE_MIN }
-    return (live.map { Arrival(it, true) } + later.map { Arrival(it, false) }).take(limit)
-}
+/** The next runs from the timetable alone, for a list the live feed is not reaching, as the minutes shown. */
+fun nextArrivals(scheduled: List<Double>, limit: Int): List<Arrival> =
+    scheduled.take(limit).map { Arrival(max(it.roundToInt(), 0), false) }
 
 data class MarkedArrival(val minutes: Int, val isLive: Boolean, val soon: Boolean)
 

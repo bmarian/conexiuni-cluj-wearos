@@ -33,10 +33,6 @@ data class StopTime(
     @SerialName("stop_headsign") val headsign: String = "",
     @SerialName("stop_lat") val lat: Double = 0.0,
     @SerialName("stop_lon") val lon: Double = 0.0,
-    // First stop only: the other direction's bus continues as this trip after turnaroundSec.
-    @SerialName("through_running") val throughRunning: Boolean = false,
-    @SerialName("turnaround_sec") val turnaroundSec: Double = 0.0,
-    @SerialName("turnaround_leaves") val turnaroundLeaves: Boolean = false,
 )
 
 @Serializable
@@ -78,6 +74,8 @@ data class ShapeInfo(
     @SerialName("stop_times") private val stopTimesPlural: List<StopTime>? = null,
     @SerialName("stop_time") private val stopTimesSingular: List<StopTime>? = null,
     val timetable: Timetable = Timetable(),
+    // A timetable run this many minutes late is still coming (learned on the server).
+    @SerialName("late_grace_min") val lateGraceMin: Double = 1.0,
 ) {
     val stopTimes: List<StopTime> get() = stopTimesPlural ?: stopTimesSingular ?: emptyList()
 }
@@ -91,6 +89,7 @@ data class StopInfo(
     @SerialName("outgoing_trip_ids") val outgoingTripIds: List<String> = emptyList(),
     @SerialName("incoming_trip_ids") val incomingTripIds: List<String> = emptyList(),
     @SerialName("shapes_info") val shapesInfo: List<ShapeInfo> = emptyList(),
+    @SerialName("late_grace_min") val lateGraceMin: Double = 1.0,
 )
 
 @Serializable
@@ -104,16 +103,17 @@ data class ShapePoint(
 @Serializable
 data class Vehicle(
     val id: Int = 0,
-    val label: String = "",
+    @SerialName("trip_id") val tripId: String? = null,
+    @SerialName("route_id") val routeId: Int? = null,
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
-    val timestamp: String = "",
+    val heading: Double = 0.0,
     val speed: Double = 0.0,
-    @SerialName("route_id") val routeId: Int? = null,
-    @SerialName("trip_id") val tripId: String? = null,
-    @SerialName("stationary_since") val stationarySince: String? = null,
-    @SerialName("prev_trip_id") val prevTripId: String? = null,
-    @SerialName("trip_changed_at") val tripChangedAt: String? = null,
+    val timestamp: String = "",
+    val label: String = "",
+    @SerialName("vehicle_type") val vehicleType: Int = 0,
+    @SerialName("bike_accessible") val bikeAccessible: String = "",
+    @SerialName("wheelchair_accessible") val wheelchairAccessible: String = "",
 )
 
 @Serializable

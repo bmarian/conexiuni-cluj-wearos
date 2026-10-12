@@ -35,6 +35,9 @@ fun timeStringToMinutes(time: String): Int? {
 
 fun minutesOfDay(time: LocalDateTime): Int = time.hour * 60 + time.minute
 
+/** Minutes past midnight with the seconds, for arithmetic that is rounded only when shown. */
+fun exactMinutesOfDay(time: LocalDateTime): Double = time.hour * 60 + time.minute + time.second / 60.0
+
 fun formatMinutesFromNow(rawMinutes: Int, reference: LocalDateTime, nowLabel: String): String {
     val minutes = rawMinutes.toDouble().roundToInt()
     if (minutes == 0) return nowLabel
@@ -59,13 +62,13 @@ fun reverseRouteLongName(name: String): String = name.split(" - ").reversed().jo
 fun tripIdForRouteAtStop(outgoing: List<String>, incoming: List<String>, routeId: Int): String? =
     (outgoing + incoming).firstOrNull { routeIdFromTripId(it) == routeId }
 
-fun timeOffsetToStop(stopTimes: List<StopTime>, tripId: String, stopId: Int): Int {
+fun timeOffsetToStop(stopTimes: List<StopTime>, tripId: String, stopId: Int): Double {
     var seconds = 0.0
     for (st in stopTimes.filter { it.tripId == tripId }.sortedBy { it.stopSequence }) {
         seconds += st.offsetArrivalTime
         if (st.stopId == stopId) break
     }
-    return ceil(seconds / 60).toInt()
+    return seconds
 }
 
 fun departureMinutes(schedule: DaySchedule, outgoing: Boolean): List<Int> =
@@ -89,7 +92,7 @@ fun availableBusesForStop(
     maxMinutes: Int? = null,
     limit: Int? = null,
 ): List<StopDeparture> {
-    val nowMinutes = minutesOfDay(now)
+    val nowMinutes = exactMinutesOfDay(now)
     val results = mutableListOf<StopDeparture>()
     for (shape in info.shapesInfo) {
         val schedule = daySchedule(shape.timetable, now)
@@ -98,8 +101,8 @@ fun availableBusesForStop(
         val offset = timeOffsetToStop(shape.stopTimes, tripId, info.stopId)
         val outgoing = tripId.endsWith(OUTGOING_SUFFIX)
         var upcoming = scheduledArrivals(
-            departureMinutes(schedule, outgoing), offset, nowMinutes, maxMinutes ?: Int.MAX_VALUE,
-        ).map { Arrival(maxOf(it, 0), false) }
+            departureMinutes(schedule, outgoing), offset, nowMinutes, maxMinutes ?: Int.MAX_VALUE, shape.lateGraceMin,
+        ).map { Arrival(maxOf(it.roundToInt(), 0), false) }
         if (limit != null) upcoming = upcoming.take(limit)
         if (upcoming.isEmpty()) continue
         results += StopDeparture(
