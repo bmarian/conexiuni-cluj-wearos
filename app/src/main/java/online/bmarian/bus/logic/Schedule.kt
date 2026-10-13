@@ -41,7 +41,7 @@ fun exactMinutesOfDay(time: LocalDateTime): Double = time.hour * 60 + time.minut
 fun formatMinutesFromNow(rawMinutes: Int, reference: LocalDateTime, nowLabel: String): String {
     val minutes = rawMinutes.toDouble().roundToInt()
     if (minutes == 0) return nowLabel
-    if (minutes < 60) return "${minutes}m"
+    if (minutes in 1..59) return "${minutes}m"
     val future = reference.plusMinutes(minutes.toLong())
     return "%02d:%02d".format(future.hour, future.minute)
 }
