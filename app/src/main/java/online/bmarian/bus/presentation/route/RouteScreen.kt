@@ -201,7 +201,9 @@ private fun RouteMapView(
                 lines = current?.shape?.let { listOf(MapLine(it.shape.map { p -> p.lat to p.lon }, color)) }.orEmpty(),
                 stops = mapStops,
                 labels = labels,
-                vehicles = current?.vehicles.orEmpty().map {
+                vehicles = current?.roundTripVehicles.orEmpty().map {
+                    MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading, faded = true)
+                } + current?.vehicles.orEmpty().map {
                     MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading)
                 },
                 me = me,

@@ -68,6 +68,12 @@ class LiveState(val asOfMs: Long, val rows: Map<String, LiveRow>, val vehiclesBy
     }
 
     fun vehicles(tripId: String): List<Vehicle> = vehiclesByTrip[tripId].orEmpty()
+
+    /** The other direction's buses that [tripId]'s rows count on coming back. */
+    fun roundTrip(tripId: String, otherTripId: String): List<Vehicle> {
+        val counted = rows.values.filter { it.tripId == tripId }.flatMap { row -> row.entries.map { it.vehicleId } }.toSet()
+        return vehicles(otherTripId).filter { it.id in counted }
+    }
 }
 
 class LiveMerge {

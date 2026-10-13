@@ -64,8 +64,10 @@ import org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap
 import org.maplibre.android.style.layers.PropertyFactory.iconAnchor
 import org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement
 import org.maplibre.android.style.layers.PropertyFactory.iconImage
+import org.maplibre.android.style.layers.PropertyFactory.iconOpacity
 import org.maplibre.android.style.layers.PropertyFactory.iconRotate
 import org.maplibre.android.style.layers.PropertyFactory.iconRotationAlignment
+import org.maplibre.android.style.layers.PropertyFactory.iconSize
 import org.maplibre.android.style.layers.PropertyFactory.iconTranslate
 import org.maplibre.android.style.layers.PropertyFactory.iconTranslateAnchor
 import org.maplibre.android.style.layers.PropertyFactory.lineCap
@@ -112,7 +114,8 @@ private fun startMapLibre(context: Context) {
 class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false)
 class MapStop(val id: String, val lat: Double, val lon: Double, val color: Color, val selected: Boolean = false)
 class MapLabel(val id: String, val lat: Double, val lon: Double, val text: String, val live: Boolean, val rank: Int)
-class MapVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: Color, val heading: Double)
+/** [faded]: on the other direction now, counted on coming back. */
+class MapVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: Color, val heading: Double, val faded: Boolean = false)
 
 data class MapFollow(val zoom: Double, val tilt: Double)
 
@@ -311,6 +314,8 @@ private const val SRC_STOPS = "ct-stops"
 private const val SRC_LABELS = "ct-labels"
 private const val SRC_VEHICLES = "ct-vehicles"
 private const val LAYER_STOPS = "ct-stops"
+private const val FADED_VEHICLE_OPACITY = 0.5f
+private const val FADED_VEHICLE_SIZE = 0.7f
 
 private class MapSession(
     private val context: Context,
@@ -367,17 +372,32 @@ private class MapSession(
                 symbolSortKey(get("z")),
             ),
         )
-        over(SymbolLayer("ct-vehicles", SRC_VEHICLES).withProperties(iconImage(get("img")), symbolSortKey(get("z"))))
         over(
-            SymbolLayer("ct-heading", SRC_VEHICLES).withProperties(
-                iconImage("heading"),
-                iconRotate(get("heading")),
-                iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-                iconTranslate(arrayOf(8f, 8f)),
-                iconTranslateAnchor(Property.ICON_TRANSLATE_ANCHOR_VIEWPORT),
+            SymbolLayer("ct-vehicles", SRC_VEHICLES).withProperties(
+                iconImage(get("img")),
+                iconOpacity(get("opacity")),
+                iconSize(get("size")),
                 symbolSortKey(get("z")),
             ),
         )
+        // The translate can't follow a feature's size, so faded buses get their own arrows.
+        fun heading(id: String, faded: Boolean) {
+            val size = if (faded) FADED_VEHICLE_SIZE else 1f
+            over(
+                SymbolLayer(id, SRC_VEHICLES).withProperties(
+                    iconImage("heading"),
+                    iconRotate(get("heading")),
+                    iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                    iconTranslate(arrayOf(8f * size, 8f * size)),
+                    iconTranslateAnchor(Property.ICON_TRANSLATE_ANCHOR_VIEWPORT),
+                    iconSize(size),
+                    iconOpacity(if (faded) FADED_VEHICLE_OPACITY else 1f),
+                    symbolSortKey(get("z")),
+                ).withFilter(eq(get("faded"), literal(faded))),
+            )
+        }
+        heading("ct-heading-faded", faded = true)
+        heading("ct-heading", faded = false)
     }
 
     private fun image(name: String, make: () -> android.graphics.Bitmap) {
@@ -436,13 +456,16 @@ private class MapSession(
     fun setVehicles(vehicles: List<MapVehicle>) {
         source(SRC_VEHICLES)?.setGeoJson(
             FeatureCollection.fromFeatures(
-                vehicles.filter { it.lat != 0.0 && it.lon != 0.0 }.map { v ->
+                vehicles.filter { it.lat != 0.0 && it.lon != 0.0 }.sortedWith(compareBy({ !it.faded }, { -it.lat })).mapIndexed { i, v ->
                     val name = "veh-${v.color.toArgb()}-${v.name}"
                     image(name) { images.vehicle(v.color, v.name) }
                     Feature.fromGeometry(Point.fromLngLat(v.lon, v.lat)).apply {
                         addStringProperty("img", name)
                         addNumberProperty("heading", v.heading)
-                        addNumberProperty("z", -v.lat)
+                        addNumberProperty("z", i)
+                        addBooleanProperty("faded", v.faded)
+                        addNumberProperty("opacity", if (v.faded) FADED_VEHICLE_OPACITY else 1f)
+                        addNumberProperty("size", if (v.faded) FADED_VEHICLE_SIZE else 1f)
                     }
                 },
             ),
