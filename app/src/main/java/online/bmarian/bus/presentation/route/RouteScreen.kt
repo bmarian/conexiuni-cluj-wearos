@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -307,9 +308,10 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
     }
     val frequencyLabel = frequency?.let {
         if (it.minMinutes != 0 && it.maxMinutes != 0 && it.minMinutes != it.maxMinutes) {
-            stringResource(R.string.frequency_every_range, it.minMinutes, it.maxMinutes)
+            pluralStringResource(R.plurals.frequency_every_range, it.maxMinutes, it.minMinutes, it.maxMinutes)
         } else {
-            stringResource(R.string.frequency_every, if (it.minMinutes != 0) it.minMinutes else it.maxMinutes)
+            val minutes = if (it.minMinutes != 0) it.minMinutes else it.maxMinutes
+            pluralStringResource(R.plurals.frequency_every, minutes, minutes)
         }
     }
 
