@@ -1,12 +1,12 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="ro">
     <string name="app_name" translatable="false">Conexiuni Cluj</string>
 
-    <string name="favorite_stops">Stații favorite</string>
-    <string name="favorite_routes">Linii favorite</string>
-    <string name="no_favorites">Nu ai favorite încă. Apasă inima la o linie sau stație ca s-o salvezi.</string>
+    <string name="favorite_stops">Stații preferate</string>
+    <string name="favorite_routes">Linii preferate</string>
+    <string name="no_favorites">Nu ai preferate încă. Apasă inima la o linie sau stație ca s-o salvezi.</string>
     <string name="all_routes">Toate liniile</string>
     <string name="all_stops">Toate stațiile</string>
-    <string name="copy_favorites">Copiază favoritele</string>
+    <string name="copy_favorites">Copiază preferatele</string>
     <string name="load_failed">Nu s-a putut încărca. Verifică conexiunea.</string>
     <string name="retry">Încearcă din nou</string>
     <string name="loading_route">Se încarcă linia…</string>
@@ -14,8 +14,16 @@
     <string name="no_departures">Nicio plecare în curând.</string>
     <string name="map">Hartă</string>
     <string name="timetable">Orar</string>
-    <string name="frequency_every">La fiecare %1$d min</string>
-    <string name="frequency_every_range">La fiecare %1$d-%2$d min</string>
+    <plurals name="frequency_every">
+        <item quantity="one">La fiecare %d min</item>
+        <item quantity="few">La fiecare %d min</item>
+        <item quantity="other">La fiecare %d de min</item>
+    </plurals>
+    <plurals name="frequency_every_range">
+        <item quantity="one">La fiecare %1$d-%2$d min</item>
+        <item quantity="few">La fiecare %1$d-%2$d min</item>
+        <item quantity="other">La fiecare %1$d-%2$d de min</item>
+    </plurals>
     <string name="no_more_today">Nu mai sunt plecări azi.</string>
     <string name="switch_direction">Schimbă sensul</string>
     <string name="now">acum</string>
@@ -31,14 +39,14 @@
     <string name="transfer_failed">Nu s-a putut obține un cod. Încearcă din nou.</string>
     <string name="transfer_broken">Nu a mers. Ia un cod nou și trimite din nou.</string>
     <string name="transfer_new_code">Cod nou</string>
-    <string name="pair_review">Copiezi aceste favorite?</string>
-    <string name="pair_done">Favorite copiate</string>
+    <string name="pair_review">Copiezi aceste preferate?</string>
+    <string name="pair_done">Preferate copiate</string>
     <string name="count_line" translatable="false">%1$s: %2$d</string>
 
     <string name="credits" translatable="false">© OpenMapTiles, OpenStreetMap · tranzy.ai · CTP Cluj-Napoca</string>
 
 
-    <string name="favorites">Favorite</string>
+    <string name="favorites">Preferate</string>
     <string name="explore">Explorează</string>
     <string name="search">Caută</string>
     <string name="search_label">Stație sau linie</string>
@@ -50,18 +58,18 @@
     <string name="then_times">Apoi %1$s</string>
     <string name="from_stop">Din %1$s</string>
     <string name="walk_distance">%1$s · %2$d min pe jos</string>
-    <string name="live">În timp real</string>
-    <string name="scheduled">Conform orarului</string>
+    <string name="live">Live</string>
+    <string name="scheduled">Programat</string>
     <string name="follow">Urmărește</string>
     <string name="following">Urmărești</string>
     <string name="stop_following">Oprește</string>
     <string name="follow_channel">Autobuze urmărite</string>
-    <string name="follow_arriving">Sosește în %1$s</string>
+    <string name="follow_arriving">Sosește peste %1$s</string>
     <string name="follow_now">Sosește acum</string>
-    <string name="my_location">Locația mea</string>
+    <string name="my_location">Vezi locația ta</string>
     <string name="save">Salvează</string>
-    <string name="favorite_line">Linie favorită</string>
-    <string name="favorite_stop">Stație favorită</string>
+    <string name="favorite_line">Linie preferată</string>
+    <string name="favorite_stop">Stație preferată</string>
     <string name="open_map">Hartă</string>
     <string name="open_on_phone">Deschide pe telefon</string>
     <string name="phone_unreachable">Telefonul nu e conectat</string>
@@ -82,8 +90,7 @@
     <string name="setup_allow">Permite</string>
     <string name="setup_open_settings">Setări</string>
     <string name="setup_not_now">Nu acum</string>
-    <string name="leave_in">Pleacă în %1$s</string>
+    <string name="leave_in">Pleacă peste %1$s</string>
     <string name="leave_now">Pleacă acum</string>
-    <string name="leave_go">Pleacă</string>
     <string name="app_version">Versiunea %1$s</string>
 </resources>

@@ -191,7 +191,7 @@ object Mirror {
 
         val time: Status.Part = when {
             minutes == null -> Status.TextPart(followed.stopName)
-            leaveAt != null && !leaving -> Status.TextPart(context.getString(R.string.leave_go))
+            leaveAt != null && !leaving -> Status.TextPart(context.getString(R.string.leave_now))
             countTo != null -> Status.TimerPart(countTo)
             else -> Status.TextPart(context.getString(R.string.now))
         }
