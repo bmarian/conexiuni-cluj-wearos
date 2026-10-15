@@ -19,9 +19,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-// The server's prediction rows: what every stop list shows, straight from /live.
-
-// Predicted arrival as unix seconds; the minute shown is rounded on the device, once.
+// Predicted arrival as unix seconds.
 @Serializable
 data class LiveEntry(
     val at: Long,
