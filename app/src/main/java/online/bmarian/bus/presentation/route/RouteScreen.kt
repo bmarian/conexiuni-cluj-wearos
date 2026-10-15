@@ -62,10 +62,12 @@ import online.bmarian.bus.data.UserLocation
 import online.bmarian.bus.data.terminalName
 import online.bmarian.bus.data.tripIdFor
 import online.bmarian.bus.logic.CLUJ_ZONE
+import online.bmarian.bus.logic.ScheduleDays
 import online.bmarian.bus.logic.daySchedule
 import online.bmarian.bus.logic.departureMinutes
 import online.bmarian.bus.logic.formatMinutesFromNow
 import online.bmarian.bus.logic.minutesOfDay
+import online.bmarian.bus.logic.specialDayOn
 import online.bmarian.bus.logic.stopsForDirection
 import online.bmarian.bus.presentation.LineBadge
 import online.bmarian.bus.presentation.LineHeader
@@ -295,6 +297,8 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
     // POST_NOTIFICATIONS needs a runtime grant on Wear OS 4+.
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { follow() }
 
+    val calendar by ScheduleDays.state.collectAsStateWithLifecycle()
+    val special = specialDayOn(now.toLocalDate(), calendar)
     val schedule = info?.let { daySchedule(it.timetable, now) }
     val frequency = if (outgoing) schedule?.inFrequency else schedule?.outFrequency
     val departures = remember(schedule, outgoing, offset) {
@@ -348,6 +352,18 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
                 if (canSwap) PillAction(Icons.Rounded.SwapVert, stringResource(R.string.switch_direction), vm::swap)
                 PillAction(Icons.Rounded.Map, stringResource(R.string.map), onMap)
                 PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
+            }
+        }
+        if (special != null) {
+            item {
+                val timetable = stringResource(
+                    when (special.schedule) {
+                        "saturday" -> R.string.timetable_name_saturday
+                        "sunday" -> R.string.timetable_name_sunday
+                        else -> R.string.timetable_name_weekday
+                    },
+                )
+                Message(stringResource(R.string.special_day_short, timetable), spec)
             }
         }
         when {
