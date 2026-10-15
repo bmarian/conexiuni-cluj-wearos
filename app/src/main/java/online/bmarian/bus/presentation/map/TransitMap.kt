@@ -87,7 +87,6 @@ import org.maplibre.geojson.Point
 import kotlin.math.min
 import kotlin.math.sign
 
-// Two below the old canvas map's levels (128 dp tiles).
 private const val MIN_ZOOM = 8.0
 private const val MAX_ZOOM = 17.0
 private const val FIT_MAX_ZOOM = 14.0

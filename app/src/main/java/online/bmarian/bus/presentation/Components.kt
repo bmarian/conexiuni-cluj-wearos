@@ -228,13 +228,11 @@ fun Eta(minutes: Int, live: Boolean, now: LocalDateTime, style: TextStyle = Mate
 
 private val ACTION_HEIGHT = 48.dp
 
-/** A row of actions: the pressed one widens while its neighbours make room. */
 @Composable
 fun TransformingLazyColumnItemScope.ActionRow(spec: TransformationSpec, content: @Composable ButtonGroupScope.() -> Unit) {
     ButtonGroup(contentModifier(spec), spacing = 6.dp, content = content)
 }
 
-/** Goes somewhere: an icon pill that squares up while pressed. */
 @Composable
 fun ButtonGroupScope.PillAction(icon: ImageVector, description: String, onClick: () -> Unit, weight: Float = 1f) {
     val interaction = remember { MutableInteractionSource() }
@@ -248,7 +246,6 @@ fun ButtonGroupScope.PillAction(icon: ImageVector, description: String, onClick:
     }
 }
 
-/** Keeps something on: fills with [color], tightens its corners and pops its icon when turned on. */
 @Composable
 fun ButtonGroupScope.ToggleAction(
     icon: ImageVector,

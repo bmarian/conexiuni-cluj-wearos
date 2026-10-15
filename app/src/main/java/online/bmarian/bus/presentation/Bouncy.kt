@@ -44,7 +44,6 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-/** The app's springs, the same as the phone's: presses squash, toggles pop, values roll. */
 object Bouncy {
     val press = spring<Float>(dampingRatio = 0.32f, stiffness = 650f)
     val pop = spring<Float>(dampingRatio = 0.26f, stiffness = Spring.StiffnessMedium)
