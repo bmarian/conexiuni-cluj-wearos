@@ -13,6 +13,10 @@
     <string name="no_departures">No departures soon.</string>
     <string name="map">Map</string>
     <string name="timetable">Timetable</string>
+    <string name="timetable_name_weekday">Mon-Fri</string>
+    <string name="timetable_name_saturday">Saturday</string>
+    <string name="timetable_name_sunday">Sunday</string>
+    <string name="special_day_short">Today: %1$s timetable</string>
     <plurals name="frequency_every">
         <item quantity="one">Every %d min</item>
         <item quantity="other">Every %d min</item>

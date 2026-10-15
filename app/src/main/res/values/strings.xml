@@ -14,6 +14,10 @@
     <string name="no_departures">Nicio plecare în curând.</string>
     <string name="map">Hartă</string>
     <string name="timetable">Orar</string>
+    <string name="timetable_name_weekday">luni-vineri</string>
+    <string name="timetable_name_saturday">sâmbătă</string>
+    <string name="timetable_name_sunday">duminică</string>
+    <string name="special_day_short">Azi: program de %1$s</string>
     <plurals name="frequency_every">
         <item quantity="one">La fiecare %d min</item>
         <item quantity="few">La fiecare %d min</item>

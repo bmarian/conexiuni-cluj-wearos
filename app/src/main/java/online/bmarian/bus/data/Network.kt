@@ -11,8 +11,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import online.bmarian.bus.logic.CLUJ_ZONE
+import online.bmarian.bus.logic.DayNote
+import online.bmarian.bus.logic.ScheduleCalendar
+import online.bmarian.bus.logic.ScheduleDays
+import online.bmarian.bus.logic.scheduleDayAt
 import java.io.File
-import java.time.DayOfWeek
 import java.time.Instant
 
 @Serializable
@@ -46,6 +49,8 @@ class NetworkBundle(
     val routes: List<NetworkRoute> = emptyList(),
     val stops: List<Stop> = emptyList(),
     val rules: NetworkRules = NetworkRules(),
+    @SerialName("schedule_days") val scheduleDays: Map<String, String> = emptyMap(),
+    @SerialName("day_notes") val dayNotes: Map<String, DayNote> = emptyMap(),
 )
 
 /** What the learners found that an offline timetable list still needs. */
@@ -58,15 +63,8 @@ data class NetworkVersion(
     @SerialName("static_version") val staticVersion: String = "",
 )
 
-fun clujClock(nowMs: Long): Pair<String, Int> {
-    val at = Instant.ofEpochMilli(nowMs).atZone(CLUJ_ZONE)
-    val dayType = when (at.dayOfWeek) {
-        DayOfWeek.SATURDAY -> "saturday"
-        DayOfWeek.SUNDAY -> "sunday"
-        else -> "weekday"
-    }
-    return dayType to at.hour
-}
+fun clujClock(nowMs: Long, calendar: ScheduleCalendar = ScheduleDays.current): Pair<String, Int> =
+    scheduleDayAt(nowMs, calendar) to Instant.ofEpochMilli(nowMs).atZone(CLUJ_ZONE).hour
 
 private fun hasEntries(t: Timetable) = t.weekdays.entries.isNotEmpty() || t.saturday.entries.isNotEmpty() || t.sunday.entries.isNotEmpty()
 
@@ -78,6 +76,7 @@ class NetworkIndex(val bundle: NetworkBundle) {
     val routes: List<Route> = bundle.routes.map { it.toRoute() }
     val stops: List<Stop> get() = bundle.stops
     val lateGraceMin: Double get() = maxOf(0.5, bundle.rules.lateGraceMin)
+    val calendar = ScheduleCalendar(bundle.scheduleDays, bundle.dayNotes)
 
     fun route(routeId: Int): NetworkRoute? = routeById[routeId]
 
@@ -110,7 +109,7 @@ class NetworkIndex(val bundle: NetworkBundle) {
 
     fun stopInfo(stopId: Int, nowMs: Long): StopInfo? {
         val stop = stopById[stopId] ?: return null
-        val (dayType, hour) = clujClock(nowMs)
+        val (dayType, hour) = clujClock(nowMs, calendar)
         val trips = sortedSetOf<String>()
         val shapes = ArrayList<ShapeInfo>()
         for (route in sortedRoutes) {
@@ -143,7 +142,7 @@ class NetworkIndex(val bundle: NetworkBundle) {
 
     fun shapeInfo(route: Route, nowMs: Long): ShapeInfo? {
         val known = routeById[route.routeId] ?: return null
-        val (dayType, hour) = clujClock(nowMs)
+        val (dayType, hour) = clujClock(nowMs, calendar)
         return assembleShapeInfo(route, known.timetable, stopTimes(known, dayType, hour), lateGraceMin)
     }
 }
@@ -163,7 +162,12 @@ class NetworkStore(context: Context) {
     suspend fun load() = mutex.withLock {
         if (_index.value != null || !file.exists()) return@withLock
         val text = withContext(Dispatchers.IO) { runCatching { file.readText() }.getOrNull() } ?: return@withLock
-        parse(text)?.let { _index.value = it }
+        parse(text)?.let(::publish)
+    }
+
+    private fun publish(index: NetworkIndex) {
+        _index.value = index
+        ScheduleDays.use(index.calendar)
     }
 
     private suspend fun parse(text: String): NetworkIndex? = withContext(Dispatchers.Default) {
@@ -192,7 +196,7 @@ class NetworkStore(context: Context) {
                 tmp.writeText(text)
                 tmp.renameTo(file)
             }
-            _index.value = fetched
+            publish(fetched)
             prefs.edit {
                 putString("static_version", fetched.bundle.staticVersion)
                 putLong("fetched_at", at)
