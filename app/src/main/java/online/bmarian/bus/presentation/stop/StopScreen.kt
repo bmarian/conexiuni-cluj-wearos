@@ -62,6 +62,7 @@ import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.presentation.ActionRow
+import online.bmarian.bus.presentation.LABELLED_WEIGHT
 import online.bmarian.bus.presentation.Eta
 import online.bmarian.bus.presentation.PillAction
 import online.bmarian.bus.presentation.Ticker
@@ -146,7 +147,7 @@ fun StopScreen(
                     { Services.favorites.toggleStop(vm.stopId) },
                     color = Palette.Heart,
                     onColor = Color.White,
-                    weight = 1.7f,
+                    weight = LABELLED_WEIGHT,
                 )
                 PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenMap)
                 PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
@@ -260,7 +261,7 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
         item {
             val favorite = favoriteRoutes.any { it.routeId == routeId && it.direction == direction }
             ActionRow(spec) {
-                ToggleAction(Icons.Rounded.NotificationsActive, stringResource(R.string.follow), isFollowing, onFollow)
+                ToggleAction(Icons.Rounded.NotificationsActive, stringResource(R.string.remind_set), isFollowing, onFollow, weight = LABELLED_WEIGHT)
                 ToggleAction(
                     if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     stringResource(R.string.save),
@@ -268,6 +269,7 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
                     { Services.favorites.toggleRoute(routeId, direction) },
                     color = Palette.Heart,
                     onColor = Color.White,
+                    iconOnly = true,
                 )
             }
         }

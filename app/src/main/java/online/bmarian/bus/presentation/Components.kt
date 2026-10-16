@@ -227,6 +227,8 @@ fun Eta(minutes: Int, live: Boolean, now: LocalDateTime, style: TextStyle = Mate
 }
 
 private val ACTION_HEIGHT = 48.dp
+// A labelled action beside icon-only ones.
+const val LABELLED_WEIGHT = 1.7f
 
 @Composable
 fun TransformingLazyColumnItemScope.ActionRow(spec: TransformationSpec, content: @Composable ButtonGroupScope.() -> Unit) {
@@ -255,6 +257,7 @@ fun ButtonGroupScope.ToggleAction(
     color: Color = MaterialTheme.colorScheme.primary,
     onColor: Color = MaterialTheme.colorScheme.onPrimary,
     weight: Float = 1f,
+    iconOnly: Boolean = false,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val haptics = LocalHapticFeedback.current
@@ -276,14 +279,16 @@ fun ButtonGroupScope.ToggleAction(
         interactionSource = interaction,
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            PopIcon(icon, checked, Modifier.size(18.dp))
-            BasicText(
-                label,
-                Modifier.padding(start = 4.dp),
-                style = MaterialTheme.typography.labelMedium.copy(color = LocalContentColor.current),
-                maxLines = 1,
-                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelMedium.fontSize),
-            )
+            PopIcon(icon, checked, Modifier.size(18.dp), contentDescription = label.takeIf { iconOnly })
+            if (!iconOnly) {
+                BasicText(
+                    label,
+                    Modifier.padding(start = 4.dp),
+                    style = MaterialTheme.typography.labelMedium.copy(color = LocalContentColor.current),
+                    maxLines = 1,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelMedium.fontSize),
+                )
+            }
         }
     }
 }

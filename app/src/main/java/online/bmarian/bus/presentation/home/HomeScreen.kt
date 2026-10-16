@@ -201,7 +201,7 @@ fun HomeScreen(
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 ) {
-                    // A phone reminder still waiting for the user to set off.
+                    // Still waiting for the user to set off.
                     val leave = follow.leaveIn()
                     Text(
                         when {

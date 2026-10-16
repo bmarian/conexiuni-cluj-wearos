@@ -58,7 +58,7 @@
     <string name="walk_distance">%1$s · %2$d min walk</string>
     <string name="live">Live</string>
     <string name="scheduled">Scheduled</string>
-    <string name="follow">Follow</string>
+    <string name="remind_set">Remind me</string>
     <string name="following">Following</string>
     <string name="stop_following">Stop</string>
     <string name="follow_channel">Followed buses</string>
@@ -90,5 +90,6 @@
     <string name="setup_not_now">Not now</string>
     <string name="leave_in">Leave in %1$s</string>
     <string name="leave_now">Leave now</string>
+    <string name="leave_by">Leave by %1$s to catch your bus</string>
     <string name="app_version">Version %1$s</string>
 </resources>

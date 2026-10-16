@@ -37,9 +37,11 @@ data class FollowSync(
     val end: String? = null,
     // Buzz for this update.
     val alert: Boolean = false,
-    // Epoch ms to set off for the stop, while a phone reminder waits for the user to go.
+    // Epoch ms to set off for the stop, while the follow waits for the user to go.
     val leaveAt: Long? = null,
     val walkMinutes: Int? = null,
+    // Epoch ms to go by, from the heads-up until it's time to leave.
+    val leaveBy: Long? = null,
 )
 
 data class FollowState(
@@ -52,8 +54,10 @@ data class FollowState(
     val remote: Boolean = false,
     val leaveAt: Long? = null,
     val walkMinutes: Int? = null,
+    val leaveBy: Long? = null,
 ) {
-    fun toSync(end: String? = null) = FollowSync(id, followed, minutes, live, later, arrivalAt, end)
+    fun toSync(end: String? = null) =
+        FollowSync(id, followed, minutes, live, later, arrivalAt, end, leaveAt = leaveAt, walkMinutes = walkMinutes, leaveBy = leaveBy)
 
     fun matches(stopId: Int, routeId: Int, tripId: String) =
         followed.stopId == stopId && followed.routeId == routeId && followed.tripId == tripId
@@ -118,7 +122,7 @@ object FollowManager {
         if (follows.value.any { it.id == sync.id && !it.remote }) return
         val state = FollowState(
             sync.followed, sync.minutes, sync.live, sync.later, sync.id, sync.arrivalAt,
-            remote = true, leaveAt = sync.leaveAt, walkMinutes = sync.walkMinutes,
+            remote = true, leaveAt = sync.leaveAt, walkMinutes = sync.walkMinutes, leaveBy = sync.leaveBy,
         )
         mutableFollows.update { list -> if (list.any { it.id == sync.id }) list.map { if (it.id == sync.id) state else it } else list + state }
         Mirror.show(context, state, sync.alert)

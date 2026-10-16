@@ -64,7 +64,7 @@
     <string name="walk_distance">%1$s · %2$d min pe jos</string>
     <string name="live">Live</string>
     <string name="scheduled">Programat</string>
-    <string name="follow">Urmărește</string>
+    <string name="remind_set">Amintește-mi</string>
     <string name="following">Urmărești</string>
     <string name="stop_following">Oprește</string>
     <string name="follow_channel">Autobuze urmărite</string>
@@ -96,5 +96,6 @@
     <string name="setup_not_now">Nu acum</string>
     <string name="leave_in">Pleacă peste %1$s</string>
     <string name="leave_now">Pleacă acum</string>
+    <string name="leave_by">Trebuie să te pornești înainte de %1$s pentru a prinde autobuzul</string>
     <string name="app_version">Versiunea %1$s</string>
 </resources>
