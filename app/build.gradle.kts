@@ -23,11 +23,11 @@ android {
         minSdk = 26
         targetSdk = 37
         // Phone 1xxxx, watch 2xxxx, then the release number, the same on both.
-        versionCode = 20_013
-        versionName = "1.6.0"
+        versionCode = 20_014
+        versionName = "1.7.0"
 
-        buildConfigField("String", "API_BASE", "\"https://bus.bmarian.online/api/\"")
-        buildConfigField("String", "SITE_ORIGIN", "\"https://bus.bmarian.online\"")
+        buildConfigField("String", "API_BASE", "\"https://ceautobuziau.ro/api/\"")
+        buildConfigField("String", "SITE_ORIGIN", "\"https://ceautobuziau.ro\"")
         // -Pabis=armeabi-v7a for a 32-bit-only APK.
         ndk {
             abiFilters += providers.gradleProperty("abis").orNull?.split(",")
