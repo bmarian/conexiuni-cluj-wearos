@@ -75,6 +75,7 @@ import online.bmarian.bus.presentation.ListScreen
 import online.bmarian.bus.presentation.Loading
 import online.bmarian.bus.presentation.LocalAmbient
 import online.bmarian.bus.presentation.ActionRow
+import online.bmarian.bus.presentation.LABELLED_WEIGHT
 import online.bmarian.bus.presentation.Message
 import online.bmarian.bus.presentation.PillAction
 import online.bmarian.bus.presentation.ToggleAction
@@ -327,7 +328,7 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
         item {
             ActionRow(spec) {
                 if (atStop != null) {
-                    ToggleAction(Icons.Rounded.NotificationsActive, stringResource(R.string.follow), alerting, {
+                    ToggleAction(Icons.Rounded.NotificationsActive, stringResource(R.string.remind_set), alerting, {
                         when {
                             following != null -> FollowManager.stop(context, following.id)
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -335,7 +336,7 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
                                 permission.launch(Manifest.permission.POST_NOTIFICATIONS)
                             else -> follow()
                         }
-                    })
+                    }, weight = LABELLED_WEIGHT)
                 }
                 ToggleAction(
                     if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
@@ -344,6 +345,7 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
                     { Services.favorites.toggleRoute(vm.routeId, direction) },
                     color = Palette.Heart,
                     onColor = Color.White,
+                    iconOnly = atStop != null,
                 )
             }
         }

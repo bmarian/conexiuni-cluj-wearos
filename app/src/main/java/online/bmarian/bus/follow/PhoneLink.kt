@@ -13,7 +13,6 @@ import android.util.Log
 import androidx.concurrent.futures.await
 import androidx.core.app.NotificationCompat
 import androidx.wear.ongoing.OngoingActivity
-import androidx.wear.ongoing.Status
 import androidx.wear.remote.interactions.RemoteActivityHelper
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.DataEventBuffer
@@ -157,55 +156,27 @@ object Mirror {
             Buzz.play(context, if (now) Buzz.NOW else Buzz.SOON)
         }
         val followed = state.followed
-        val minutes = state.minutes
-        val arrival = state.arrivalAt
         val nowMs = System.currentTimeMillis()
-        // A phone reminder still waiting for the user to set off.
-        val leaveAt = state.leaveAt?.takeIf { minutes != null }
-        val leaveIn = state.leaveIn(nowMs)
-        val leaving = leaveIn != null && leaveIn > 0
+        val card = card(context, state, nowMs)
         val title = "${followed.shortName} → ${followed.destination}"
         val builder = NotificationCompat.Builder(context, FOLLOW_CHANNEL)
             .setSmallIcon(R.drawable.ic_bus)
             .setContentTitle(title)
-            .setContentText(
-                when {
-                    minutes == null -> followed.stopName
-                    leaveAt != null && !leaving -> context.getString(R.string.leave_now)
-                    leaveIn != null -> context.getString(R.string.leave_in, context.getString(R.string.eta_minutes, leaveIn))
-                    minutes <= 0 -> context.getString(R.string.follow_now)
-                    else -> context.getString(R.string.follow_arriving, context.getString(R.string.eta_minutes, minutes))
-                },
-            )
             .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setContentIntent(openApp(context, state.id))
             .addAction(0, context.getString(R.string.stop_following), stopIntent(context, state.id))
-        val left = (arrival ?: nowMs) - nowMs
+            .show(card)
+        val left = (state.arrivalAt ?: nowMs) - nowMs
         builder.setTimeoutAfter(left.coerceAtLeast(0) + 5 * 60_000L)
-        val countTo = if (leaveAt != null) leaveAt.takeIf { leaving } else arrival?.takeIf { minutes != null && minutes > 0 }
-        builder.setUsesChronometer(countTo != null).setChronometerCountDown(countTo != null).setShowWhen(countTo != null)
-        if (countTo != null) builder.setWhen(countTo)
 
-        val time: Status.Part = when {
-            minutes == null -> Status.TextPart(followed.stopName)
-            leaveAt != null && !leaving -> Status.TextPart(context.getString(R.string.leave_now))
-            countTo != null -> Status.TimerPart(countTo)
-            else -> Status.TextPart(context.getString(R.string.now))
-        }
         OngoingActivity.Builder(context, FollowManager.slot(state.id), builder)
             .setStaticIcon(R.drawable.ic_bus)
             .setTouchIntent(openApp(context, state.id))
             .setTitle(title)
-            .setStatus(
-                Status.Builder()
-                    .addTemplate("#line# #time#")
-                    .addPart("line", Status.TextPart(followed.shortName))
-                    .addPart("time", time)
-                    .build(),
-            )
+            .setStatus(card.status(followed.shortName))
             .build()
             .apply(context)
         runCatching { manager(context).notify(FollowManager.slot(state.id), builder.build()) }

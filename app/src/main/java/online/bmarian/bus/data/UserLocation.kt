@@ -52,7 +52,7 @@ object UserLocation {
         location.latitude in 46.38..47.50 && location.longitude in 22.75..24.27
 
     @SuppressLint("MissingPermission")
-    fun updates(context: Context): Flow<Fix?> = callbackFlow {
+    fun updates(context: Context, intervalMs: Long = UPDATE_MS): Flow<Fix?> = callbackFlow {
         if (!permitted(context)) {
             send(null)
             awaitClose {}
@@ -67,7 +67,7 @@ object UserLocation {
             override fun onLocationResult(result: LocationResult) = offer(result.lastLocation)
         }
         client.requestLocationUpdates(
-            LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, UPDATE_MS).build(),
+            LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs).build(),
             callback,
             Looper.getMainLooper(),
         )

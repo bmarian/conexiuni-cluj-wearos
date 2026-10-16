@@ -3,6 +3,7 @@ package online.bmarian.bus
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.FavoriteRoute
 import online.bmarian.bus.data.FavoritesSync
+import online.bmarian.bus.follow.FollowSync
 import online.bmarian.bus.follow.JourneySync
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -47,5 +48,20 @@ class ProtocolTest {
         assertFalse(end.alert)
         assertEquals(0, end.stepIndex)
         assertNull(end.arrivalAt)
+    }
+
+    @Test
+    fun aFollowFromThePhoneSaysWhenToGoBy() {
+        val sync = Api.json.decodeFromString<FollowSync>(
+            """{"id":"f1","followed":{"stopId":2,"stopName":"B","routeId":57,"tripId":"57_0","shortName":"57","color":"#ff0000",""" +
+                """"destination":"Somewhere"},"minutes":20,"alert":true,"leaveAt":1791441990000,"walkMinutes":8,"leaveBy":1791441960000}""",
+        )
+        assertEquals(1791441990000, sync.leaveAt)
+        assertEquals(8, sync.walkMinutes)
+        assertEquals(1791441960000, sync.leaveBy)
+        val older = Api.json.decodeFromString<FollowSync>(
+            """{"id":"f1","followed":${Api.json.encodeToString(sync.followed)},"minutes":20,"leaveAt":1791441990000}""",
+        )
+        assertNull(older.leaveBy)
     }
 }

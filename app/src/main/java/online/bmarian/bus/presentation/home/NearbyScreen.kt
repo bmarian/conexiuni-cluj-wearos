@@ -38,6 +38,7 @@ import kotlinx.coroutines.delay
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.UserLocation
+import online.bmarian.bus.logic.WALK_SPEED
 import online.bmarian.bus.logic.formatMeters
 import online.bmarian.bus.logic.haversineMeters
 import online.bmarian.bus.presentation.ActionRow
@@ -67,8 +68,6 @@ import kotlin.math.ceil
 // Same as the website's nearby list.
 private const val NEARBY_RADIUS_METERS = 700.0
 private const val NEARBY_COUNT = 6
-// The website's walking pace.
-private const val WALKING_METERS_PER_MINUTE = 80.0
 
 private const val MOVED_METERS = 50.0
 private const val FIRST_FIX_TIMEOUT_MS = 20_000L
@@ -137,7 +136,7 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit, onOpenMap: () -> Unit) {
                         icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
                         label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
                         secondaryLabel = {
-                            Text(stringResource(R.string.walk_distance, formatMeters(meters), ceil(meters / WALKING_METERS_PER_MINUTE).toInt().coerceAtLeast(1)))
+                            Text(stringResource(R.string.walk_distance, formatMeters(meters), ceil(meters / WALK_SPEED).toInt().coerceAtLeast(1)))
                         },
                     )
                 }
