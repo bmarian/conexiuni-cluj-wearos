@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="ro">
-    <string name="app_name" translatable="false">Conexiuni Cluj</string>
+    <string name="app_name" translatable="false">Ce autobuz iau?</string>
 
     <string name="favorite_stops">Stații preferate</string>
     <string name="favorite_routes">Linii preferate</string>

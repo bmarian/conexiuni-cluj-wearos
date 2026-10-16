@@ -1,8 +1,8 @@
-# Conexiuni Cluj for Wear OS
+# Ce autobuz iau? for Wear OS
 
-The [Conexiuni Cluj](https://github.com/bmarian/conexiuni-cluj) bus and tram tracker as a Wear OS app. The website ran in the watch browser, but it couldn't get my location and froze every time I lowered my wrist, so I built this.
+The [Ce autobuz iau?](https://github.com/bmarian/conexiuni-cluj) bus and tram tracker as a Wear OS app. The website ran in the watch browser, but it couldn't get my location and froze every time I lowered my wrist, so I built this.
 
-**Join the beta:** [join the testers group](https://groups.google.com/g/conexiuni-cluj-beta), then install Conexiuni Cluj from Google Play on your watch. Needs Wear OS 2 or newer.
+**Join the beta:** [join the testers group](https://groups.google.com/g/conexiuni-cluj-beta), then install “Ce autobuz iau?” from Google Play on your watch. Needs Wear OS 2 or newer.
 
 <p align="center">
   <img src="readme/home.png" width="180" alt="Favorite stops with their next departures">
