@@ -35,6 +35,7 @@ object Api {
         private set
 
     fun init(context: Context) {
+        Backend.init(context)
         client = OkHttpClient.Builder()
             .cache(Cache(File(context.cacheDir, "http"), 30L * 1024 * 1024))
             .connectTimeout(10, TimeUnit.SECONDS)
@@ -42,6 +43,7 @@ object Api {
             .addInterceptor { chain ->
                 chain.proceed(chain.request().newBuilder().header("User-Agent", "ConexiuniClujWear/${BuildConfig.VERSION_NAME}").build())
             }
+            .addInterceptor(Backend)
             .build()
     }
 
