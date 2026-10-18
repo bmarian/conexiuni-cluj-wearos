@@ -10,6 +10,7 @@ import online.bmarian.bus.data.Favorites
 import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.data.LanguageSync
 import online.bmarian.bus.data.Repository
+import online.bmarian.bus.follow.Reminders
 import online.bmarian.bus.surfaces.updateSurfacesOnChange
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,7 @@ object Services {
         }
         FavoritesSync.pull(app)
         LanguageSync.pull(app)
+        Reminders.init(app)
         scope.launch { updateSurfacesOnChange(app) }
     }
 

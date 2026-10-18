@@ -35,9 +35,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import online.bmarian.bus.Links
+import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.directionFromTripId
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.FollowState
+import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.follow.soonest
 import online.bmarian.bus.follow.JourneyMirror
 import online.bmarian.bus.presentation.home.HomeScreen
@@ -65,6 +67,8 @@ const val EXTRA_OPEN_FOLLOWED = "openFollowed"
 const val EXTRA_FOLLOW_ID = "followId"
 // Tiles can't set intent data.
 const val EXTRA_LINK = "link"
+// A tapped reminder: its bus is followed.
+const val EXTRA_FOLLOW = "follow"
 
 class MainActivity : ComponentActivity() {
     // A follow's id, or "" for the latest.
@@ -106,6 +110,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun take(intent: Intent?) {
+        // Not again when reopened from recents.
+        if (intent != null && intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0) {
+            intent.getStringExtra(EXTRA_FOLLOW)
+                ?.let { runCatching { Api.json.decodeFromString<Followed>(it) }.getOrNull() }
+                ?.let { followed ->
+                    FollowManager.start(this, followed)
+                    openFollowed.value = ""
+                }
+        }
         if (intent?.getBooleanExtra(EXTRA_OPEN_FOLLOWED, false) == true) openFollowed.value = intent.getStringExtra(EXTRA_FOLLOW_ID).orEmpty()
         val link = intent?.data ?: intent?.getStringExtra(EXTRA_LINK)?.toUri()
         when (link?.takeIf { it.scheme == Links.SCHEME }?.pathSegments?.firstOrNull()) {

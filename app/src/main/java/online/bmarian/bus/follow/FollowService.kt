@@ -20,7 +20,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
@@ -30,15 +29,12 @@ import kotlinx.coroutines.withContext
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.Api
-import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.LiveState
 import online.bmarian.bus.data.LiveStream
 import online.bmarian.bus.data.StopInfo
-import online.bmarian.bus.data.UserLocation
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.logic.stopDepartures
-import online.bmarian.bus.logic.walkMinutes
 import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
 import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
@@ -49,7 +45,6 @@ private const val FOLLOW_CHANNEL = "follow"
 private const val TICK_MS = 15_000L
 private const val LIVE_WAIT_MS = 6_000L
 private const val STOP_INFO_REFRESH_MS = 120_000L
-private const val LOCATION_MS = 30_000L
 private const val GIVE_UP_MS = 90 * 60_000L
 
 /** Follows every local bus in [FollowManager.follows], each on its own card. */
@@ -147,9 +142,6 @@ class FollowService : Service() {
         // Nothing is judged before the first live snapshot, so a bus the timetable still shows as due isn't taken as arrived.
         val live = MutableStateFlow<LiveState?>(null)
         val ready = MutableStateFlow(false)
-        // Nor before the first fix, so the walk is timed from the first reading.
-        val here = MutableStateFlow<Fix?>(null)
-        val located = MutableStateFlow(false)
         val clock = MutableStateFlow(startedAt)
 
         launch {
@@ -165,15 +157,8 @@ class FollowService : Service() {
             }
         }
         launch {
-            UserLocation.updates(this@FollowService, LOCATION_MS).catch {}.collect { fix ->
-                if (fix != null) here.value = fix
-                located.value = true
-            }
-        }
-        launch {
             delay(LIVE_WAIT_MS)
             ready.value = true
-            located.value = true
         }
         launch {
             while (true) {
@@ -183,38 +168,33 @@ class FollowService : Service() {
         }
 
         val progress = Progress()
-        combine(info.filterNotNull(), live, ready.filter { it }, located.filter { it }, clock) { stop, state, _, _, nowMs ->
+        combine(info.filterNotNull(), live, ready.filter { it }, clock) { stop, state, _, nowMs ->
             withContext(Dispatchers.Default) {
                 val now = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), CLUJ_ZONE)
-                val departure = stopDepartures(stop, state, now, nowMs)
-                    .firstOrNull { it.routeId == followed.routeId && it.tripId == followed.tripId }
-                val walk = here.value?.let { walkMinutes(it.lat, it.lon, stop.lat, stop.lon) }
-                Triple(departure, walk, nowMs)
+                stopDepartures(stop, state, now, nowMs)
+                    .firstOrNull { it.routeId == followed.routeId && it.tripId == followed.tripId } to nowMs
             }
-        }.collect { (departure, walk, nowMs) ->
+        }.collect { (departure, nowMs) ->
             if (nowMs - startedAt > GIVE_UP_MS) return@collect finish(id, "stopped")
-            update(followed, id, departure, walk, nowMs, progress)
+            update(followed, id, departure, nowMs, progress)
         }
     }
 
     @SuppressLint("MissingPermission")
-    private fun update(followed: Followed, id: String, departure: StopDeparture?, walk: Int?, nowMs: Long, progress: Progress) {
+    private fun update(followed: Followed, id: String, departure: StopDeparture?, nowMs: Long, progress: Progress) {
         val first = departure?.nextTimes?.firstOrNull()
         if (first == null) return finish(id, "none")
         val minutes = first.minutes
         if (progress.passed(minutes)) return finish(id, "left")
-        when (progress.read(minutes, walk, nowMs)) {
-            Cue.Leave, Cue.Soon -> Buzz.play(this, Buzz.SOON)
+        when (progress.read(minutes)) {
+            Cue.Soon -> Buzz.play(this, Buzz.SOON)
             Cue.Now -> Buzz.play(this, Buzz.NOW)
             null -> {}
         }
 
         val live = !departure.isStatic
         if (id !in jobs) return
-        val state = FollowState(
-            followed, minutes, live, departure.nextTimes.drop(1).map { it.minutes }, id, nowMs + minutes * 60_000L,
-            leaveAt = progress.leaveAt, walkMinutes = progress.walk, leaveBy = progress.leaveBy,
-        )
+        val state = FollowState(followed, minutes, live, departure.nextTimes.drop(1).map { it.minutes }, id, nowMs + minutes * 60_000L)
         latest[id] = state
         FollowManager.put(state)
         PhoneLink.sendState(this, state.toSync())
