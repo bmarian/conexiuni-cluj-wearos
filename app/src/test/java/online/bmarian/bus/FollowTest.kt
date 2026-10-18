@@ -2,7 +2,9 @@ package online.bmarian.bus
 
 import online.bmarian.bus.follow.Cue
 import online.bmarian.bus.follow.Progress
+import online.bmarian.bus.logic.justNotify
 import online.bmarian.bus.logic.leadMinutes
+import online.bmarian.bus.logic.tellAt
 import online.bmarian.bus.logic.walkMinutes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -13,9 +15,7 @@ import java.time.Instant
 
 // Expected values from the phone's ReminderTest, so both time the same walk.
 class FollowTest {
-    private val start = Instant.parse("2026-10-15T05:00:00Z").toEpochMilli()
-
-    private fun at(minutes: Int, seconds: Int = 0) = start + minutes * 60_000L + seconds * 1_000L
+    private fun ms(text: String) = Instant.parse(text).toEpochMilli()
 
     @Test
     fun theWalkIsTimedLikeThePhones() {
@@ -30,68 +30,39 @@ class FollowTest {
     }
 
     @Test
-    fun aHeadsUpThenLeaveNowThenTheBus() {
+    fun atTheStopOrTooLateItsJustToldWhenItComes() {
+        assertTrue(justNotify(0, 30))
+        assertTrue(justNotify(12, 17))
+        assertFalse(justNotify(12, 18))
+        assertTrue(justNotify(null, 20))
+        assertFalse(justNotify(null, 21))
+    }
+
+    @Test
+    fun theHeadsUpComesTenMinutesBeforeItsTimeToLeaveOrTwentyBeforeTheBusWithoutAFix() {
+        val bus = ms("2026-10-19T03:00:00Z")
+        // A five minute walk: leave by 05:50, so told at 05:40.
+        assertEquals(ms("2026-10-19T02:40:00Z"), tellAt(bus, 5))
+        assertEquals(ms("2026-10-19T02:28:00Z"), tellAt(bus, 17))
+        assertEquals(ms("2026-10-19T02:40:00Z"), tellAt(bus, null))
+        assertEquals(ms("2026-10-19T02:40:00Z"), tellAt(bus, 0))
+    }
+
+    @Test
+    fun aFollowBuzzesWhenTheBusIsCloseAndWhenItsHere() {
         val progress = Progress()
-        // An 8 min walk: time to go 13 min before the bus.
-        assertNull(progress.read(30, 8, at(0)))
-        assertEquals(at(17), progress.leaveAt)
-        assertNull(progress.leaveBy)
-        assertEquals(Cue.Leave, progress.read(23, 8, at(7, 20)))
-        assertEquals(at(17), progress.leaveBy)
-        assertNull(progress.read(22, 8, at(8, 40)))
-        // A late bus doesn't move the time to go by later.
-        assertNull(progress.read(24, 8, at(9)))
-        assertEquals(at(17), progress.leaveBy)
-        assertEquals(Cue.Leave, progress.read(13, 8, at(19)))
-        assertNull(progress.leaveBy)
-        assertEquals(at(19), progress.leaveAt)
-        assertEquals(Cue.Soon, progress.read(2, 8, at(30)))
-        assertNull(progress.leaveAt)
-        assertEquals(Cue.Now, progress.read(0, 8, at(32)))
+        assertNull(progress.read(12))
+        assertNull(progress.read(5))
+        assertEquals(Cue.Soon, progress.read(2))
+        assertNull(progress.read(1))
+        assertEquals(Cue.Now, progress.read(0))
         assertTrue(progress.passed(5))
-    }
-
-    @Test
-    fun withoutAFixItsTwentyMinutesEarly() {
-        val progress = Progress()
-        assertNull(progress.read(35, null, at(0)))
-        assertEquals(Cue.Leave, progress.read(30, null, at(5)))
-        assertEquals(Cue.Leave, progress.read(20, null, at(15)))
-    }
-
-    @Test
-    fun startedInsideTheHeadsUpItSaysWhenToGoWithoutABuzz() {
-        val progress = Progress()
-        assertNull(progress.read(20, 8, at(0)))
-        assertEquals(at(7), progress.leaveBy)
-        assertNull(progress.read(19, 8, at(1)))
-        assertEquals(Cue.Leave, progress.read(13, 8, at(7)))
-    }
-
-    @Test
-    fun tooLateToWalkItsJustTheBus() {
-        val progress = Progress()
-        assertNull(progress.read(10, 8, at(0)))
-        assertNull(progress.leaveAt)
-        assertNull(progress.read(9, 8, at(1)))
-        assertEquals(Cue.Soon, progress.read(2, 8, at(8)))
-        assertEquals(Cue.Now, progress.read(0, 8, at(10)))
-    }
-
-    @Test
-    fun atTheStopItsJustTheBus() {
-        val progress = Progress()
-        assertNull(progress.read(30, 0, at(0)))
-        assertNull(progress.leaveAt)
-        assertNull(progress.read(10, 0, at(20)))
-        assertEquals(Cue.Soon, progress.read(2, 0, at(28)))
-        assertFalse(progress.passed(3))
     }
 
     @Test
     fun theFirstReadingNeverBuzzes() {
         val progress = Progress()
-        assertNull(progress.read(0, 8, at(0)))
-        assertNull(progress.read(0, 8, at(0, 15)))
+        assertNull(progress.read(0))
+        assertNull(progress.read(0))
     }
 }

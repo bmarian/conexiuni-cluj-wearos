@@ -58,8 +58,10 @@ import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.directionFromTripId
+import kotlinx.coroutines.launch
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.Followed
+import online.bmarian.bus.follow.Reminders
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.presentation.ActionRow
 import online.bmarian.bus.presentation.LABELLED_WEIGHT
@@ -208,23 +210,29 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
     val follows by FollowManager.follows.collectAsStateWithLifecycle()
     val departure = ui?.departures?.firstOrNull { it.routeId == routeId && it.tripId == tripId }
     val direction = directionFromTripId(tripId)
+    val reminders by Reminders.all.collectAsStateWithLifecycle()
     val following = follows.firstOrNull { it.matches(vm.stopId, routeId, tripId) }
-    val isFollowing = following != null
+    val reminder = reminders.firstOrNull { it.followed.stopId == vm.stopId && it.followed.routeId == routeId && it.followed.tripId == tripId }
+    val isFollowing = following != null || reminder != null
     val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
 
     fun follow() {
         val d = departure ?: return
-        FollowManager.start(
-            context,
-            Followed(vm.stopId, name.orEmpty(), routeId, tripId, d.shortName, d.color, d.destination()),
-        )
+        val followed = Followed(vm.stopId, name.orEmpty(), routeId, tripId, d.shortName, d.color, d.destination())
+        val stop = Services.repository.cachedStopInfo(vm.stopId) ?: return FollowManager.start(context, followed)
+        val minutes = d.nextTimes.firstOrNull()?.minutes ?: d.minutesLeft
+        val app = context.applicationContext
+        Services.scope.launch { Reminders.remind(app, followed, stop.lat, stop.lon, minutes) }
     }
     // POST_NOTIFICATIONS needs a runtime grant on Wear OS 4+.
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { follow() }
 
     val onFollow = {
         when {
-            following != null -> FollowManager.stop(context, following.id)
+            following != null || reminder != null -> {
+                if (following != null) FollowManager.stop(context, following.id)
+                if (reminder != null) Reminders.remove(context, reminder.id)
+            }
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
                 permission.launch(Manifest.permission.POST_NOTIFICATIONS)

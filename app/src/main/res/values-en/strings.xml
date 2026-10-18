@@ -91,5 +91,11 @@
     <string name="leave_in">Leave in %1$s</string>
     <string name="leave_now">Leave now</string>
     <string name="leave_by">Leave by %1$s to catch your bus</string>
+    <string name="get_ready">Your bus leaves at %1$s, get ready</string>
+    <string name="leave_detail">%1$s %2$s · %3$s walk</string>
+    <string name="follow_in">in %1$s</string>
+    <string name="follow_at_clock">at %1$s</string>
+    <string name="reminder_channel">Reminders</string>
+    <string name="reminder_alerts_channel">Reminder alerts</string>
     <string name="app_version">Version %1$s</string>
 </resources>

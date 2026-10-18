@@ -54,8 +54,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import online.bmarian.bus.R
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.Followed
+import online.bmarian.bus.follow.Reminders
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.ShapeInfo
 import online.bmarian.bus.data.UserLocation
@@ -288,15 +290,12 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
     val context = LocalContext.current
     val follows by FollowManager.follows.collectAsStateWithLifecycle()
     val tripId = tripIdFor(vm.routeId, direction)
+    val reminders by Reminders.all.collectAsStateWithLifecycle()
     val following = atStop?.let { (stop, _) -> follows.firstOrNull { it.matches(stop.stop.stopId, vm.routeId, tripId) } }
-    val alerting = following != null
-    fun follow() {
-        val (stop, name) = atStop ?: return
-        val route = info ?: return
-        FollowManager.start(context, Followed(stop.stop.stopId, name, vm.routeId, tripId, route.shortName, route.color, terminal))
+    val reminder = atStop?.let { (stop, _) ->
+        reminders.firstOrNull { it.followed.stopId == stop.stop.stopId && it.followed.routeId == vm.routeId && it.followed.tripId == tripId }
     }
-    // POST_NOTIFICATIONS needs a runtime grant on Wear OS 4+.
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { follow() }
+    val alerting = following != null || reminder != null
 
     val calendar by ScheduleDays.state.collectAsStateWithLifecycle()
     val special = specialDayOn(now.toLocalDate(), calendar)
@@ -306,6 +305,16 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
         schedule?.let { departureMinutes(it, outgoing).map { minutes -> minutes + offset }.sorted() }.orEmpty()
     }
     val nowMinutes = minutesOfDay(now)
+    fun follow() {
+        val (stop, name) = atStop ?: return
+        val route = info ?: return
+        val followed = Followed(stop.stop.stopId, name, vm.routeId, tripId, route.shortName, route.color, terminal)
+        val minutes = departures.firstOrNull { it >= nowMinutes }?.minus(nowMinutes) ?: return FollowManager.start(context, followed)
+        val app = context.applicationContext
+        Services.scope.launch { Reminders.remind(app, followed, stop.stop.lat, stop.stop.lon, minutes) }
+    }
+    // POST_NOTIFICATIONS needs a runtime grant on Wear OS 4+.
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { follow() }
     val hours = remember(departures, nowMinutes) {
         departures.filter { it / 60 >= nowMinutes / 60 }
             .groupBy { it / 60 }
@@ -330,7 +339,10 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
                 if (atStop != null) {
                     ToggleAction(Icons.Rounded.NotificationsActive, stringResource(R.string.remind_set), alerting, {
                         when {
-                            following != null -> FollowManager.stop(context, following.id)
+                            following != null || reminder != null -> {
+                                if (following != null) FollowManager.stop(context, following.id)
+                                if (reminder != null) Reminders.remove(context, reminder.id)
+                            }
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
                                 permission.launch(Manifest.permission.POST_NOTIFICATIONS)

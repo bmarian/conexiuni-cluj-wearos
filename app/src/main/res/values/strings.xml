@@ -97,5 +97,12 @@
     <string name="leave_in">Pleacă peste %1$s</string>
     <string name="leave_now">Pleacă acum</string>
     <string name="leave_by">Trebuie să te pornești înainte de %1$s pentru a prinde autobuzul</string>
+    <string name="get_ready">Autobuzul tău pleacă la %1$s, pregătește-te</string>
+    <string name="leave_detail">%1$s %2$s · %3$s de mers</string>
+    <string name="leave_bus" translatable="false">%1$s %2$s</string>
+    <string name="follow_in">peste %1$s</string>
+    <string name="follow_at_clock">la %1$s</string>
+    <string name="reminder_channel">Mementouri</string>
+    <string name="reminder_alerts_channel">Alerte mementouri</string>
     <string name="app_version">Versiunea %1$s</string>
 </resources>

@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.callbackFlow
 class Fix(val lat: Double, val lon: Double, val accuracyMeters: Float, val bearing: Float? = null)
 
 private const val UPDATE_MS = 10_000L
+// A saved fix older than this is taken as unknown, like the phone's.
+private const val RECENT_MS = 60 * 60_000L
 
 object UserLocation {
     private val PERMISSIONS = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -45,8 +47,13 @@ object UserLocation {
             putLong("lat", fix.lat.toRawBits())
             putLong("lon", fix.lon.toRawBits())
             putFloat("accuracy", fix.accuracyMeters)
+            putLong("at", System.currentTimeMillis())
         }
     }
+
+    /** The saved fix while it's fresh. */
+    fun recent(context: Context): Fix? =
+        saved(context)?.takeIf { permitted(context) && System.currentTimeMillis() - prefs(context).getLong("at", 0) <= RECENT_MS }
 
     private fun inClujCounty(location: Location) =
         location.latitude in 46.38..47.50 && location.longitude in 22.75..24.27
