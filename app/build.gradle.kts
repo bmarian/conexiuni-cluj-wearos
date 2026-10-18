@@ -23,8 +23,8 @@ android {
         minSdk = 26
         targetSdk = 37
         // Phone 1xxxx, watch 2xxxx, then the release number, the same on both.
-        versionCode = 20_014
-        versionName = "1.7.0"
+        versionCode = 20_015
+        versionName = "1.8.0"
 
         buildConfigField("String", "API_BASE", "\"https://ceautobuziau.ro/api/\"")
         buildConfigField("String", "SITE_ORIGIN", "\"https://ceautobuziau.ro\"")
