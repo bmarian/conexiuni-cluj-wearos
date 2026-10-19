@@ -5,17 +5,19 @@ The [Ce autobuz iau?](https://github.com/bmarian/conexiuni-cluj) bus and tram tr
 **Join the beta:** [join the testers group](https://groups.google.com/g/conexiuni-cluj-beta), then install “Ce autobuz iau?” from Google Play on your watch. Needs Wear OS 2 or newer.
 
 <p align="center">
-  <img src="readme/home.png" width="180" alt="Favorite stops with their next departures">
-  <img src="readme/stop.png" width="180" alt="Departures from a stop">
-  <img src="readme/departure.png" width="180" alt="One departure, with the button to follow it">
+  <img src="readme/home.png" width="180" alt="Favorite metro stations in București">
+  <img src="readme/stop.png" width="180" alt="A metro station with its next departure">
+  <img src="readme/departure.png" width="180" alt="One departure, with the buttons to follow it and save the line">
   <img src="readme/route-map.png" width="180" alt="A line on the map with the next arrival above each stop">
 </p>
 
 ## What it does
 
+- Cluj-Napoca, București, Iași, Oradea and Constanța, following the city picked on the phone
 - Favorite stops on the first screen
 - Search for a stop or a line by voice or keyboard
 - Departures for any stop. Tracked buses get a live countdown, the rest show the timetable
+- Platforms with the same name are one station, marked with a metro, tram, trolleybus or bus icon in the colour of its lines
 - Follow a bus. The countdown stays on the watch face and it buzzes when the bus is close
 - Lines on the map with the next arrival at each stop, and their timetables
 - The stops around you, as a list or on a map
@@ -26,7 +28,6 @@ The [Ce autobuz iau?](https://github.com/bmarian/conexiuni-cluj) bus and tram tr
 - Copy your favorites from the website by scanning a code
 
 <p align="center">
-  <img src="readme/nearby-map.png" width="180" alt="The stops around you on the map">
   <img src="readme/ambient.png" width="180" alt="A followed bus in always-on mode">
   <img src="readme/timetable.png" width="180" alt="A line's timetable from the current hour on">
 </p>
@@ -62,11 +63,13 @@ Watch version codes are 2xxxx and the phone's 1xxxx. `./gradlew bundleRelease` b
 
 ## Credits
 
-| Source                                                       | Used for                                             |
-| ------------------------------------------------------------ | ---------------------------------------------------- |
-| [Tranzy.ai](https://tranzy.ai/)                              | Live GPS positions and GTFS data for CTP Cluj-Napoca |
-| [CTP Cluj-Napoca](https://www.ctpcj.ro/)                     | Official timetables                                  |
-| [OpenStreetMap](https://www.openstreetmap.org/) contributors | Map data                                             |
-| [OpenFreeMap](https://openfreemap.org/)                      | Map tiles                                            |
-| [MapLibre](https://maplibre.org/)                            | The map                                              |
-| [ZXing](https://github.com/zxing/zxing)                      | QR codes                                             |
+| Source                                                                             | Used for                                                                  |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| [Tranzy.ai](https://tranzy.ai/)                                                    | Live positions, lines and stops for Cluj-Napoca, Iași, Oradea and Constanța |
+| [CTP Cluj-Napoca](https://ctpcj.ro/)                                               | Cluj-Napoca's timetables                                                  |
+| [gtfs.ro](https://gtfs.ro/)                                                        | Timetables for Iași, Oradea and Constanța                                 |
+| [TPBI](https://tpbi.ro/)                                                           | Lines, timetables and live positions for București                        |
+| [OpenStreetMap](https://www.openstreetmap.org/) contributors                       | Map data, town and street names                                           |
+| [OpenFreeMap](https://openfreemap.org/), [OpenMapTiles](https://openmaptiles.org/) | Map tiles                                                                 |
+| [MapLibre](https://maplibre.org/)                                                  | The map                                                                   |
+| [ZXing](https://github.com/zxing/zxing)                                            | QR codes                                                                  |
