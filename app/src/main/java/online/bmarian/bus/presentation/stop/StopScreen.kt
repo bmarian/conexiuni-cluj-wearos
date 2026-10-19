@@ -1,5 +1,9 @@
 package online.bmarian.bus.presentation.stop
 
+import online.bmarian.bus.data.StationLook
+import online.bmarian.bus.logic.Mode
+import online.bmarian.bus.presentation.StationIcon
+import online.bmarian.bus.presentation.map.stationMapStop
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -133,21 +137,27 @@ fun StopScreen(
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
     val follows by FollowManager.follows.collectAsStateWithLifecycle()
     val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
+    val infos by vm.infos.collectAsStateWithLifecycle()
+    val index by Services.repository.network.index.collectAsStateWithLifecycle()
+    val look = remember(index, vm.stopId) { index?.look(vm.stopId) }
+    // A station is a favourite when any of its platforms is.
+    val favoritePlatform = (infos.map { it.stopId }.ifEmpty { listOf(vm.stopId) }).firstOrNull { it in favoriteStops }
 
     val sorted = remember(ui, favoriteRoutes) {
         ui?.departures?.sortedWith(compareBy({ if (vm.isDepartureFavorite(it)) 0 else 1 }, { it.minutesLeft }))
     }
 
     ListScreen { spec ->
+        item { StationKind(look, spec) }
         item { Title(name ?: "…", spec) }
         item {
-            val favorite = vm.stopId in favoriteStops
+            val favorite = favoritePlatform != null
             ActionRow(spec) {
                 ToggleAction(
                     if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     stringResource(R.string.save),
                     favorite,
-                    { Services.favorites.toggleStop(vm.stopId) },
+                    { Services.favorites.toggleStop(favoritePlatform ?: vm.stopId) },
                     color = Palette.Heart,
                     onColor = Color.White,
                     weight = LABELLED_WEIGHT,
@@ -173,10 +183,10 @@ fun StopScreen(
             }
             sorted == null -> item { Loading(spec) }
             sorted.isEmpty() -> item { Message(stringResource(R.string.no_schedule), spec) }
-            else -> items(sorted.size, key = { sorted[it].shortName }) { i ->
+            else -> items(sorted.size, key = { sorted[it].tripId }) { i ->
                 val departure = sorted[i]
                 val now = ui!!.now
-                val followed = follows.any { it.matches(vm.stopId, departure.routeId, departure.tripId) }
+                val followed = follows.any { it.matches(vm.platformOf(departure), departure.routeId, departure.tripId) }
                 val press = remember { MutableInteractionSource() }
                 TitleCard(
                     onClick = { onOpenDeparture(departure) },
@@ -212,15 +222,16 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
     val departure = ui?.departures?.firstOrNull { it.routeId == routeId && it.tripId == tripId }
     val direction = directionFromTripId(tripId)
     val reminders by Reminders.all.collectAsStateWithLifecycle()
-    val following = follows.firstOrNull { it.matches(vm.stopId, routeId, tripId) }
-    val reminder = reminders.firstOrNull { it.followed.city == Cities.current.value && it.followed.stopId == vm.stopId && it.followed.routeId == routeId && it.followed.tripId == tripId }
+    val platform = departure?.let(vm::platformOf) ?: vm.stopId
+    val following = follows.firstOrNull { it.matches(platform, routeId, tripId) }
+    val reminder = reminders.firstOrNull { it.followed.city == Cities.current.value && it.followed.stopId == platform && it.followed.routeId == routeId && it.followed.tripId == tripId }
     val isFollowing = following != null || reminder != null
     val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
 
     fun follow() {
         val d = departure ?: return
-        val followed = Followed(vm.stopId, name.orEmpty(), routeId, tripId, d.shortName, d.color, d.destination(), Cities.current.value)
-        val stop = Services.repository.cachedStopInfo(vm.stopId) ?: return FollowManager.start(context, followed)
+        val followed = Followed(platform, name.orEmpty(), routeId, tripId, d.shortName, d.color, d.destination(), Cities.current.value)
+        val stop = vm.platform(platform) ?: Services.repository.cachedStopInfo(platform) ?: return FollowManager.start(context, followed)
         val minutes = d.nextTimes.firstOrNull()?.minutes ?: d.minutesLeft
         val app = context.applicationContext
         Services.scope.launch { Reminders.remind(app, followed, stop.lat, stop.lon, minutes) }
@@ -302,6 +313,27 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
     }
 }
 
+/** The station's icon and what kind of stop it is, above its name. */
+@Composable
+private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope.StationKind(look: StationLook?, spec: androidx.wear.compose.material3.lazy.TransformationSpec) {
+    Row(
+        contentModifier(spec),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StationIcon(look, size = 20.dp)
+        Text(stringResource(stopKind(look?.mode ?: Mode.BUS)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+private fun stopKind(mode: Mode) = when (mode) {
+    Mode.METRO -> R.string.stop_kind_metro
+    Mode.RAIL -> R.string.stop_kind_rail
+    Mode.TRAM -> R.string.stop_kind_tram
+    Mode.TROLLEYBUS -> R.string.stop_kind_trolleybus
+    Mode.BUS -> R.string.stop_kind_bus
+}
+
 @Composable
 fun MapChip(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
@@ -331,7 +363,7 @@ fun StopMapScreen(vm: StopViewModel) {
                 frame = frame,
                 onMapTap = chrome::toggle,
                 lines = layer.lines.map { MapLine(it.points, routeColor(it.color)) },
-                stops = listOfNotNull(location?.let { MapStop("${vm.stopId}", it.first, it.second, Palette.AccentStrong, selected = true) }),
+                stops = listOfNotNull(location?.let { stationMapStop(vm.stopId, it.first, it.second, selected = true) }),
                 vehicles = layer.vehicles.map { MapVehicle(it.id, it.lat, it.lon, it.name, routeColor(it.color), it.heading) },
                 me = me,
                 ambient = LocalAmbient.current,

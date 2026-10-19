@@ -34,6 +34,11 @@
     <string name="soon">curând</string>
 
     <string name="nearby_stops">Stații din apropiere</string>
+    <string name="stop_kind_bus">Stație de autobuz</string>
+    <string name="stop_kind_trolleybus">Stație de troleibuz</string>
+    <string name="stop_kind_tram">Stație de tramvai</string>
+    <string name="stop_kind_metro">Stație de metrou</string>
+    <string name="stop_kind_rail">Gară</string>
     <string name="nearby_enable">Arată stațiile din apropiere</string>
     <string name="nearby_none">Nicio stație pe o rază de 700 m.</string>
     <string name="nearby_unavailable">Locația este oprită.</string>

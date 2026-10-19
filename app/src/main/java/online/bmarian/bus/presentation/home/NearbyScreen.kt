@@ -1,5 +1,7 @@
 package online.bmarian.bus.presentation.home
 
+import online.bmarian.bus.presentation.StationIcon
+import online.bmarian.bus.presentation.map.stationMapStop
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -114,6 +116,7 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit, onOpenMap: () -> Unit) {
         else stops.map { it to haversineMeters(here.lat, here.lon, it.lat, it.lon) }
             .filter { it.second <= NEARBY_RADIUS_METERS }
             .sortedBy { it.second }
+            .distinctBy { it.first.station }
             .take(NEARBY_COUNT)
     }
 
@@ -133,7 +136,7 @@ fun NearbyScreen(onOpenStop: (Int) -> Unit, onOpenMap: () -> Unit) {
                         modifier = itemModifier(spec).squish(press).cascade(i, "list"),
                         interactionSource = press,
                         transformation = surface(spec),
-                        icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
+                        icon = { StationIcon(Services.repository.network.index.value?.look(stop.stopId), size = 26.dp) },
                         label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
                         secondaryLabel = {
                             Text(stringResource(R.string.walk_distance, formatMeters(meters), ceil(meters / WALK_SPEED).toInt().coerceAtLeast(1)))
@@ -197,7 +200,7 @@ fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
                 frame = center?.takeIf { stops.isNotEmpty() }?.let { here ->
                     MapFrame.Fit(around.map { (stop, _) -> stop.lat to stop.lon } + (here.lat to here.lon), side = 0.22, top = 0.38, bottom = 0.34)
                 },
-                stops = around.map { (stop, _) -> MapStop("${stop.stopId}", stop.lat, stop.lon, Palette.StopGray) },
+                stops = around.map { (stop, _) -> stationMapStop(stop.stopId, stop.lat, stop.lon) },
                 labels = around.mapIndexed { i, (stop, _) -> MapLabel("${stop.stopId}", stop.lat, stop.lon, stop.name, live = false, rank = i) },
                 me = live,
                 ambient = LocalAmbient.current,

@@ -1,5 +1,7 @@
 package online.bmarian.bus.presentation.home
 
+import online.bmarian.bus.presentation.StationIcon
+import online.bmarian.bus.presentation.StationLines
 import android.app.RemoteInput
 import android.content.Intent
 import android.view.inputmethod.EditorInfo
@@ -240,14 +242,16 @@ fun HomeScreen(
         }
         items(favoriteStops.size, key = { "fs-${favoriteStops[it].stopId}" }) { i ->
             val stop = favoriteStops[i]
+            val look = Services.repository.network.index.value?.look(stop.stopId)
             val press = remember { MutableInteractionSource() }
             FilledTonalButton(
                 onClick = { onOpenStop(stop.stopId) },
                 modifier = itemModifier(spec).squish(press).cascade(i, "list"),
                 interactionSource = press,
                 transformation = surface(spec),
-                icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
+                icon = { StationIcon(look, size = 26.dp) },
                 label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
+                secondaryLabel = if (look != null) ({ StationLines(look) }) else null,
             )
         }
         items(favoriteRouteRows.size, key = { "fr-${favoriteRouteRows[it].first.routeId}-${favoriteRouteRows[it].second}" }) { i ->

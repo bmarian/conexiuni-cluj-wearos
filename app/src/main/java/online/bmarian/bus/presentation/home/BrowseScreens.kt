@@ -1,5 +1,7 @@
 package online.bmarian.bus.presentation.home
 
+import online.bmarian.bus.presentation.StationIcon
+import online.bmarian.bus.presentation.StationLines
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,17 +57,22 @@ import online.bmarian.bus.presentation.theme.routeColor
 
 private const val SEARCH_LIMIT = 25
 
+// One stop per station.
+private fun stations(stops: List<Stop>): List<Stop> = Services.repository.network.index.value?.oneStopPerStation(stops) ?: stops
+
 private fun TransformingLazyColumnScope.stopItems(stops: List<Stop>, spec: TransformationSpec, onOpenStop: (Int) -> Unit) {
     items(stops.size, key = { "s-${stops[it].stopId}" }) { i ->
         val stop = stops[i]
+        val look = Services.repository.network.index.value?.look(stop.stopId)
         val press = remember { MutableInteractionSource() }
         FilledTonalButton(
             onClick = { onOpenStop(stop.stopId) },
             modifier = itemModifier(spec).squish(press).cascade(i, "list"),
             interactionSource = press,
             transformation = surface(spec),
-            icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
+            icon = { StationIcon(look, size = 26.dp) },
             label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
+            secondaryLabel = if (look != null) ({ StationLines(look) }) else null,
         )
     }
 }
@@ -122,7 +129,7 @@ fun StopsScreen(letter: String?, prefix: String?, onBrowse: (letter: String, pre
     val stops by repository.stops.collectAsStateWithLifecycle()
     val failed by produceState(false) { value = !repository.refreshNetwork() }
     val screen by produceState<StopBrowse?>(null, stops, letter, prefix) {
-        value = withContext(Dispatchers.Default) { browseStops(keyedStops(stops), letter, prefix) }
+        value = withContext(Dispatchers.Default) { browseStops(keyedStops(stations(stops)), letter, prefix) }
     }
     val heading = prefix?.let(::prefixLabel) ?: letter ?: stringResource(R.string.all_stops)
 
@@ -164,7 +171,7 @@ fun SearchScreen(query: String, onSearch: (String) -> Unit, onOpenRoute: (Int) -
             val needle = stopSortKey(query)
             val compact = needle.replace(" ", "")
             val lines = sortedRoutes(routes).filter { stopSortKey(it.shortName).startsWith(compact) }
-            val keyed = keyedStops(stops).filter { it.key.contains(needle) }
+            val keyed = keyedStops(stations(stops)).filter { it.key.contains(needle) }
             val found = keyed.sortedWith(compareBy<online.bmarian.bus.logic.KeyedStop> { !it.key.startsWith(needle) }.thenComparator { a, b -> NaturalOrder.compare(a.key, b.key) })
             lines.take(SEARCH_LIMIT) to found.take(SEARCH_LIMIT).map { it.stop }
         }

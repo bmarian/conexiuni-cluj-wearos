@@ -1,5 +1,9 @@
 package online.bmarian.bus.presentation.map
 
+import online.bmarian.bus.logic.Mode
+import online.bmarian.bus.Services
+import online.bmarian.bus.presentation.theme.Palette
+import online.bmarian.bus.presentation.theme.routeColor
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.RectF
@@ -113,7 +117,13 @@ private fun startMapLibre(context: Context) {
 }
 
 class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false)
-class MapStop(val id: String, val lat: Double, val lon: Double, val color: Color, val selected: Boolean = false)
+class MapStop(val id: String, val lat: Double, val lon: Double, val color: Color, val selected: Boolean = false, val mode: Mode = Mode.BUS, val heart: Boolean = false)
+
+/** A station as the lists draw it: its biggest mode in that mode's colour. */
+fun stationMapStop(stopId: Int, lat: Double, lon: Double, selected: Boolean = false): MapStop {
+    val look = Services.repository.network.index.value?.look(stopId)
+    return MapStop("$stopId", lat, lon, look?.let { routeColor(it.color) } ?: Palette.StopGray, selected, look?.mode ?: Mode.BUS)
+}
 class MapLabel(val id: String, val lat: Double, val lon: Double, val text: String, val live: Boolean, val rank: Int)
 /** [faded]: on the other direction now, counted on coming back. */
 class MapVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: Color, val heading: Double, val faded: Boolean = false)
@@ -428,8 +438,8 @@ private class MapSession(
         source(SRC_STOPS)?.setGeoJson(
             FeatureCollection.fromFeatures(
                 stops.map { stop ->
-                    val name = "stop-${stop.color.toArgb()}-${stop.selected}"
-                    image(name) { images.stop(stop.color, stop.selected) }
+                    val name = "stop-${stop.color.toArgb()}-${stop.selected}-${stop.mode}-${stop.heart}"
+                    image(name) { images.stop(stop.color, stop.selected, stop.mode, stop.heart) }
                     Feature.fromGeometry(Point.fromLngLat(stop.lon, stop.lat)).apply {
                         addStringProperty("id", stop.id)
                         addStringProperty("img", name)

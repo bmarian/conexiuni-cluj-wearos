@@ -1,5 +1,8 @@
 package online.bmarian.bus.presentation.map
 
+import online.bmarian.bus.logic.Mode
+import online.bmarian.bus.presentation.ModeGlyphs
+import online.bmarian.bus.presentation.drawModeGlyph
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.DisplayMetrics
@@ -30,7 +33,6 @@ import online.bmarian.bus.presentation.theme.Palette
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
-private val BusStop by lazy { PathParser().parsePathString(Glyphs.BUS_STOP_PATH).toPath() }
 private val NavArrow by lazy { PathParser().parsePathString("M12 2L21 21l-9-4-9 4 9-19z").toPath() }
 
 internal class MapImages(context: Context) {
@@ -45,7 +47,7 @@ internal class MapImages(context: Context) {
         return image.asAndroidBitmap().apply { this.density = (this@MapImages.density.density * DisplayMetrics.DENSITY_DEFAULT).roundToInt() }
     }
 
-    fun stop(color: Color, selected: Boolean): Bitmap {
+    fun stop(color: Color, selected: Boolean, mode: Mode, heart: Boolean): Bitmap {
         val d = if (selected) STOP_SELECTED_DP else STOP_DP
         return draw(d + 2f, d + 2f) {
             val r = d.dp.toPx() / 2
@@ -54,7 +56,9 @@ internal class MapImages(context: Context) {
             drawCircle(color, r - 1.5.dp.toPx(), center)
             val glyph = r * 1.15f
             translate(center.x - glyph / 2, center.y - glyph / 2) {
-                scale(glyph / 24f, glyph / 24f, pivot = Offset.Zero) { drawPath(BusStop, Color.White) }
+                scale(glyph / 24f, glyph / 24f, pivot = Offset.Zero) {
+                    if (heart) drawPath(ModeGlyphs.path(ModeGlyphs.HEART), Color.White) else drawModeGlyph(mode, Color.White)
+                }
             }
         }
     }

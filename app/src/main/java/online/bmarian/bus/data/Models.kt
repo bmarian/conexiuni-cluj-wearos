@@ -21,7 +21,11 @@ data class Stop(
     @SerialName("stop_name") val name: String,
     @SerialName("stop_lat") val lat: Double = 0.0,
     @SerialName("stop_lon") val lon: Double = 0.0,
-)
+    // Shared by the platforms of one station; 0 from servers that do not group them.
+    @SerialName("station_id") val stationId: Int = 0,
+) {
+    val station: Int get() = if (stationId != 0) stationId else stopId
+}
 
 @Serializable
 data class StopTime(

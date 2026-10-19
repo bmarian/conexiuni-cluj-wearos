@@ -1,5 +1,6 @@
 package online.bmarian.bus.presentation.route
 
+import online.bmarian.bus.presentation.map.stationMapStop
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -184,17 +185,11 @@ private fun RouteMapView(
     val mapStops = remember(stops, favoriteStops) {
         stops.filter { it.stop.lat != 0.0 }.map {
             val id = it.stop.stopId
-            MapStop(
-                id = "$id",
-                lat = it.stop.lat,
-                lon = it.stop.lon,
-                color = when {
-                    id == fromStopId -> Palette.AccentStrong
-                    id in favoriteStops -> Palette.Heart
-                    else -> Palette.StopGray
-                },
-                selected = id == fromStopId,
-            )
+            when {
+                id == fromStopId -> stationMapStop(id, it.stop.lat, it.stop.lon, selected = true)
+                id in favoriteStops -> MapStop("$id", it.stop.lat, it.stop.lon, Palette.Heart, heart = true)
+                else -> stationMapStop(id, it.stop.lat, it.stop.lon)
+            }
         }
     }
 
