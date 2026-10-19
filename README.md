@@ -13,11 +13,11 @@ The [Ce autobuz iau?](https://github.com/bmarian/conexiuni-cluj) bus and tram tr
 
 ## What it does
 
-- Cluj-Napoca, București, Iași, Oradea and Constanța, following the city picked on the phone
+- Uses the city picked on the phone
 - Favorite stops on the first screen
 - Search for a stop or a line by voice or keyboard
 - Departures for any stop. Tracked buses get a live countdown, the rest show the timetable
-- Platforms with the same name are one station, marked with a metro, tram, trolleybus or bus icon in the colour of its lines
+- Stations with a metro, tram, trolleybus or bus icon
 - Follow a bus. The countdown stays on the watch face and it buzzes when the bus is close
 - Lines on the map with the next arrival at each stop, and their timetables
 - The stops around you, as a list or on a map
@@ -69,7 +69,7 @@ Watch version codes are 2xxxx and the phone's 1xxxx. `./gradlew bundleRelease` b
 | [CTP Cluj-Napoca](https://ctpcj.ro/)                                               | Cluj-Napoca's timetables                                                  |
 | [gtfs.ro](https://gtfs.ro/)                                                        | Timetables for Iași, Oradea and Constanța                                 |
 | [TPBI](https://tpbi.ro/)                                                           | Lines, timetables and live positions for București                        |
-| [OpenStreetMap](https://www.openstreetmap.org/) contributors                       | Map data, town and street names                                           |
+| [OpenStreetMap](https://www.openstreetmap.org/) contributors                       | Map data                                                                  |
 | [OpenFreeMap](https://openfreemap.org/), [OpenMapTiles](https://openmaptiles.org/) | Map tiles                                                                 |
 | [MapLibre](https://maplibre.org/)                                                  | The map                                                                   |
 | [ZXing](https://github.com/zxing/zxing)                                            | QR codes                                                                  |
