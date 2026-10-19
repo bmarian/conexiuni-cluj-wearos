@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
 import online.bmarian.bus.data.Api
+import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.UserLocation
 import org.maplibre.android.MapLibre
@@ -96,7 +97,8 @@ private val TAP_REACH = 22.dp
 private const val FOLLOW_TOP_SHARE = 0.25
 // Same width as Wear's edge swipe-to-dismiss zone.
 private val BACK_EDGE = 30.dp
-private val CLUJ_CENTER = LatLng(46.7712, 23.6236)
+// Cluj's, until the server's list first loads.
+private val DEFAULT_CENTER = LatLng(46.7712, 23.6236)
 
 private var started = false
 
@@ -180,7 +182,8 @@ fun TransitMap(
 
     val host = remember {
         startMapLibre(context)
-        val start = camera.position ?: CameraPosition.Builder().target(CLUJ_CENTER).zoom(11.0).build()
+        val center = Cities.info()?.let { LatLng(it.lat, it.lon) } ?: DEFAULT_CENTER
+        val start = camera.position ?: CameraPosition.Builder().target(center).zoom(11.0).build()
         val options = MapLibreMapOptions.createFromAttributes(context)
             .camera(start)
             .minZoomPreference(MIN_ZOOM)
@@ -218,7 +221,7 @@ fun TransitMap(
 
     DisposableEffect(host) {
         host.map.getMapAsync { map ->
-            map.setLatLngBoundsForCameraTarget(LatLngBounds.from(47.5, 24.27, 46.38, 22.75))
+            map.setLatLngBoundsForCameraTarget(Cities.info()?.bounds?.let { LatLngBounds.from(it.north, it.east, it.south, it.west) })
             map.setStyle(Style.Builder().fromJson(darkStyle(context))) { style ->
                 val created = MapSession(context, map, style) { currentOnFollowLost?.invoke() }
                 map.addOnMapClickListener { latLng ->

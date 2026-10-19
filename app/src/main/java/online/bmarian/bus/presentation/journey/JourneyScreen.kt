@@ -186,7 +186,7 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
     val me = withHeading(phoneFix ?: watchFix(needed = phoneFix == null))
     val leg = plan.legs.getOrNull(sync.legIndex) ?: plan.legs.last()
     val vehicles by produceState(emptyList<Vehicle>(), leg) {
-        LiveStream.live(emptyList(), leg.tripIds).collect { value = it.vehiclesByTrip.values.flatten() }
+        LiveStream.live(emptyList(), leg.tripIds, plan.city).collect { value = it.vehiclesByTrip.values.flatten() }
     }
     val lines = remember(plan, sync.legIndex) {
         buildList {

@@ -21,6 +21,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import online.bmarian.bus.R
 import online.bmarian.bus.data.Api
+import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.UserLocation
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.justNotify
@@ -78,12 +79,13 @@ object Reminders {
     }
 
     fun forBus(stopId: Int, routeId: Int, tripId: String) =
-        all.value.firstOrNull { it.followed.stopId == stopId && it.followed.routeId == routeId && it.followed.tripId == tripId }
+        all.value.firstOrNull { it.followed.city == Cities.current.value && it.followed.stopId == stopId && it.followed.routeId == routeId && it.followed.tripId == tripId }
 
     /** At the stop, or too late to walk there, the bus is followed now; otherwise the user is reminded when to leave for it. */
     suspend fun remind(context: Context, followed: Followed, lat: Double, lon: Double, minutes: Int) {
-        val fix = withTimeoutOrNull(LOCATE_MS) { UserLocation.updates(context).filterNotNull().first() }?.also { UserLocation.save(context, it) }
-            ?: UserLocation.recent(context)
+        val city = followed.city
+        val fix = withTimeoutOrNull(LOCATE_MS) { UserLocation.updates(context, city = city).filterNotNull().first() }?.also { UserLocation.save(context, it) }
+            ?: UserLocation.recent(context, city)
         val walk = fix?.let { walkMinutes(it.lat, it.lon, lat, lon) }
         if (justNotify(walk, minutes)) return FollowManager.start(context, followed)
         val reminder = Reminder(UUID.randomUUID().toString(), followed, lat, lon, System.currentTimeMillis() + minutes * 60_000L)
@@ -118,7 +120,7 @@ object Reminders {
         val reminder = all.value.firstOrNull { it.id == id && it.leaveAt == null } ?: return
         val now = System.currentTimeMillis()
         if (reminder.atMs < now - MISSED_MS) return remove(context, id)
-        val walk = UserLocation.recent(context)?.let { walkMinutes(it.lat, it.lon, reminder.lat, reminder.lon) }
+        val walk = UserLocation.recent(context, reminder.followed.city)?.let { walkMinutes(it.lat, it.lon, reminder.lat, reminder.lon) }
         val wakeAt = tellAt(reminder.atMs, walk)
         if (wakeAt > now + REARM_SLACK_MS) return schedule(context, wakeAt, pending(context, id, ReminderReceiver.ACTION_FIRE))
         val leaveAt = reminder.atMs - leadMinutes(walk) * 60_000L

@@ -32,14 +32,15 @@ object UserLocation {
 
     private fun prefs(context: Context) = context.getSharedPreferences("location", Context.MODE_PRIVATE)
 
-    fun saved(context: Context): Fix? {
+    /** Null away from [city]; a null [city] takes anywhere. */
+    fun saved(context: Context, city: String? = Cities.current.value): Fix? {
         val prefs = prefs(context)
         if (!prefs.contains("lat")) return null
         return Fix(
             Double.fromBits(prefs.getLong("lat", 0)),
             Double.fromBits(prefs.getLong("lon", 0)),
             prefs.getFloat("accuracy", 0f),
-        )
+        ).takeIf { city == null || Cities.contains(it.lat, it.lon, city) }
     }
 
     fun save(context: Context, fix: Fix) {
@@ -52,14 +53,12 @@ object UserLocation {
     }
 
     /** The saved fix while it's fresh. */
-    fun recent(context: Context): Fix? =
-        saved(context)?.takeIf { permitted(context) && System.currentTimeMillis() - prefs(context).getLong("at", 0) <= RECENT_MS }
-
-    private fun inClujCounty(location: Location) =
-        location.latitude in 46.38..47.50 && location.longitude in 22.75..24.27
+    fun recent(context: Context, city: String? = Cities.current.value): Fix? =
+        saved(context, city)?.takeIf { permitted(context) && System.currentTimeMillis() - prefs(context).getLong("at", 0) <= RECENT_MS }
 
     @SuppressLint("MissingPermission")
-    fun updates(context: Context, intervalMs: Long = UPDATE_MS): Flow<Fix?> = callbackFlow {
+    /** Null away from [city]: nothing there is near the person. */
+    fun updates(context: Context, intervalMs: Long = UPDATE_MS, city: String = Cities.current.value): Flow<Fix?> = callbackFlow {
         if (!permitted(context)) {
             send(null)
             awaitClose {}
@@ -67,7 +66,10 @@ object UserLocation {
         }
         val client = LocationServices.getFusedLocationProviderClient(context)
         fun offer(location: Location?) {
-            trySend(location?.takeIf(::inClujCounty)?.let { Fix(it.latitude, it.longitude, it.accuracy, it.bearing.takeIf { _ -> it.hasBearing() }) })
+            trySend(
+                location?.takeIf { Cities.contains(it.latitude, it.longitude, city) }
+                    ?.let { Fix(it.latitude, it.longitude, it.accuracy, it.bearing.takeIf { _ -> it.hasBearing() }) },
+            )
         }
         client.lastLocation.addOnSuccessListener { if (it != null) offer(it) }
         val callback = object : LocationCallback() {

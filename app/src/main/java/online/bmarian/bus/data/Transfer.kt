@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import online.bmarian.bus.data.Cities
 import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.Cipher
@@ -38,13 +39,21 @@ object Transfer {
 
     data class Summary(val stops: Int, val lines: Int)
 
+    /** Each city's favorites; an export without cities is Cluj's. */
+    fun favoritesByCity(export: JsonObject): Map<String, JsonObject> {
+        val cities = export["cities"] as? JsonObject
+            ?: return mapOf(Cities.DEFAULT to (export["favorites"] as? JsonObject ?: JsonObject(emptyMap())))
+        return cities.filter { (slug, entry) -> Cities.known(slug) && entry is JsonObject }
+            .mapValues { ((it.value as JsonObject)["favorites"] as? JsonObject) ?: JsonObject(emptyMap()) }
+    }
+
     fun describe(data: JsonElement): Summary? {
         val export = data as? JsonObject ?: return null
-        val favorites = export["favorites"] as? JsonObject
-        if (favorites == null && export["settings"] !is JsonObject) return null
+        if (export["favorites"] !is JsonObject && export["settings"] !is JsonObject) return null
+        val all = favoritesByCity(export).values
         return Summary(
-            stops = Favorites.parseStopIds(favorites?.get("stops")).size,
-            lines = Favorites.parseFavoriteRoutes(favorites?.get("routes")).size,
+            stops = all.sumOf { Favorites.parseStopIds(it["stops"]).size },
+            lines = all.sumOf { Favorites.parseFavoriteRoutes(it["routes"]).size },
         )
     }
 

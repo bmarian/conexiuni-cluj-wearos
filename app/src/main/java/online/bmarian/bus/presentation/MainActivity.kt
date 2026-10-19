@@ -14,7 +14,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
@@ -35,7 +37,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import online.bmarian.bus.Links
+import online.bmarian.bus.Services
 import online.bmarian.bus.data.Api
+import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.directionFromTripId
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.FollowState
@@ -73,7 +77,7 @@ const val EXTRA_FOLLOW = "follow"
 class MainActivity : ComponentActivity() {
     // A follow's id, or "" for the latest.
     private val openFollowed = MutableStateFlow<String?>(null)
-    private val openLink = MutableStateFlow<String?>(null)
+    private val openLink = MutableStateFlow<Links.Destination?>(null)
     private val ambient = MutableStateFlow(false)
 
     private val ambientObserver = AmbientLifecycleObserver(
@@ -123,7 +127,7 @@ class MainActivity : ComponentActivity() {
         val link = intent?.data ?: intent?.getStringExtra(EXTRA_LINK)?.toUri()
         when (link?.takeIf { it.scheme == Links.SCHEME }?.pathSegments?.firstOrNull()) {
             Links.FOLLOWING -> openFollowed.value = ""
-            Links.JOURNEY -> openLink.value = "journey"
+            Links.JOURNEY -> openLink.value = Links.Destination(null, "journey")
             else -> link?.let(Links::destination)?.let { openLink.value = it }
         }
     }
@@ -132,7 +136,7 @@ class MainActivity : ComponentActivity() {
 private const val DEPARTURE_ROUTE = "departure/{stopId}/{routeId}/{tripId}"
 
 @Composable
-private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableStateFlow<String?>) {
+private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableStateFlow<Links.Destination?>) {
     val navController = rememberSwipeDismissableNavController()
     val homeState = rememberTransformingLazyColumnState()
     val scope = rememberCoroutineScope()
@@ -142,6 +146,21 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
     val journey by JourneyMirror.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var setup by remember { mutableStateOf(Setup.firstRun(context)) }
+
+    // The screens on the stack belong to this city.
+    val city by Cities.current.collectAsStateWithLifecycle()
+    var stackCity by rememberSaveable { mutableStateOf(city) }
+    LaunchedEffect(city) {
+        if (city == stackCity) return@LaunchedEffect
+        navController.popBackStack("home", inclusive = false)
+        stackCity = city
+    }
+    // Opens once the stack has moved to [target]'s city.
+    suspend fun inCity(target: String?) {
+        if (target == null || !Cities.known(target)) return
+        Services.showCity(target)
+        snapshotFlow { stackCity }.first { it == target }
+    }
     fun askForNotifications() {
         if (setup.isEmpty() && !Setup.notificationsAllowed(context)) setup = listOf(SetupStep.Notifications)
     }
@@ -158,6 +177,7 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
         val follow = withTimeoutOrNull(10_000) {
             FollowManager.follows.map { list -> if (wanted.isEmpty()) list.lastOrNull() else list.firstOrNull { it.id == wanted } }.filterNotNull().first()
         } ?: return@LaunchedEffect
+        inCity(follow.followed.city)
         val here = navController.currentBackStackEntry
         askForNotifications()
         if (here?.destination?.route == DEPARTURE_ROUTE && here.arguments?.getString("tripId") == follow.followed.tripId) return@LaunchedEffect
@@ -166,8 +186,10 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
     }
 
     LaunchedEffect(linked) {
-        val route = linked ?: return@LaunchedEffect
+        val link = linked ?: return@LaunchedEffect
         openLink.value = null
+        inCity(link.city)
+        val route = link.route
         val here = navController.currentBackStackEntry?.destination?.route
         if (route == "journey") askForNotifications()
         if (route == "journey" && (here == "journey" || here == "journeyMap")) return@LaunchedEffect

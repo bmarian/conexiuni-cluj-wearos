@@ -6,16 +6,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import online.bmarian.bus.logic.ScheduleDays
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 
 private const val SHAPE_TTL_MS = 3 * 24 * 60 * 60_000L
 
-class Repository(context: Context) {
-    private val shapeDir = File(context.filesDir, "shapes").apply { mkdirs() }
+/** The current city's lists for the screens; any city's data for what runs in the background. */
+class Repository(private val context: Context) {
+    private val shapeRoot = File(context.filesDir, "shapes")
+    private val stores = HashMap<String, NetworkStore>()
 
-    val network = NetworkStore(context)
+    @Volatile var city: String = Cities.current.value
+        private set
 
     private val _routes = MutableStateFlow<List<Route>>(emptyList())
     val routes: StateFlow<List<Route>> = _routes
@@ -24,23 +28,49 @@ class Repository(context: Context) {
 
     private val shapeCache = LruCache<String, List<ShapePoint>>(24)
 
-    suspend fun loadCached() {
-        network.load()
-        network.index.value?.let(::useLists)
+    init {
+        // Shapes saved before cities lay loose in the folder.
+        shapeRoot.listFiles { file -> file.isFile }?.forEach { it.delete() }
     }
 
-    suspend fun refreshNetwork(now: Boolean = false): Boolean {
-        val ok = network.refresh(now)
-        network.index.value?.let(::useLists)
+    fun store(city: String): NetworkStore = synchronized(stores) { stores.getOrPut(city) { NetworkStore(context, city) } }
+
+    val network: NetworkStore get() = store(city)
+
+    /** Shows [slug]'s lists; its saved bundle loads with the next [loadCached]. */
+    fun use(slug: String) {
+        if (slug == city) return
+        city = slug
+        _routes.value = emptyList()
+        _stops.value = emptyList()
+        store(slug).index.value?.let(::useLists)
+    }
+
+    suspend fun loadCached(city: String = this.city) {
+        store(city).load()
+        if (city == this.city) network.index.value?.let(::useLists)
+    }
+
+    suspend fun refreshNetwork(now: Boolean = false, city: String = this.city): Boolean {
+        val ok = store(city).refresh(now)
+        if (city == this.city) network.index.value?.let(::useLists)
         return ok
     }
 
     private fun useLists(index: NetworkIndex) {
+        ScheduleDays.use(index.calendar)
         if (index.routes.isNotEmpty() && _routes.value != index.routes) _routes.value = index.routes
         if (index.stops.isNotEmpty() && _stops.value != index.stops) _stops.value = index.stops
     }
 
     private fun nowMs() = System.currentTimeMillis()
+
+    /** [city]'s bundle, fetched when it has none yet. */
+    private suspend fun index(city: String, refresh: Boolean): NetworkIndex? {
+        loadCached(city)
+        if (refresh) refreshNetwork(now = true, city = city)
+        return store(city).index.value
+    }
 
     suspend fun route(routeId: Int): Route? {
         loadCached()
@@ -49,12 +79,11 @@ class Repository(context: Context) {
         return _routes.value.find { it.routeId == routeId }
     }
 
-    fun cachedStopInfo(stopId: Int): StopInfo? = network.index.value?.stopInfo(stopId, nowMs())
+    fun cachedStopInfo(stopId: Int, city: String = this.city): StopInfo? = store(city).index.value?.stopInfo(stopId, nowMs())
 
-    suspend fun stopInfo(stopId: Int): StopInfo {
-        cachedStopInfo(stopId)?.let { return it }
-        refreshNetwork(now = true)
-        return cachedStopInfo(stopId) ?: throw IOException("no network data for stop $stopId")
+    suspend fun stopInfo(stopId: Int, city: String = this.city): StopInfo {
+        index(city, refresh = false)?.stopInfo(stopId, nowMs())?.let { return it }
+        return index(city, refresh = true)?.stopInfo(stopId, nowMs()) ?: throw IOException("no network data for stop $stopId")
     }
 
     fun cachedShapeInfo(route: Route): ShapeInfo? = network.index.value?.shapeInfo(route, nowMs())
@@ -67,20 +96,21 @@ class Repository(context: Context) {
 
     private class SavedShape(val hash: String, val points: List<ShapePoint>, val savedAt: Long)
 
-    suspend fun shapes(tripIds: List<String>): Map<String, List<ShapePoint>> {
+    suspend fun shapes(tripIds: List<String>, city: String = this.city): Map<String, List<ShapePoint>> {
         val ids = tripIds.distinct().sorted()
-        val index = network.index.value
+        val index = store(city).index.value
+        val dir = File(shapeRoot, city)
         val result = HashMap<String, List<ShapePoint>>()
         val stale = HashMap<String, List<ShapePoint>>()
         val missing = withContext(Dispatchers.IO) {
             ids.filter { id ->
                 val wanted = index?.shapeHash(id)
-                shapeCache.get("$id@$wanted")?.let { result[id] = it; return@filter false }
-                val saved = readShape(id)
+                shapeCache.get("$city/$id@$wanted")?.let { result[id] = it; return@filter false }
+                val saved = readShape(dir, id)
                 val good = saved != null &&
                     if (wanted != null) saved.hash == wanted else nowMs() - saved.savedAt < SHAPE_TTL_MS
                 if (good) {
-                    shapeCache.put("$id@$wanted", saved!!.points)
+                    shapeCache.put("$city/$id@$wanted", saved!!.points)
                     result[id] = saved.points
                     false
                 } else {
@@ -91,19 +121,20 @@ class Repository(context: Context) {
         }
         if (missing.isEmpty()) return result
         val encoded = try {
-            Api.shapePolylines(missing)
+            Api.shapePolylines(missing, city)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException || stale.isEmpty()) throw e
             result.putAll(stale)
             return result
         }
         withContext(Dispatchers.IO) {
+            dir.mkdirs()
             for (id in missing) {
                 val polyline = encoded[id].orEmpty()
                 val shape = decodeShape(id, polyline)
                 if (shape.isNotEmpty()) {
-                    shapeCache.put("$id@${index?.shapeHash(id)}", shape)
-                    runCatching { shapeFile(id).writeText(shapeHash(polyline) + "\n" + polyline) }
+                    shapeCache.put("$city/$id@${index?.shapeHash(id)}", shape)
+                    runCatching { shapeFile(dir, id).writeText(shapeHash(polyline) + "\n" + polyline) }
                 }
                 result[id] = shape
             }
@@ -111,8 +142,8 @@ class Repository(context: Context) {
         return result
     }
 
-    private fun readShape(tripId: String): SavedShape? {
-        val file = shapeFile(tripId)
+    private fun readShape(dir: File, tripId: String): SavedShape? {
+        val file = shapeFile(dir, tripId)
         if (!file.exists()) return null
         val lines = runCatching { file.readLines() }.getOrNull() ?: return null
         val points = decodeShape(tripId, lines.getOrNull(1).orEmpty()).takeIf { it.isNotEmpty() } ?: return null
@@ -122,7 +153,7 @@ class Repository(context: Context) {
     private fun decodeShape(tripId: String, polyline: String): List<ShapePoint> =
         decodePolyline(polyline, precision = 6).mapIndexed { i, (lat, lon) -> ShapePoint(tripId, lat, lon, i) }
 
-    private fun shapeFile(tripId: String) = File(shapeDir, "${tripId.filter { it.isLetterOrDigit() || it == '_' }}.poly")
+    private fun shapeFile(dir: File, tripId: String) = File(dir, "${tripId.filter { it.isLetterOrDigit() || it == '_' }}.poly")
 }
 
 fun shapeHash(polyline: String): String =

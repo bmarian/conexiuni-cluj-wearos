@@ -2,7 +2,7 @@
 
     <string name="favorite_stops">Favorite stops</string>
     <string name="favorite_routes">Favorite lines</string>
-    <string name="no_favorites">No favorites yet. Tap the heart on a line or stop to save it.</string>
+    <string name="no_favorites">No favorites yet. Save a stop or a line to see it here.</string>
     <string name="all_routes">All lines</string>
     <string name="all_stops">All stops</string>
     <string name="copy_favorites">Copy favorites</string>

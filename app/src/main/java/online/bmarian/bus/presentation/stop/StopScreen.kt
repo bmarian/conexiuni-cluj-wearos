@@ -57,6 +57,7 @@ import androidx.wear.compose.material3.TitleCard
 import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
+import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.directionFromTripId
 import kotlinx.coroutines.launch
 import online.bmarian.bus.follow.FollowManager
@@ -212,13 +213,13 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
     val direction = directionFromTripId(tripId)
     val reminders by Reminders.all.collectAsStateWithLifecycle()
     val following = follows.firstOrNull { it.matches(vm.stopId, routeId, tripId) }
-    val reminder = reminders.firstOrNull { it.followed.stopId == vm.stopId && it.followed.routeId == routeId && it.followed.tripId == tripId }
+    val reminder = reminders.firstOrNull { it.followed.city == Cities.current.value && it.followed.stopId == vm.stopId && it.followed.routeId == routeId && it.followed.tripId == tripId }
     val isFollowing = following != null || reminder != null
     val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
 
     fun follow() {
         val d = departure ?: return
-        val followed = Followed(vm.stopId, name.orEmpty(), routeId, tripId, d.shortName, d.color, d.destination())
+        val followed = Followed(vm.stopId, name.orEmpty(), routeId, tripId, d.shortName, d.color, d.destination(), Cities.current.value)
         val stop = Services.repository.cachedStopInfo(vm.stopId) ?: return FollowManager.start(context, followed)
         val minutes = d.nextTimes.firstOrNull()?.minutes ?: d.minutesLeft
         val app = context.applicationContext

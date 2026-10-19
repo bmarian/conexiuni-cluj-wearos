@@ -120,20 +120,20 @@ object LiveStream {
     }
 
     /** One reading of the rows and vehicles, for surfaces that cannot hold a stream open. */
-    suspend fun once(stopIds: List<Int>, tripIds: List<String>): LiveState? {
+    suspend fun once(stopIds: List<Int>, tripIds: List<String>, city: String = Cities.current.value): LiveState? {
         val q = query(stopIds, tripIds)
         if (q.isEmpty()) return null
-        val snapshot = runCatching { Api.getFresh<LiveSnapshot>("live?$q&once=1") }.getOrNull() ?: return null
+        val snapshot = runCatching { Api.getFresh<LiveSnapshot>("live?$q&once=1", city) }.getOrNull() ?: return null
         return LiveMerge().apply(snapshot)
     }
 
-    fun live(stopIds: List<Int>, tripIds: List<String>): Flow<LiveState> = flow {
+    fun live(stopIds: List<Int>, tripIds: List<String>, city: String = Cities.current.value): Flow<LiveState> = flow {
         val q = query(stopIds, tripIds)
         if (q.isEmpty()) return@flow
         var backoff = 2_000L
         while (true) {
             try {
-                connection(q).collect {
+                connection(q, city).collect {
                     emit(it)
                     backoff = 2_000L
                 }
@@ -146,8 +146,8 @@ object LiveStream {
         }
     }
 
-    private fun connection(q: String): Flow<LiveState> = callbackFlow {
-        val request = Request.Builder().url(Api.url("live?$q")).header("Accept", "text/event-stream").build()
+    private fun connection(q: String, city: String): Flow<LiveState> = callbackFlow {
+        val request = Request.Builder().url(Api.url("live?$q", city)).header("Accept", "text/event-stream").build()
         val merge = LiveMerge()
         val source = EventSources.createFactory(client).newEventSource(request, object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {

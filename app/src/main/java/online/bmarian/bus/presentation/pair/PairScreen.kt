@@ -129,7 +129,7 @@ class PairViewModel : ViewModel() {
     fun accept(context: Context) {
         val data = received as? JsonObject
         if (state.value != PairState.Review || data == null) return
-        Services.favorites.import(data["favorites"] as? JsonObject ?: JsonObject(emptyMap()))
+        for ((city, favorites) in Transfer.favoritesByCity(data)) Services.favorites.import(favorites, city)
         state.value = PairState.Done
         context.getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createOneShot(60, VibrationEffect.DEFAULT_AMPLITUDE))
         Transfer.localeOf(data)?.let { Services.setLanguage(context, it) }
