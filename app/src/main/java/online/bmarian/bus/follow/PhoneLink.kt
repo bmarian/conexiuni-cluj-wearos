@@ -30,6 +30,7 @@ import online.bmarian.bus.BuildConfig
 import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.data.Api
+import online.bmarian.bus.data.CitySync
 import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.data.LanguageSync
 import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
@@ -110,7 +111,7 @@ object PhoneLink {
         val app = context.applicationContext
         val helper = RemoteActivityHelper(app, Dispatchers.Default.asExecutor())
         fun view(uri: Uri) = Intent(Intent.ACTION_VIEW).addCategory(Intent.CATEGORY_BROWSABLE).setData(uri)
-        val sent = peers(app).count { node -> runCatching { helper.startRemoteActivity(view(Links.app(path)), node.id).await() }.isSuccess }
+        val sent = peers(app).count { node -> runCatching { helper.startRemoteActivity(view(Links.phone(path)), node.id).await() }.isSuccess }
         if (sent > 0) return true
         return runCatching { helper.startRemoteActivity(view(Links.web(path))).await() }.isSuccess
     }
@@ -124,6 +125,7 @@ class PhoneListener : WearableListenerService() {
     override fun onDataChanged(events: DataEventBuffer) {
         FavoritesSync.onDataChanged(applicationContext, events)
         LanguageSync.onDataChanged(applicationContext, events)
+        CitySync.onDataChanged(applicationContext, events)
     }
 }
 

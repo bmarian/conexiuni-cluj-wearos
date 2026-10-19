@@ -1,6 +1,7 @@
 package online.bmarian.bus.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,37 +16,46 @@ import kotlinx.serialization.json.intOrNull
 @Serializable
 data class FavoriteRoute(val routeId: Int, val direction: String)
 
-// Same keys as the website's localStorage.
+// Same keys as the website's localStorage; one file per city.
 class Favorites(
-    context: Context,
-    private val onChange: (stops: List<Int>, routes: List<FavoriteRoute>, updatedAt: Long) -> Unit = { _, _, _ -> },
+    private val context: Context,
+    private val onChange: (city: String, stops: List<Int>, routes: List<FavoriteRoute>, updatedAt: Long) -> Unit = { _, _, _, _ -> },
 ) {
-    private val prefs = context.getSharedPreferences("favorites", Context.MODE_PRIVATE)
+    var city = Cities.current.value
+        private set
+    private var prefs = cityPrefs(context, "favorites", city)
 
-    private val _routes = MutableStateFlow(parseFavoriteRoutes(read("routes")))
+    private val _routes = MutableStateFlow(parseFavoriteRoutes(read(prefs, "routes")))
     val routes: StateFlow<List<FavoriteRoute>> = _routes
-    private val _stops = MutableStateFlow(parseStopIds(read("stops")))
+    private val _stops = MutableStateFlow(parseStopIds(read(prefs, "stops")))
     val stops: StateFlow<List<Int>> = _stops
 
-    private fun read(key: String): JsonElement? =
+    private fun read(prefs: SharedPreferences, key: String): JsonElement? =
         prefs.getString(key, null)?.let { runCatching { Api.json.parseToJsonElement(it) }.getOrNull() }
 
-    private var syncedAt: Long
-        get() = prefs.getLong("syncedAt", 0)
-        set(value) = prefs.edit { putLong("syncedAt", value) }
+    private fun prefsOf(city: String) = if (city == this.city) prefs else cityPrefs(context, "favorites", city)
 
-    private fun persist() {
+    @Synchronized
+    fun use(slug: String) {
+        if (slug == city) return
+        city = slug
+        prefs = cityPrefs(context, "favorites", slug)
+        _routes.value = parseFavoriteRoutes(read(prefs, "routes"))
+        _stops.value = parseStopIds(read(prefs, "stops"))
+    }
+
+    private fun write(prefs: SharedPreferences, stops: List<Int>, routes: List<FavoriteRoute>, syncedAt: Long) {
         prefs.edit {
-            putString("routes", Api.json.encodeToString(_routes.value))
-            putString("stops", Api.json.encodeToString(_stops.value))
+            putString("routes", Api.json.encodeToString(routes))
+            putString("stops", Api.json.encodeToString(stops))
+            putLong("syncedAt", syncedAt)
         }
     }
 
     private fun changed() {
-        persist()
         val now = System.currentTimeMillis()
-        syncedAt = now
-        onChange(_stops.value, _routes.value, now)
+        write(prefs, _stops.value, _routes.value, now)
+        onChange(city, _stops.value, _routes.value, now)
     }
 
     fun isStopFavorite(stopId: Int) = stopId in _stops.value
@@ -67,19 +77,26 @@ class Favorites(
     }
 
     @Synchronized
-    fun import(favorites: JsonObject) {
-        _routes.value = parseFavoriteRoutes(favorites["routes"])
-        _stops.value = parseStopIds(favorites["stops"])
-        changed()
+    fun import(favorites: JsonObject, city: String) {
+        val routes = parseFavoriteRoutes(favorites["routes"])
+        val stops = parseStopIds(favorites["stops"])
+        val now = System.currentTimeMillis()
+        write(prefsOf(city), stops, routes, now)
+        if (city == this.city) {
+            _routes.value = routes
+            _stops.value = stops
+        }
+        onChange(city, stops, routes, now)
     }
 
     @Synchronized
-    fun takeRemote(stops: List<Int>, routes: List<FavoriteRoute>, updatedAt: Long) {
-        if (updatedAt <= syncedAt) return
+    fun takeRemote(city: String, stops: List<Int>, routes: List<FavoriteRoute>, updatedAt: Long) {
+        val prefs = prefsOf(city)
+        if (updatedAt <= prefs.getLong("syncedAt", 0)) return
+        write(prefs, stops, routes, updatedAt)
+        if (city != this.city) return
         _stops.value = stops
         _routes.value = routes
-        persist()
-        syncedAt = updatedAt
     }
 
     companion object {

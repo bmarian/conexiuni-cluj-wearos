@@ -150,11 +150,20 @@ class NetworkIndex(val bundle: NetworkBundle) {
 private const val MAX_AGE_MS = 12 * 60 * 60_000L
 private const val CHECK_EVERY_MS = 15 * 60_000L
 
-class NetworkStore(context: Context) {
-    private val file = File(context.filesDir, "network.json")
-    private val prefs = context.getSharedPreferences("network", Context.MODE_PRIVATE)
+class NetworkStore(context: Context, val city: String) {
+    private val file = File(context.filesDir, "network/$city.json")
+    private val prefs = cityPrefs(context, "network", city)
     private val mutex = Mutex()
     private var lastCheck = 0L
+
+    init {
+        // Saved before cities, under one name.
+        val old = File(context.filesDir, "network.json")
+        if (city == Cities.DEFAULT && old.exists()) {
+            file.parentFile?.mkdirs()
+            if (file.exists()) old.delete() else old.renameTo(file)
+        }
+    }
 
     private val _index = MutableStateFlow<NetworkIndex?>(null)
     val index: StateFlow<NetworkIndex?> = _index
@@ -162,12 +171,7 @@ class NetworkStore(context: Context) {
     suspend fun load() = mutex.withLock {
         if (_index.value != null || !file.exists()) return@withLock
         val text = withContext(Dispatchers.IO) { runCatching { file.readText() }.getOrNull() } ?: return@withLock
-        parse(text)?.let(::publish)
-    }
-
-    private fun publish(index: NetworkIndex) {
-        _index.value = index
-        ScheduleDays.use(index.calendar)
+        parse(text)?.let { _index.value = it }
     }
 
     private suspend fun parse(text: String): NetworkIndex? = withContext(Dispatchers.Default) {
@@ -180,7 +184,7 @@ class NetworkStore(context: Context) {
         if (!now && at - lastCheck < CHECK_EVERY_MS) return@withLock true
         lastCheck = at
         runCatching {
-            val latest = Api.networkVersion()
+            val latest = Api.networkVersion(city)
             val have = _index.value
             val fresh = have != null && prefs.getString("static_version", null) == latest.staticVersion &&
                 at - prefs.getLong("fetched_at", 0) < MAX_AGE_MS
@@ -189,14 +193,15 @@ class NetworkStore(context: Context) {
                 prefs.edit { putLong("fetched_at", at) }
                 return@runCatching
             }
-            val text = Api.networkText()
+            val text = Api.networkText(city)
             val fetched = parse(text) ?: return@runCatching
             withContext(Dispatchers.IO) {
-                val tmp = File(file.parentFile, "network.json.tmp")
+                file.parentFile?.mkdirs()
+                val tmp = File(file.parentFile, "$city.json.tmp")
                 tmp.writeText(text)
                 tmp.renameTo(file)
             }
-            publish(fetched)
+            _index.value = fetched
             prefs.edit {
                 putString("static_version", fetched.bundle.staticVersion)
                 putLong("fetched_at", at)

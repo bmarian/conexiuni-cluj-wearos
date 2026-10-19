@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.Serializable
 import online.bmarian.bus.data.Api
+import online.bmarian.bus.data.Cities
 import java.util.UUID
 import kotlin.math.roundToInt
 
@@ -21,6 +22,8 @@ data class Followed(
     val shortName: String,
     val color: String,
     val destination: String,
+    // Started before cities: Cluj.
+    val city: String = Cities.DEFAULT,
 )
 
 /** Wire format shared with the phone app. */
@@ -59,8 +62,8 @@ data class FollowState(
     fun toSync(end: String? = null) =
         FollowSync(id, followed, minutes, live, later, arrivalAt, end, leaveAt = leaveAt, walkMinutes = walkMinutes, leaveBy = leaveBy)
 
-    fun matches(stopId: Int, routeId: Int, tripId: String) =
-        followed.stopId == stopId && followed.routeId == routeId && followed.tripId == tripId
+    fun matches(stopId: Int, routeId: Int, tripId: String, city: String = Cities.current.value) =
+        followed.city == city && followed.stopId == stopId && followed.routeId == routeId && followed.tripId == tripId
 
     /** Minutes until it's time to set off, rounded like the phone's. */
     fun leaveIn(nowMs: Long = System.currentTimeMillis()): Int? = leaveAt?.let { ((it - nowMs) / 60_000.0).roundToInt().coerceAtLeast(0) }

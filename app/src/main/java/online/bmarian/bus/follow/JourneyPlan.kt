@@ -1,6 +1,7 @@
 package online.bmarian.bus.follow
 
 import kotlinx.serialization.Serializable
+import online.bmarian.bus.data.Cities
 
 // The phone's JSON; only what the watch draws is read.
 
@@ -29,6 +30,8 @@ data class Journey(
     val destination: JourneyStop,
     val legs: List<JourneyLeg>,
     val walks: List<List<JourneyPoint>> = emptyList(),
+    // Planned before cities: Cluj.
+    val city: String = Cities.DEFAULT,
 )
 
 object StepType {

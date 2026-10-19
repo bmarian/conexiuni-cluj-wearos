@@ -34,6 +34,26 @@ class ProtocolTest {
     }
 
     @Test
+    fun eachCityHasItsOwnFavoritesItem() {
+        assertEquals("/sync/favorites", FavoritesSync.path("cluj"))
+        assertEquals("/sync/favorites/iasi", FavoritesSync.path("iasi"))
+        assertEquals("cluj", FavoritesSync.cityOf("/sync/favorites"))
+        assertEquals("iasi", FavoritesSync.cityOf("/sync/favorites/iasi"))
+        assertNull(FavoritesSync.cityOf("/sync/language"))
+        assertNull(FavoritesSync.cityOf("/sync/favorites/Not a city"))
+    }
+
+    @Test
+    fun aFollowKnowsItsCity() {
+        val followed = """{"stopId":2,"stopName":"B","routeId":57,"tripId":"57_0","shortName":"57","color":"#ff0000","destination":"Somewhere""""
+        val iasi = Api.json.decodeFromString<FollowSync>("""{"id":"f1","followed":$followed,"city":"iasi"}}""")
+        assertEquals("iasi", iasi.followed.city)
+        // From a phone that knows only Cluj.
+        val older = Api.json.decodeFromString<FollowSync>("""{"id":"f1","followed":$followed}}""")
+        assertEquals("cluj", older.followed.city)
+    }
+
+    @Test
     fun journeyFromThePhone() {
         val step = Api.json.decodeFromString<JourneySync>(
             """{"id":"j1","title":"Iulius Mall","step":"Walk to Tribunal","detail":"45 or 44 in 6 min","line":"45",""" +

@@ -3,7 +3,7 @@
 
     <string name="favorite_stops">Stații preferate</string>
     <string name="favorite_routes">Linii preferate</string>
-    <string name="no_favorites">Nu ai preferate încă. Apasă inima la o linie sau stație ca s-o salvezi.</string>
+    <string name="no_favorites">Nu ai preferate încă. Salvează o stație sau o linie ca să apară aici.</string>
     <string name="all_routes">Toate liniile</string>
     <string name="all_stops">Toate stațiile</string>
     <string name="copy_favorites">Copiază preferatele</string>

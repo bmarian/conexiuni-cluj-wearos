@@ -53,6 +53,7 @@ import online.bmarian.bus.Links
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import online.bmarian.bus.R
+import online.bmarian.bus.data.Cities
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import online.bmarian.bus.follow.FollowManager
@@ -293,7 +294,7 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
     val reminders by Reminders.all.collectAsStateWithLifecycle()
     val following = atStop?.let { (stop, _) -> follows.firstOrNull { it.matches(stop.stop.stopId, vm.routeId, tripId) } }
     val reminder = atStop?.let { (stop, _) ->
-        reminders.firstOrNull { it.followed.stopId == stop.stop.stopId && it.followed.routeId == vm.routeId && it.followed.tripId == tripId }
+        reminders.firstOrNull { it.followed.city == Cities.current.value && it.followed.stopId == stop.stop.stopId && it.followed.routeId == vm.routeId && it.followed.tripId == tripId }
     }
     val alerting = following != null || reminder != null
 
@@ -308,7 +309,7 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
     fun follow() {
         val (stop, name) = atStop ?: return
         val route = info ?: return
-        val followed = Followed(stop.stop.stopId, name, vm.routeId, tripId, route.shortName, route.color, terminal)
+        val followed = Followed(stop.stop.stopId, name, vm.routeId, tripId, route.shortName, route.color, terminal, Cities.current.value)
         val minutes = departures.firstOrNull { it >= nowMinutes }?.minus(nowMinutes) ?: return FollowManager.start(context, followed)
         val app = context.applicationContext
         Services.scope.launch { Reminders.remind(app, followed, stop.stop.lat, stop.stop.lon, minutes) }

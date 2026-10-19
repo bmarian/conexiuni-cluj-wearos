@@ -138,7 +138,7 @@ class FollowService : Service() {
     private suspend fun track(followed: Followed, id: String) = coroutineScope {
         val repository = Services.repository
         val startedAt = System.currentTimeMillis()
-        val info = MutableStateFlow(repository.cachedStopInfo(followed.stopId)?.only(followed.routeId))
+        val info = MutableStateFlow(repository.cachedStopInfo(followed.stopId, followed.city)?.only(followed.routeId))
         // Nothing is judged before the first live snapshot, so a bus the timetable still shows as due isn't taken as arrived.
         val live = MutableStateFlow<LiveState?>(null)
         val ready = MutableStateFlow(false)
@@ -146,12 +146,12 @@ class FollowService : Service() {
 
         launch {
             while (true) {
-                runCatching { info.value = repository.stopInfo(followed.stopId).only(followed.routeId) }
+                runCatching { info.value = repository.stopInfo(followed.stopId, followed.city).only(followed.routeId) }
                 delay(STOP_INFO_REFRESH_MS)
             }
         }
         launch {
-            LiveStream.live(listOf(followed.stopId), emptyList()).collect {
+            LiveStream.live(listOf(followed.stopId), emptyList(), followed.city).collect {
                 live.value = it
                 ready.value = true
             }
