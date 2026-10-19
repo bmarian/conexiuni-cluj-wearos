@@ -57,7 +57,6 @@ import online.bmarian.bus.presentation.theme.routeColor
 
 private const val SEARCH_LIMIT = 25
 
-// One stop per station.
 private fun stations(stops: List<Stop>): List<Stop> = Services.repository.network.index.value?.oneStopPerStation(stops) ?: stops
 
 private fun TransformingLazyColumnScope.stopItems(stops: List<Stop>, spec: TransformationSpec, onOpenStop: (Int) -> Unit) {

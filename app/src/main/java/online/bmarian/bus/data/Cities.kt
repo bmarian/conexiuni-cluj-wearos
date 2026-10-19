@@ -16,7 +16,6 @@ data class Bounds(val south: Double, val west: Double, val north: Double, val ea
 @Serializable
 data class Credit(val name: String = "", val url: String = "")
 
-/** One entry of /api/cities. */
 @Serializable
 data class City(
     val slug: String,
@@ -31,7 +30,6 @@ data class City(
     val credits: List<Credit> = emptyList(),
 )
 
-/** The city on screen: the phone's, else the nearest, else the last one shown. */
 object Cities {
     const val DEFAULT = "cluj"
     private val SLUG = Regex("^[a-z][a-z0-9-]*$")
@@ -53,12 +51,10 @@ object Cities {
 
     fun isSlug(text: String) = SLUG.matches(text)
 
-    /** Before the list first loads, any slug may be one. */
     fun known(slug: String) = isSlug(slug) && (_list.value.isEmpty() || _list.value.any { it.slug == slug })
 
     fun info(slug: String = current.value): City? = _list.value.firstOrNull { it.slug == slug }
 
-    /** Anywhere counts until the server knows the city's area. */
     fun contains(lat: Double, lon: Double, slug: String = current.value): Boolean = info(slug)?.bounds?.contains(lat, lon) ?: true
 
     suspend fun reload(): List<City> {
@@ -75,7 +71,6 @@ object Cities {
         return _list.value.minByOrNull { haversineMeters(fix.lat, fix.lon, it.lat, it.lon) }?.slug ?: fallback
     }
 
-    /** The phone's choice when newer than the last one taken; [at] in epoch ms. */
     fun takePhone(slug: String, at: Long): Boolean {
         if (!isSlug(slug) || at <= prefs.getLong("phoneAt", 0)) return false
         prefs.edit {
@@ -91,7 +86,6 @@ object Cities {
     }
 }
 
-/** [name]'s own file for [city]. Cluj takes over what was saved before cities, once. */
 fun cityPrefs(context: Context, name: String, city: String): SharedPreferences {
     val prefs = context.getSharedPreferences("$name.$city", Context.MODE_PRIVATE)
     if (city == Cities.DEFAULT && prefs.all.isEmpty()) {

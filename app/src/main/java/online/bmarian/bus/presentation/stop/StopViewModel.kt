@@ -49,7 +49,6 @@ class StopViewModel(val stopId: Int) : ViewModel() {
     private val live = MutableStateFlow<LiveState?>(null)
     private val clock = MutableStateFlow(System.currentTimeMillis())
 
-    /** The stop and the other platforms of its station. */
     val infos: StateFlow<List<StopInfo>> = combine(info, repository.network.index) { info, index ->
         if (info == null) return@combine emptyList()
         val nowMs = System.currentTimeMillis()
@@ -125,7 +124,6 @@ class StopViewModel(val stopId: Int) : ViewModel() {
     fun isDepartureFavorite(departure: StopDeparture) =
         Services.favorites.isRouteFavorite(departure.routeId)
 
-    // The platform the bus calls at.
     fun platformOf(departure: StopDeparture) = if (departure.stopId != 0) departure.stopId else stopId
 
     fun platform(stopId: Int): StopInfo? = infos.value.firstOrNull { it.stopId == stopId }
