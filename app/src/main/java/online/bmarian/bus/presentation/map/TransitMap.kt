@@ -119,7 +119,6 @@ private fun startMapLibre(context: Context) {
 class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false)
 class MapStop(val id: String, val lat: Double, val lon: Double, val color: Color, val selected: Boolean = false, val mode: Mode = Mode.BUS, val heart: Boolean = false)
 
-/** A station as the lists draw it: its biggest mode in that mode's colour. */
 fun stationMapStop(stopId: Int, lat: Double, lon: Double, selected: Boolean = false): MapStop {
     val look = Services.repository.network.index.value?.look(stopId)
     return MapStop("$stopId", lat, lon, look?.let { routeColor(it.color) } ?: Palette.StopGray, selected, look?.mode ?: Mode.BUS)

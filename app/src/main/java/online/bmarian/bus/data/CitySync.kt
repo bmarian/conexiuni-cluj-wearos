@@ -16,7 +16,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import online.bmarian.bus.Services
 
-/** The watch shows the phone's city. */
 object CitySync {
     const val PATH = "/sync/city"
 

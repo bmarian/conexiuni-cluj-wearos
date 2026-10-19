@@ -140,7 +140,6 @@ fun StopScreen(
     val infos by vm.infos.collectAsStateWithLifecycle()
     val index by Services.repository.network.index.collectAsStateWithLifecycle()
     val look = remember(index, vm.stopId) { index?.look(vm.stopId) }
-    // A station is a favourite when any of its platforms is.
     val favoritePlatform = (infos.map { it.stopId }.ifEmpty { listOf(vm.stopId) }).firstOrNull { it in favoriteStops }
 
     val sorted = remember(ui, favoriteRoutes) {
@@ -313,7 +312,6 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
     }
 }
 
-/** The station's icon and what kind of stop it is, above its name. */
 @Composable
 private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope.StationKind(look: StationLook?, spec: androidx.wear.compose.material3.lazy.TransformationSpec) {
     Row(
