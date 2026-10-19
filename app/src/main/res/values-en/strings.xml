@@ -31,6 +31,11 @@
     <string name="soon">soon</string>
 
     <string name="nearby_stops">Nearby stops</string>
+    <string name="stop_kind_bus">Bus stop</string>
+    <string name="stop_kind_trolleybus">Trolleybus stop</string>
+    <string name="stop_kind_tram">Tram stop</string>
+    <string name="stop_kind_metro">Metro station</string>
+    <string name="stop_kind_rail">Train station</string>
     <string name="nearby_enable">Show nearby stops</string>
     <string name="nearby_none">No stops within 700 m.</string>
     <string name="nearby_unavailable">Location is off.</string>

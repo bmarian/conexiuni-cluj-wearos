@@ -82,6 +82,8 @@ data class StopDeparture(
     val nextTimes: List<Arrival>,
     val minutesLeft: Int,
     val isStatic: Boolean,
+    // The platform it calls at, when a station has several.
+    val stopId: Int = 0,
 )
 
 /** Port of getAvailableBusesForStop. */

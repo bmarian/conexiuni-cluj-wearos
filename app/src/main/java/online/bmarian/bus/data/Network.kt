@@ -1,5 +1,9 @@
 package online.bmarian.bus.data
 
+import online.bmarian.bus.logic.Mode
+import online.bmarian.bus.logic.byModeThenNumber
+import online.bmarian.bus.logic.mainMode
+import online.bmarian.bus.logic.modeOf
 import android.content.Context
 import androidx.core.content.edit
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +72,17 @@ fun clujClock(nowMs: Long, calendar: ScheduleCalendar = ScheduleDays.current): P
 
 private fun hasEntries(t: Timetable) = t.weekdays.entries.isNotEmpty() || t.saturday.entries.isNotEmpty() || t.sunday.entries.isNotEmpty()
 
+/** What stops at a station: its biggest mode, that mode's colour, every line by mode then number. */
+class StationLook(val mode: Mode, val color: String, val routes: List<NetworkRoute>)
+
+/** The colour most of a mode's lines wear here; a tie goes to the first by number. */
+private fun modeColors(routes: List<NetworkRoute>): Map<Mode, String> =
+    routes.sortedWith(byModeThenNumber({ it.type }, { it.shortName })).groupBy { modeOf(it.type) }.mapValues { (_, lines) ->
+        val counts = LinkedHashMap<String, Int>()
+        for (line in lines) counts[line.color] = (counts[line.color] ?: 0) + 1
+        counts.maxByOrNull { it.value }!!.key
+    }
+
 class NetworkIndex(val bundle: NetworkBundle) {
     private val stopById = bundle.stops.associateBy { it.stopId }
     private val routeById = bundle.routes.associateBy { it.routeId }
@@ -77,6 +92,38 @@ class NetworkIndex(val bundle: NetworkBundle) {
     val stops: List<Stop> get() = bundle.stops
     val lateGraceMin: Double get() = maxOf(0.5, bundle.rules.lateGraceMin)
     val calendar = ScheduleCalendar(bundle.scheduleDays, bundle.dayNotes)
+
+    private val platformsByStation: Map<Int, List<Stop>> by lazy { bundle.stops.groupBy { it.station } }
+
+    private val looks: Map<Int, StationLook> by lazy {
+        val linesAt = HashMap<Int, MutableList<NetworkRoute>>()
+        for (route in bundle.routes.sortedWith(byModeThenNumber({ it.type }, { it.shortName }))) {
+            // The lines a stop page lists: those with a timetable.
+            if (route.timetable?.let(::hasEntries) != true) continue
+            route.trips.flatMap { trip -> trip.stopIds.asList().mapNotNull { stopById[it]?.station } }.toSet()
+                .forEach { linesAt.getOrPut(it) { mutableListOf() } += route }
+        }
+        val colorOf = modeColors(bundle.routes)
+        linesAt.mapValues { (_, lines) ->
+            val mode = mainMode(lines.map { it.type })
+            val colors = lines.filter { modeOf(it.type) == mode }.map { it.color }.toSet()
+            StationLook(mode, colors.singleOrNull() ?: colorOf.getValue(mode), lines)
+        }
+    }
+
+    fun look(stopId: Int): StationLook? = stopById[stopId]?.let { looks[it.station] }
+
+    /** The stop's station, the stop itself first. */
+    fun platforms(stopId: Int): List<Stop> {
+        val stop = stopById[stopId] ?: return emptyList()
+        return listOf(stop) + platformsByStation[stop.station].orEmpty().filter { it.stopId != stopId }
+    }
+
+    /** One stop per station, in the order the stations first come. */
+    fun oneStopPerStation(stops: List<Stop>): List<Stop> {
+        val seen = HashSet<Int>()
+        return stops.filter { seen.add((stopById[it.stopId] ?: it).station) }
+    }
 
     fun route(routeId: Int): NetworkRoute? = routeById[routeId]
 
