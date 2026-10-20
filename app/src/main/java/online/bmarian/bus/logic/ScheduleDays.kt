@@ -4,7 +4,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
 import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
 
 // Port of the special days in frontend/src/utils/time.ts.
@@ -40,8 +39,6 @@ fun plainScheduleDay(date: LocalDate): String = when (date.dayOfWeek) {
     DayOfWeek.SUNDAY -> "sunday"
     else -> "weekday"
 }
-
-fun clujDate(ms: Long): LocalDate = Instant.ofEpochMilli(ms).atZone(CLUJ_ZONE).toLocalDate()
 
 /** The timetable that runs on a Cluj date. */
 fun scheduleDayOn(date: LocalDate, calendar: ScheduleCalendar = ScheduleDays.current): String = calendar.scheduleDay(date)

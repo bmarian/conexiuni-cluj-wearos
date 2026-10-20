@@ -7,13 +7,10 @@ import online.bmarian.bus.data.StopTime
 import online.bmarian.bus.data.Timetable
 import online.bmarian.bus.data.routeIdFromTripId
 import java.time.LocalDateTime
-import java.time.ZoneId
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 // Ports of frontend/src/utils/time.ts and utils/trips.ts.
-
-val CLUJ_ZONE: ZoneId = ZoneId.of("Europe/Bucharest")
 
 // JS parseInt.
 private fun parseLeadingInt(text: String): Int? {
@@ -41,7 +38,7 @@ fun formatMinutesFromNow(rawMinutes: Int, reference: LocalDateTime, nowLabel: St
     val minutes = rawMinutes.toDouble().roundToInt()
     if (minutes == 0) return nowLabel
     if (minutes in 1..59) return "${minutes}m"
-    val future = reference.plusMinutes(minutes.toLong())
+    val future = reference.atZone(CLUJ_ZONE).plusMinutes(minutes.toLong())
     return "%02d:%02d".format(future.hour, future.minute)
 }
 
