@@ -6,16 +6,13 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.MyLocation
-import androidx.compose.material.icons.rounded.Place
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,14 +23,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.material3.FilledTonalButton
 import androidx.wear.compose.material3.FilledTonalIconButton
 import androidx.wear.compose.material3.Icon
-import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import kotlinx.coroutines.delay
@@ -51,20 +46,19 @@ import online.bmarian.bus.presentation.LocalAmbient
 import online.bmarian.bus.presentation.Message
 import online.bmarian.bus.presentation.Title
 import online.bmarian.bus.presentation.cascade
-import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
 import online.bmarian.bus.presentation.map.MapFrame
 import online.bmarian.bus.presentation.map.MapLabel
-import online.bmarian.bus.presentation.map.MapStop
 import online.bmarian.bus.presentation.map.MapControls
 import online.bmarian.bus.presentation.map.rememberMapChrome
 import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
+import online.bmarian.bus.presentation.map.ChipText
+import online.bmarian.bus.presentation.map.MAP_CHIP_TOP
+import online.bmarian.bus.presentation.map.MapChip
 import online.bmarian.bus.presentation.squish
-import online.bmarian.bus.presentation.stop.MapChip
 import online.bmarian.bus.presentation.surface
-import online.bmarian.bus.presentation.theme.Palette
 import kotlin.math.ceil
 
 // Same as the website's nearby list.
@@ -206,15 +200,11 @@ fun NearbyMapScreen(onOpenStop: (Int) -> Unit) {
                 ambient = LocalAmbient.current,
                 onStopTap = { id -> id.toIntOrNull()?.let(onOpenStop) },
             )
-            MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
-                MapChip {
-                    Text(stringResource(R.string.nearby_stops), style = MaterialTheme.typography.labelMedium, maxLines = 1)
-                }
+            MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = MAP_CHIP_TOP)) {
+                MapChip { ChipText(stringResource(R.string.nearby_stops)) }
             }
             if (center == null) {
-                MapChip(Modifier.align(Alignment.Center)) {
-                    Text(stringResource(R.string.nearby_unavailable), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
-                }
+                MapChip(Modifier.align(Alignment.Center)) { ChipText(stringResource(R.string.nearby_unavailable)) }
             }
             live?.let { fix ->
                 MapControls(chrome, Modifier.align(Alignment.BottomCenter).padding(bottom = 22.dp)) {

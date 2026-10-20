@@ -42,7 +42,6 @@ import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.directionFromTripId
 import online.bmarian.bus.follow.FollowManager
-import online.bmarian.bus.follow.FollowState
 import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.follow.soonest
 import online.bmarian.bus.follow.JourneyMirror
@@ -165,9 +164,11 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
         if (setup.isEmpty() && !Setup.notificationsAllowed(context)) setup = listOf(SetupStep.Notifications)
     }
 
-    fun openFollowed(follow: FollowState) {
-        val followed = follow.followed
-        navController.navigate("departure/${followed.stopId}/${followed.routeId}/${followed.tripId}")
+    fun openBus(followed: Followed) {
+        scope.launch {
+            inCity(followed.city)
+            navController.navigate("departure/${followed.stopId}/${followed.routeId}/${followed.tripId}")
+        }
     }
 
     LaunchedEffect(toOpen) {
@@ -182,7 +183,7 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
         askForNotifications()
         if (here?.destination?.route == DEPARTURE_ROUTE && here.arguments?.getString("tripId") == follow.followed.tripId) return@LaunchedEffect
         navController.popBackStack("home", inclusive = false)
-        openFollowed(follow)
+        openBus(follow.followed)
     }
 
     LaunchedEffect(linked) {
@@ -206,7 +207,7 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
                             state = homeState,
                             onOpenStop = { navController.navigate("stop/$it") },
                             onOpenRoute = { id, direction -> navController.navigate("route/$id/$direction") },
-                            onOpenFollowed = ::openFollowed,
+                            onOpenBus = ::openBus,
                             onSearch = { navController.navigate("search/${Uri.encode(it)}") },
                             onNearby = { navController.navigate("nearby") },
                             onBrowseRoutes = { navController.navigate("routes") },

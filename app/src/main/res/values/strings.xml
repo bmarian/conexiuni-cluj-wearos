@@ -73,8 +73,16 @@
     <string name="following">Urmărești</string>
     <string name="stop_following">Oprește</string>
     <string name="follow_channel">Autobuze urmărite</string>
+    <string name="follow_alerts_channel">Alerte autobuz</string>
     <string name="follow_arriving">Sosește peste %1$s</string>
     <string name="follow_now">Sosește acum</string>
+    <string name="follow_done">A ajuns în stația %1$s</string>
+    <string name="follow_no_bus">Nu mai sunt autobuze</string>
+    <string name="remind_saved">Memento salvat</string>
+    <string name="reminder">Memento</string>
+    <string name="remind_delete">Șterge</string>
+    <string name="saved">Salvat</string>
+    <string name="nav_arrive_at">Sosire la %1$s</string>
     <string name="my_location">Vezi locația ta</string>
     <string name="save">Salvează</string>
     <string name="favorite_line">Linie preferată</string>
@@ -100,6 +108,7 @@
     <string name="setup_open_settings">Setări</string>
     <string name="setup_not_now">Nu acum</string>
     <string name="leave_in">Pleacă peste %1$s</string>
+    <string name="leave_at">Pleacă la %1$s</string>
     <string name="leave_now">Pleacă acum</string>
     <string name="leave_by">Trebuie să te pornești înainte de %1$s pentru a prinde autobuzul</string>
     <string name="get_ready">Autobuzul tău pleacă la %1$s, pregătește-te</string>

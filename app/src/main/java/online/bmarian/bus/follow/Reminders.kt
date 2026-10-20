@@ -51,10 +51,16 @@ data class Reminder(
     val atMs: Long,
     val walk: Int? = null,
     val leaveAt: Long? = null,
-)
+) {
+    /** The bus at any of a station's platforms. */
+    fun matches(stopIds: Collection<Int>, routeId: Int, tripId: String, city: String = Cities.current.value) =
+        followed.city == city && followed.stopId in stopIds && followed.routeId == routeId && followed.tripId == tripId
+}
 
 /** What a reminder says: when to go by, to go now, or, without a fresh fix or at the stop, to get ready. */
 enum class Nudge { LeaveBy, LeaveNow, GetReady }
+
+enum class Reminded { Following, Reminder }
 
 /** The phone's reminder rules for the watch's own button. */
 object Reminders {
@@ -78,16 +84,16 @@ object Reminders {
         }
     }
 
-    fun forBus(stopId: Int, routeId: Int, tripId: String) =
-        all.value.firstOrNull { it.followed.city == Cities.current.value && it.followed.stopId == stopId && it.followed.routeId == routeId && it.followed.tripId == tripId }
-
     /** At the stop, or too late to walk there, the bus is followed now; otherwise the user is reminded when to leave for it. */
-    suspend fun remind(context: Context, followed: Followed, lat: Double, lon: Double, minutes: Int) {
+    suspend fun remind(context: Context, followed: Followed, lat: Double, lon: Double, minutes: Int): Reminded {
         val city = followed.city
         val fix = withTimeoutOrNull(LOCATE_MS) { UserLocation.updates(context, city = city).filterNotNull().first() }?.also { UserLocation.save(context, it) }
             ?: UserLocation.recent(context, city)
         val walk = fix?.let { walkMinutes(it.lat, it.lon, lat, lon) }
-        if (justNotify(walk, minutes)) return FollowManager.start(context, followed)
+        if (justNotify(walk, minutes)) {
+            FollowManager.start(context, followed)
+            return Reminded.Following
+        }
         val reminder = Reminder(UUID.randomUUID().toString(), followed, lat, lon, System.currentTimeMillis() + minutes * 60_000L)
         put(context, reminder)
         fire(context, reminder.id)
@@ -100,6 +106,7 @@ object Reminders {
                 )
             }
         }
+        return Reminded.Reminder
     }
 
     private fun exactAllowed(context: Context) =

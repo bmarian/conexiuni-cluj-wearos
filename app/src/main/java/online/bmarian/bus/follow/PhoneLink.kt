@@ -129,8 +129,6 @@ class PhoneListener : WearableListenerService() {
     }
 }
 
-private const val FOLLOW_CHANNEL = "follow"
-
 object Mirror {
     // Messages can arrive twice; one buzz per alert.
     private val buzzed = ArrayDeque<String>()
@@ -190,6 +188,11 @@ object Mirror {
 
     fun clear(context: Context, id: String) {
         manager(context).cancel(FollowManager.slot(id))
+    }
+
+    fun end(context: Context, id: String, followed: Followed, reason: String?) {
+        val done = doneCard(context, followed, reason) ?: return clear(context, id)
+        runCatching { manager(context).notify(FollowManager.slot(id), done) }
     }
 
     private fun openApp(context: Context, id: String): PendingIntent = PendingIntent.getActivity(
