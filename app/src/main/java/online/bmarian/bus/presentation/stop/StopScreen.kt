@@ -4,12 +4,6 @@ import online.bmarian.bus.data.StationLook
 import online.bmarian.bus.logic.Mode
 import online.bmarian.bus.presentation.StationIcon
 import online.bmarian.bus.presentation.map.stationMapStop
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,10 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Map
@@ -36,24 +27,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.ButtonGroup
 import androidx.wear.compose.material3.FilledTonalButton
 import androidx.wear.compose.material3.FilledTonalIconButton
 import androidx.wear.compose.material3.Icon
-import androidx.wear.compose.material3.IconToggleButton
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
@@ -63,15 +48,16 @@ import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.directionFromTripId
-import kotlinx.coroutines.launch
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.follow.Reminders
+import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.presentation.ActionRow
 import online.bmarian.bus.presentation.LABELLED_WEIGHT
 import online.bmarian.bus.presentation.Eta
 import online.bmarian.bus.presentation.PillAction
+import online.bmarian.bus.presentation.RemindTarget
 import online.bmarian.bus.presentation.Ticker
 import online.bmarian.bus.presentation.ToggleAction
 import online.bmarian.bus.presentation.LineBadge
@@ -86,16 +72,21 @@ import online.bmarian.bus.presentation.cascade
 import online.bmarian.bus.presentation.etaText
 import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
+import online.bmarian.bus.presentation.map.ChipText
+import online.bmarian.bus.presentation.map.MAP_CHIP_TOP
+import online.bmarian.bus.presentation.map.MapChip
 import online.bmarian.bus.presentation.map.MapFrame
 import online.bmarian.bus.presentation.map.MapLine
-import online.bmarian.bus.presentation.map.MapStop
 import online.bmarian.bus.presentation.map.MapVehicle
 import online.bmarian.bus.presentation.map.MapControls
 import online.bmarian.bus.presentation.map.rememberMapChrome
 import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
+import online.bmarian.bus.presentation.rememberClock
 import online.bmarian.bus.presentation.rememberOpenOnPhone
+import online.bmarian.bus.presentation.rememberRemind
+import online.bmarian.bus.presentation.reminding
 import online.bmarian.bus.presentation.squish
 import online.bmarian.bus.presentation.surface
 import online.bmarian.bus.presentation.theme.Palette
@@ -117,10 +108,9 @@ fun LiveWhileVisible(vm: StopViewModel) {
 fun StopDeparture.destination() = longName.substringAfterLast(" - ")
 
 @Composable
-private fun laterTimes(departure: StopDeparture, now: LocalDateTime): String? {
-    val later = departure.nextTimes.drop(1)
+private fun laterTimes(later: List<Int>, now: LocalDateTime): String? {
     if (later.isEmpty()) return null
-    return stringResource(R.string.then_times, later.map { etaText(it.minutes, now) }.joinToString(" · "))
+    return stringResource(R.string.then_times, later.map { etaText(it, now) }.joinToString(" · "))
 }
 
 @Composable
@@ -136,11 +126,13 @@ fun StopScreen(
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
     val follows by FollowManager.follows.collectAsStateWithLifecycle()
+    val reminders by Reminders.all.collectAsStateWithLifecycle()
     val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
     val infos by vm.infos.collectAsStateWithLifecycle()
     val index by Services.repository.network.index.collectAsStateWithLifecycle()
     val look = remember(index, vm.stopId) { index?.look(vm.stopId) }
-    val favoritePlatform = (infos.map { it.stopId }.ifEmpty { listOf(vm.stopId) }).firstOrNull { it in favoriteStops }
+    val platforms = infos.map { it.stopId }.ifEmpty { listOf(vm.stopId) }
+    val favoritePlatform = platforms.firstOrNull { it in favoriteStops }
 
     val sorted = remember(ui, favoriteRoutes) {
         ui?.departures?.sortedWith(compareBy({ if (vm.isDepartureFavorite(it)) 0 else 1 }, { it.minutesLeft }))
@@ -160,6 +152,7 @@ fun StopScreen(
                     color = Palette.Heart,
                     onColor = Color.White,
                     weight = LABELLED_WEIGHT,
+                    checkedLabel = stringResource(R.string.saved),
                 )
                 PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenMap)
                 PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
@@ -185,7 +178,7 @@ fun StopScreen(
             else -> items(sorted.size, key = { sorted[it].tripId }) { i ->
                 val departure = sorted[i]
                 val now = ui!!.now
-                val followed = follows.any { it.matches(vm.platformOf(departure), departure.routeId, departure.tripId) }
+                val reminded = reminding(follows, reminders, platforms, departure.routeId, departure.tripId).on
                 val press = remember { MutableInteractionSource() }
                 TitleCard(
                     onClick = { onOpenDeparture(departure) },
@@ -195,14 +188,16 @@ fun StopScreen(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             LineBadge(departure.shortName, departure.color, height = 22.dp)
-                            if (followed) Icon(Icons.Rounded.NotificationsActive, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                            if (reminded) Icon(Icons.Rounded.NotificationsActive, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                         }
                     },
                     time = { Eta(departure.nextTimes.firstOrNull()?.minutes ?: departure.minutesLeft, !departure.isStatic, now) },
                 ) {
                     Column {
-                        Text(departure.destination(), style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        laterTimes(departure, now)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Text(departure.destination(), style = MaterialTheme.typography.titleSmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        laterTimes(departure.nextTimes.drop(1).map { it.minutes }, now)?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
@@ -210,65 +205,55 @@ fun StopScreen(
     }
 }
 
+// While followed, the follow's own reading is shown, so the screen says the same as its card.
 @Composable
 fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute: () -> Unit) {
     LiveWhileVisible(vm)
-    val context = LocalContext.current
     val name by vm.name.collectAsStateWithLifecycle()
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val infos by vm.infos.collectAsStateWithLifecycle()
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
     val follows by FollowManager.follows.collectAsStateWithLifecycle()
+    val reminders by Reminders.all.collectAsStateWithLifecycle()
     val departure = ui?.departures?.firstOrNull { it.routeId == routeId && it.tripId == tripId }
     val direction = directionFromTripId(tripId)
-    val reminders by Reminders.all.collectAsStateWithLifecycle()
-    val platform = departure?.let(vm::platformOf) ?: vm.stopId
-    val following = follows.firstOrNull { it.matches(platform, routeId, tripId) }
-    val reminder = reminders.firstOrNull { it.followed.city == Cities.current.value && it.followed.stopId == platform && it.followed.routeId == routeId && it.followed.tripId == tripId }
-    val isFollowing = following != null || reminder != null
+    val platforms = infos.map { it.stopId }.ifEmpty { listOf(vm.stopId) }
+    val reminded = reminding(follows, reminders, platforms, routeId, tripId)
+    val follow = reminded.follow
     val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
+    val remind = rememberRemind()
+    val nowMs by rememberClock()
 
-    fun follow() {
-        val d = departure ?: return
+    fun target(): RemindTarget? {
+        val d = departure ?: return null
+        val platform = vm.platformOf(d)
         val followed = Followed(platform, name.orEmpty(), routeId, tripId, d.shortName, d.color, d.destination(), Cities.current.value)
-        val stop = vm.platform(platform) ?: Services.repository.cachedStopInfo(platform) ?: return FollowManager.start(context, followed)
-        val minutes = d.nextTimes.firstOrNull()?.minutes ?: d.minutesLeft
-        val app = context.applicationContext
-        Services.scope.launch { Reminders.remind(app, followed, stop.lat, stop.lon, minutes) }
-    }
-    // POST_NOTIFICATIONS needs a runtime grant on Wear OS 4+.
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { follow() }
-
-    val onFollow = {
-        when {
-            following != null || reminder != null -> {
-                if (following != null) FollowManager.stop(context, following.id)
-                if (reminder != null) Reminders.remove(context, reminder.id)
-            }
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
-                permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            else -> follow()
-        }
+        val stop = vm.platform(platform) ?: Services.repository.cachedStopInfo(platform) ?: return RemindTarget(followed)
+        return RemindTarget(followed, stop.lat, stop.lon, d.nextTimes.firstOrNull()?.minutes ?: d.minutesLeft)
     }
 
     ListScreen { spec ->
         val current = departure
+        val shortName = current?.shortName ?: follow?.followed?.shortName
+        val color = current?.color ?: follow?.followed?.color
         item {
-            LineHeader(spec, current?.shortName, current?.color, current?.destination() ?: (name ?: "…"))
+            LineHeader(spec, shortName, color, current?.destination() ?: follow?.followed?.destination ?: (name ?: "…"))
         }
-        if (current == null) {
+        if (current == null && follow == null) {
             item { if (ui == null) Loading(spec) else Message(stringResource(R.string.no_departures), spec) }
             return@ListScreen
         }
-        val now = ui!!.now
-        val minutes = current.nextTimes.firstOrNull()?.minutes ?: current.minutesLeft
-        val live = !current.isStatic
+        val now = ui?.now ?: LocalDateTime.now(CLUJ_ZONE)
+        val own = current?.let { it.nextTimes.firstOrNull()?.minutes ?: it.minutesLeft }
+        val minutes = follow?.minutesAt(nowMs) ?: own
+        val live = if (follow?.minutes != null) follow.live else current?.isStatic == false
+        val later = follow?.later?.takeIf { follow.minutes != null } ?: current?.nextTimes?.drop(1)?.map { it.minutes }.orEmpty()
         item {
             Column(contentModifier(spec), horizontalAlignment = Alignment.CenterHorizontally) {
-                val color = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                val tint = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (live) RealtimeIcon(color, size = 16.dp)
-                    Ticker(etaText(minutes, now), style = MaterialTheme.typography.numeralSmall, color = color)
+                    if (live) RealtimeIcon(tint, size = 16.dp)
+                    Ticker(if (minutes == null) "…" else etaText(minutes, now), style = MaterialTheme.typography.numeralSmall, color = tint)
                 }
                 Text(
                     stringResource(if (live) R.string.live else R.string.scheduled),
@@ -280,7 +265,14 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
         item {
             val favorite = favoriteRoutes.any { it.routeId == routeId && it.direction == direction }
             ActionRow(spec) {
-                ToggleAction(Icons.Rounded.NotificationsActive, stringResource(R.string.remind_set), isFollowing, onFollow, weight = LABELLED_WEIGHT)
+                ToggleAction(
+                    Icons.Rounded.NotificationsActive,
+                    stringResource(R.string.remind_set),
+                    reminded.on,
+                    { remind(reminded, ::target) },
+                    weight = LABELLED_WEIGHT,
+                    checkedLabel = stringResource(if (reminded.reminder != null) R.string.reminder else R.string.following),
+                )
                 ToggleAction(
                     if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     stringResource(R.string.save),
@@ -300,9 +292,9 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
         }
         item {
             Column(contentModifier(spec), horizontalAlignment = Alignment.CenterHorizontally) {
-                laterTimes(current, now)?.let { Text(it, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
+                laterTimes(later, now)?.let { Text(it, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
                 Text(
-                    stringResource(R.string.from_stop, name.orEmpty()),
+                    stringResource(R.string.from_stop, name ?: follow?.followed?.stopName.orEmpty()),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -333,18 +325,6 @@ private fun stopKind(mode: Mode) = when (mode) {
 }
 
 @Composable
-fun MapChip(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(
-        modifier = modifier
-            .widthIn(max = 160.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.92f))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center,
-    ) { content() }
-}
-
-@Composable
 fun StopMapScreen(vm: StopViewModel) {
     LiveWhileVisible(vm)
     val name by vm.name.collectAsStateWithLifecycle()
@@ -367,10 +347,8 @@ fun StopMapScreen(vm: StopViewModel) {
                 ambient = LocalAmbient.current,
             )
             name?.let {
-                MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = 30.dp)) {
-                    MapChip {
-                        Text(it, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+                MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = MAP_CHIP_TOP)) {
+                    MapChip { ChipText(it) }
                 }
             }
             me?.let { fix ->

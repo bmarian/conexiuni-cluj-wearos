@@ -61,6 +61,7 @@ import androidx.wear.compose.material3.IconButtonDefaults
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.LocalContentColor
+import androidx.wear.compose.material3.LocalTextStyle
 import androidx.wear.compose.material3.ListSubHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
@@ -69,11 +70,18 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.TransformationSpec
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
+import androidx.compose.ui.graphics.takeOrElse
+import androidx.compose.ui.unit.TextUnit
 import online.bmarian.bus.R
+import online.bmarian.bus.follow.minutesUntil
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.formatMinutesFromNow
 import online.bmarian.bus.presentation.theme.routeColor
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+private val CLOCK = DateTimeFormatter.ofPattern("HH:mm")
 
 @Composable
 fun ListScreen(
@@ -152,10 +160,30 @@ fun TransformingLazyColumnItemScope.LineHeader(spec: TransformationSpec, shortNa
         ) {
             if (shortName != null && color != null) LineBadge(shortName, color)
             if (text.isNotEmpty()) {
-                Text(text, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Start, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(text, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Start, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
     }
+}
+
+@Composable
+fun FitText(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle = LocalTextStyle.current,
+    color: Color = Color.Unspecified,
+    maxLines: Int = 2,
+    minFontSize: TextUnit = 10.sp,
+    textAlign: TextAlign? = null,
+) {
+    BasicText(
+        text,
+        modifier,
+        style = style.copy(color = color.takeOrElse { style.color.takeOrElse { LocalContentColor.current } }, textAlign = textAlign ?: style.textAlign),
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        autoSize = TextAutoSize.StepBased(minFontSize = minFontSize, maxFontSize = style.fontSize),
+    )
 }
 
 @Composable
@@ -200,9 +228,6 @@ fun RealtimeIcon(color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) 
     }
 }
 
-// Rounded: the phone sends whole minutes and the clocks drift a few seconds.
-fun minutesUntil(atMs: Long, nowMs: Long): Int = ((atMs - nowMs + 30_000) / 60_000).toInt().coerceAtLeast(0)
-
 @Composable
 fun Countdown(atMs: Long, style: TextStyle, color: Color = Color.Unspecified) {
     rememberClock().value
@@ -217,6 +242,8 @@ fun etaText(minutes: Int, now: LocalDateTime): String {
     else formatMinutesFromNow(minutes, now, nowLabel)
 }
 
+fun clockText(atMs: Long): String = CLOCK.format(Instant.ofEpochMilli(atMs).atZone(CLUJ_ZONE))
+
 @Composable
 fun Eta(minutes: Int, live: Boolean, now: LocalDateTime, style: TextStyle = MaterialTheme.typography.labelLarge, arcs: Boolean = true) {
     val color = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -226,13 +253,20 @@ fun Eta(minutes: Int, live: Boolean, now: LocalDateTime, style: TextStyle = Mate
     }
 }
 
+@Composable
+fun Eta(atMs: Long, live: Boolean, style: TextStyle = MaterialTheme.typography.labelLarge) {
+    rememberClock().value
+    Eta(minutesUntil(atMs, System.currentTimeMillis()), live, LocalDateTime.now(CLUJ_ZONE), style)
+}
+
 private val ACTION_HEIGHT = 48.dp
 // A labelled action beside icon-only ones.
 const val LABELLED_WEIGHT = 1.7f
 
+/** As wide as the list's other rows: the group's own edge padding would double the list's. */
 @Composable
 fun TransformingLazyColumnItemScope.ActionRow(spec: TransformationSpec, content: @Composable ButtonGroupScope.() -> Unit) {
-    ButtonGroup(contentModifier(spec), spacing = 6.dp, content = content)
+    ButtonGroup(contentModifier(spec), spacing = 6.dp, contentPadding = PaddingValues(0.dp), content = content)
 }
 
 @Composable
@@ -258,6 +292,7 @@ fun ButtonGroupScope.ToggleAction(
     onColor: Color = MaterialTheme.colorScheme.onPrimary,
     weight: Float = 1f,
     iconOnly: Boolean = false,
+    checkedLabel: String = label,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val haptics = LocalHapticFeedback.current
@@ -278,17 +313,10 @@ fun ButtonGroupScope.ToggleAction(
         contentPadding = PaddingValues(horizontal = 8.dp),
         interactionSource = interaction,
     ) {
+        val shown = if (checked) checkedLabel else label
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            PopIcon(icon, checked, Modifier.size(18.dp), contentDescription = label.takeIf { iconOnly })
-            if (!iconOnly) {
-                BasicText(
-                    label,
-                    Modifier.padding(start = 4.dp),
-                    style = MaterialTheme.typography.labelMedium.copy(color = LocalContentColor.current),
-                    maxLines = 1,
-                    autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelMedium.fontSize),
-                )
-            }
+            PopIcon(icon, checked, Modifier.size(18.dp), contentDescription = shown.takeIf { iconOnly })
+            if (!iconOnly) FitText(shown, Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1)
         }
     }
 }

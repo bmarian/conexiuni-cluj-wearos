@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,7 +74,8 @@ fun AmbientFollow(state: FollowState) {
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            val minutes = state.minutes
+            val nowMs by rememberClock()
+            val minutes = state.minutesAt(nowMs)
             if (minutes != null) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(

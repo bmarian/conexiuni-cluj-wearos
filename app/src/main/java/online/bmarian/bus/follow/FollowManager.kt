@@ -3,14 +3,19 @@ package online.bmarian.bus.follow
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Cities
 import java.util.UUID
-import kotlin.math.roundToInt
 
 /** Shared with the phone app. */
 @Serializable
@@ -47,6 +52,9 @@ data class FollowSync(
     val leaveBy: Long? = null,
 )
 
+/** Rounded: the phone sends whole minutes and the clocks drift a few seconds. */
+fun minutesUntil(atMs: Long, nowMs: Long): Int = ((atMs - nowMs + 30_000) / 60_000).toInt().coerceAtLeast(0)
+
 data class FollowState(
     val followed: Followed,
     val minutes: Int? = null,
@@ -65,17 +73,31 @@ data class FollowState(
     fun matches(stopId: Int, routeId: Int, tripId: String, city: String = Cities.current.value) =
         followed.city == city && followed.stopId == stopId && followed.routeId == routeId && followed.tripId == tripId
 
-    /** Minutes until it's time to set off, rounded like the phone's. */
-    fun leaveIn(nowMs: Long = System.currentTimeMillis()): Int? = leaveAt?.let { ((it - nowMs) / 60_000.0).roundToInt().coerceAtLeast(0) }
+    /** The bus at any of a station's platforms. */
+    fun matches(stopIds: Collection<Int>, routeId: Int, tripId: String, city: String = Cities.current.value) =
+        followed.city == city && followed.stopId in stopIds && followed.routeId == routeId && followed.tripId == tripId
+
+    /** Counted down from the last reading, so it keeps moving between the phone's messages. */
+    fun minutesAt(nowMs: Long): Int? = arrivalAt?.let { minutesUntil(it, nowMs) } ?: minutes
+
+    fun leaveIn(nowMs: Long = System.currentTimeMillis()): Int? = leaveAt?.let { minutesUntil(it, nowMs) }
 }
 
 private const val FIRST_SLOT = 100
+private const val REMOTE_STALE_MS = 15 * 60_000L
+private const val REMOTE_PAST_ARRIVAL_MS = 10 * 60_000L
 
 /** The bus due first, for places with room for one. */
-fun List<FollowState>.soonest() = minByOrNull { it.leaveAt?.let { at -> ((at - System.currentTimeMillis()) / 60_000).toInt() } ?: it.minutes ?: Int.MAX_VALUE }
+fun List<FollowState>.soonest(): FollowState? {
+    val now = System.currentTimeMillis()
+    return minByOrNull { it.leaveIn(now) ?: it.minutesAt(now) ?: Int.MAX_VALUE }
+}
 
 object FollowManager {
     private val slots = mutableMapOf<String, Int>()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // A phone follow the phone stops talking about is dropped.
+    private val expiries = mutableMapOf<String, Job>()
 
     /** Each follow's card gets its own notification id. */
     @Synchronized
@@ -101,6 +123,7 @@ object FollowManager {
         mutableFollows.update { list -> list.filterNot { it.id == id } }
         // A local one: the service drops it when it leaves the list.
         if (current.remote) {
+            forget(id)
             Mirror.clear(context, id)
             PhoneLink.sendStop(context, id)
         }
@@ -117,8 +140,9 @@ object FollowManager {
     internal fun onRemoteState(context: Context, sync: FollowSync) {
         if (sync.end != null) {
             if (follows.value.any { it.id == sync.id && it.remote }) {
+                forget(sync.id)
                 ended(sync.id)
-                Mirror.clear(context, sync.id)
+                Mirror.end(context, sync.id, sync.followed, sync.end)
             }
             return
         }
@@ -129,6 +153,18 @@ object FollowManager {
         )
         mutableFollows.update { list -> if (list.any { it.id == sync.id }) list.map { if (it.id == sync.id) state else it } else list + state }
         Mirror.show(context, state, sync.alert)
+        val now = System.currentTimeMillis()
+        expiries.remove(sync.id)?.cancel()
+        expiries[sync.id] = scope.launch {
+            delay(maxOf(REMOTE_STALE_MS, (sync.arrivalAt ?: 0) + REMOTE_PAST_ARRIVAL_MS - now))
+            expiries.remove(sync.id)
+            ended(sync.id)
+            Mirror.clear(context, sync.id)
+        }
+    }
+
+    private fun forget(id: String) {
+        expiries.remove(id)?.cancel()
     }
 
     internal fun onRemoteStop(context: Context, id: String) {

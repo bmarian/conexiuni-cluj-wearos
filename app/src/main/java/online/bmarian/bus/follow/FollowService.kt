@@ -41,7 +41,6 @@ import online.bmarian.bus.presentation.MainActivity
 import java.time.Instant
 import java.time.LocalDateTime
 
-private const val FOLLOW_CHANNEL = "follow"
 private const val TICK_MS = 15_000L
 private const val LIVE_WAIT_MS = 6_000L
 private const val STOP_INFO_REFRESH_MS = 120_000L
@@ -205,7 +204,8 @@ class FollowService : Service() {
 
     private fun finish(id: String, reason: String) {
         val job = jobs.remove(id) ?: return
-        latest.remove(id)?.let { PhoneLink.sendState(this, it.toSync(end = reason)) }
+        val last = latest.remove(id)
+        last?.let { PhoneLink.sendState(this, it.toSync(end = reason)) }
         builders.remove(id)
         ongoing.remove(id)
         FollowManager.ended(id)
@@ -223,6 +223,7 @@ class FollowService : Service() {
             }
             else -> manager.cancel(FollowManager.slot(id))
         }
+        last?.let { state -> doneCard(this, state.followed, reason)?.let { manager.notify(FollowManager.slot("$id-done"), it) } }
         job.cancel()
     }
 

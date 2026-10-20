@@ -48,11 +48,13 @@ data class JourneySync(
     val lat: Double? = null,
     val lon: Double? = null,
     val bearing: Float? = null,
-)
+) {
+    /** Waiting at the stop: the bus's countdown is the whole story, so it's shown instead of [detail]. */
+    val countsDown get() = stepType == StepType.WAIT && arrivalAt != null
+}
 
 private const val JOURNEY_NOTIFICATION_ID = 11
 private const val STEP_NOTIFICATION_ID = 12
-private const val FOLLOW_CHANNEL = "follow"
 private const val ALERT_CHANNEL = "follow_alerts"
 private const val URGENT_CHANNEL = "journey_alerts"
 private const val STALE_MS = 15 * 60_000L
@@ -123,6 +125,14 @@ object JourneyMirror {
     private fun channels(context: Context) {
         Mirror.channels(context)
         val manager = manager(context)
+        if (manager.getNotificationChannel(ALERT_CHANNEL) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(ALERT_CHANNEL, context.getString(R.string.follow_alerts_channel), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    enableVibration(true)
+                    vibrationPattern = Buzz.SOON
+                },
+            )
+        }
         if (manager.getNotificationChannel(URGENT_CHANNEL) == null) {
             manager.createNotificationChannel(
                 NotificationChannel(URGENT_CHANNEL, context.getString(R.string.journey_alerts_channel), NotificationManager.IMPORTANCE_HIGH).apply {

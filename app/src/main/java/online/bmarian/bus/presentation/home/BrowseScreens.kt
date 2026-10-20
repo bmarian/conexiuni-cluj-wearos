@@ -88,7 +88,7 @@ private fun TransformingLazyColumnScope.routeItems(routes: List<Route>, spec: Tr
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 LineBadge(route.shortName, route.color)
-                Text(route.longName, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(route.longName, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
     }

@@ -32,7 +32,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.material3.CircularProgressIndicator
@@ -57,8 +56,13 @@ import online.bmarian.bus.follow.StepType
 import online.bmarian.bus.logic.bearingDegrees
 import online.bmarian.bus.logic.haversineMeters
 import online.bmarian.bus.presentation.Countdown
+import online.bmarian.bus.presentation.FitText
 import online.bmarian.bus.presentation.LineBadge
 import online.bmarian.bus.presentation.LocalAmbient
+import online.bmarian.bus.presentation.clockText
+import online.bmarian.bus.presentation.map.ChipText
+import online.bmarian.bus.presentation.map.MAP_CHIP_TOP
+import online.bmarian.bus.presentation.map.MapChip
 import online.bmarian.bus.presentation.map.MapFollow
 import online.bmarian.bus.presentation.map.MapFrame
 import online.bmarian.bus.presentation.map.MapLabel
@@ -70,7 +74,6 @@ import online.bmarian.bus.presentation.map.rememberMapChrome
 import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
-import online.bmarian.bus.presentation.stop.MapChip
 import online.bmarian.bus.presentation.theme.routeColor
 
 private const val MAX_SEGMENTS = 20
@@ -121,24 +124,17 @@ fun JourneyScreen(onEnded: () -> Unit, onMap: () -> Unit) {
                     Icon(stepIcon(current.stepType), null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
                     current.line?.let { LineBadge(it, current.color.orEmpty(), height = 24.dp) }
                 }
-                Text(
-                    current.step,
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                val arrival = current.arrivalAt
-                val countdown = arrival != null && (current.stepType == StepType.WALK || current.stepType == StepType.WAIT)
-                if (countdown) Countdown(arrival!!, MaterialTheme.typography.numeralSmall, MaterialTheme.colorScheme.primary)
-                current.detail?.takeIf { !countdown }?.let {
+                FitText(current.step, style = MaterialTheme.typography.titleMedium, maxLines = 3, textAlign = TextAlign.Center)
+                if (current.countsDown) Countdown(current.arrivalAt!!, MaterialTheme.typography.numeralSmall, MaterialTheme.colorScheme.primary)
+                current.detail?.takeIf { !current.countsDown }?.let {
+                    FitText(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                }
+                current.etaAt?.takeIf { current.stepType != StepType.ARRIVED }?.let {
                     Text(
-                        it,
-                        style = MaterialTheme.typography.bodySmall,
+                        stringResource(R.string.nav_arrive_at, clockText(it)),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 1,
                     )
                 }
                 FilledTonalIconButton(
@@ -243,11 +239,11 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
                 following = false
             },
         )
-        MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = 22.dp)) {
+        MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = MAP_CHIP_TOP)) {
             MapChip {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(stepIcon(sync.stepType), null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                    Text(sync.step, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    ChipText(sync.step)
                 }
             }
         }

@@ -63,7 +63,8 @@ private val TILE_COLORS = ColorScheme(
 
 class BusTileService : Material3TileService(allowDynamicTheme = false, defaultColorScheme = TILE_COLORS) {
     override suspend fun MaterialScope.tileResponse(requestParams: RequestBuilders.TileRequest): TileBuilders.Tile {
-        val follows = FollowManager.follows.value.sortedBy { it.minutes ?: Int.MAX_VALUE }.take(ROWS_SHOWN)
+        val nowMs = System.currentTimeMillis()
+        val follows = FollowManager.follows.value.sortedBy { it.minutesAt(nowMs) ?: Int.MAX_VALUE }.take(ROWS_SHOWN)
         val stops = nextAtFavoriteStops(ROWS_SHOWN - follows.size)
         val app = ComponentName(context, MainActivity::class.java)
         val rows = buildList {
@@ -76,7 +77,7 @@ class BusTileService : Material3TileService(allowDynamicTheme = false, defaultCo
                         line = followed.shortName,
                         color = followed.color,
                         label = followed.destination,
-                        time = follow.minutes?.let { etaLabel(context, it, System.currentTimeMillis(), scheduled = !follow.live) },
+                        time = follow.minutesAt(nowMs)?.let { etaLabel(context, it, nowMs, scheduled = !follow.live) },
                         highlighted = true,
                     ),
                 )

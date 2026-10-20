@@ -10,15 +10,18 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DirectionsBus
+import androidx.compose.material.icons.rounded.Navigation
 import androidx.compose.material.icons.rounded.NearMe
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Search
@@ -28,45 +31,44 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
 import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.CardDefaults
 import androidx.wear.compose.material3.CompactButton
 import androidx.wear.compose.material3.FilledTonalButton
 import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.LocalContentColor
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.lazy.TransformationSpec
 import androidx.wear.input.RemoteInputIntentHelper
 import androidx.wear.input.WearableRemoteInputExtender
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import online.bmarian.bus.BuildConfig
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
-import online.bmarian.bus.data.stopSnapshot
+import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.bothWays
 import online.bmarian.bus.data.terminalName
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.FollowState
+import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.follow.JourneyMirror
+import online.bmarian.bus.follow.JourneySync
+import online.bmarian.bus.follow.Reminder
+import online.bmarian.bus.follow.Reminders
 import online.bmarian.bus.logic.CLUJ_ZONE
-import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.presentation.ActionRow
 import online.bmarian.bus.presentation.Countdown
 import online.bmarian.bus.presentation.Eta
+import online.bmarian.bus.presentation.FitText
 import online.bmarian.bus.presentation.PillAction
 import online.bmarian.bus.presentation.LineBadge
 import online.bmarian.bus.presentation.ListScreen
@@ -74,11 +76,12 @@ import online.bmarian.bus.presentation.Message
 import online.bmarian.bus.presentation.SubHeader
 import online.bmarian.bus.presentation.Title
 import online.bmarian.bus.presentation.cascade
+import online.bmarian.bus.presentation.clockText
 import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
+import online.bmarian.bus.presentation.rememberClock
 import online.bmarian.bus.presentation.squish
 import online.bmarian.bus.presentation.surface
-import java.time.Instant
 import java.time.LocalDateTime
 
 private const val SEARCH_KEY = "query"
@@ -108,7 +111,7 @@ fun HomeScreen(
     state: TransformingLazyColumnState,
     onOpenStop: (Int) -> Unit,
     onOpenRoute: (Int, String) -> Unit,
-    onOpenFollowed: (FollowState) -> Unit,
+    onOpenBus: (Followed) -> Unit,
     onSearch: (String) -> Unit,
     onNearby: () -> Unit,
     onBrowseRoutes: () -> Unit,
@@ -122,7 +125,10 @@ fun HomeScreen(
     val favoriteStopIds by Services.favorites.stops.collectAsStateWithLifecycle()
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
     val follows by FollowManager.follows.collectAsStateWithLifecycle()
+    val reminders by Reminders.all.collectAsStateWithLifecycle()
     val journey by JourneyMirror.state.collectAsStateWithLifecycle()
+    val cities by Cities.list.collectAsStateWithLifecycle()
+    val city by Cities.current.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val search = rememberSearchInput(onSearch)
 
@@ -141,92 +147,32 @@ fun HomeScreen(
         favoriteRoutes.groupBy { it.routeId }.mapNotNull { (routeId, favorites) ->
             val route = byId[routeId] ?: return@mapNotNull null
             if (favorites.size > 1) Triple(route, "auto", bothWays(route.longName))
-            else Triple(route, favorites[0].direction, "→\u00A0" + terminalName(route.longName, favorites[0].direction))
+            else Triple(route, favorites[0].direction, "→ " + terminalName(route.longName, favorites[0].direction))
         }
     }
+    val cityName = remember(cities, city) { if (cities.size > 1) cities.firstOrNull { it.slug == city }?.name else null }
 
     ListScreen(state = state) { spec ->
         item { Title(stringResource(R.string.app_name), spec) }
-        journey?.let { trip ->
+        if (cityName != null) {
             item {
-                val press = remember { MutableInteractionSource() }
-                Card(
-                    onClick = onOpenJourney,
-                    modifier = itemModifier(spec).squish(press),
-                    interactionSource = press,
-                    transformation = surface(spec),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                    ),
-                ) {
-                    Text(
-                        stringResource(R.string.journey_to, trip.title),
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        trip.line?.let { LineBadge(it, trip.color.orEmpty(), height = 24.dp) }
-                        Text(
-                            trip.step,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        trip.arrivalAt?.let { Countdown(it, MaterialTheme.typography.labelLarge) }
-                    }
-                    trip.detail?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                    CompactButton(
-                        onClick = { JourneyMirror.end(context, trip.id) },
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                        icon = { Icon(Icons.Rounded.Close, contentDescription = null) },
-                        label = { Text(stringResource(R.string.end_journey)) },
-                    )
-                }
+                Text(
+                    cityName,
+                    modifier = contentModifier(spec),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                )
             }
         }
+        journey?.let { trip -> item { JourneyCard(trip, spec, onOpenJourney) { JourneyMirror.end(context, trip.id) } } }
         items(follows.size, key = { "follow-${follows[it].id}" }) { i ->
             val follow = follows[i]
-            run {
-                val press = remember { MutableInteractionSource() }
-                Card(
-                    onClick = { onOpenFollowed(follow) },
-                    modifier = itemModifier(spec).squish(press),
-                    interactionSource = press,
-                    transformation = surface(spec),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                ) {
-                    // Still waiting for the user to set off.
-                    val leave = follow.leaveIn()
-                    Text(
-                        when {
-                            leave == null -> stringResource(R.string.following)
-                            leave <= 0 -> stringResource(R.string.leave_now)
-                            else -> stringResource(R.string.leave_in, stringResource(R.string.eta_minutes, leave))
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (leave != null) FontWeight.Bold else null,
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        LineBadge(follow.followed.shortName, follow.followed.color, height = 24.dp)
-                        Text(
-                            follow.followed.destination,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        follow.minutes?.let { Eta(it, follow.live, LocalDateTime.now(CLUJ_ZONE)) }
-                    }
-                }
-            }
+            FollowCard(follow, spec, onOpen = { onOpenBus(follow.followed) }, onStop = { FollowManager.stop(context, follow.id) })
+        }
+        items(reminders.size, key = { "reminder-${reminders[it].id}" }) { i ->
+            val reminder = reminders[i]
+            ReminderCard(reminder, spec, onOpen = { onOpenBus(reminder.followed) }, onDelete = { Reminders.remove(context, reminder.id) })
         }
         item {
             ActionRow(spec) {
@@ -265,7 +211,7 @@ fun HomeScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LineBadge(route.shortName, route.color)
-                    Text(label, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(label, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -322,5 +268,140 @@ fun HomeScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CardLabel(icon: ImageVector, text: String, time: @Composable () -> Unit = {}) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(icon, null, Modifier.size(14.dp))
+        Text(text, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        time()
+    }
+}
+
+@Composable
+private fun BusLine(followed: Followed) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        LineBadge(followed.shortName, followed.color, height = 24.dp)
+        FitText("→ ${followed.destination}", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+@Composable
+private fun StopLine(name: String) {
+    Text(
+        stringResource(R.string.from_stop, name),
+        style = MaterialTheme.typography.bodySmall,
+        color = LocalContentColor.current.copy(alpha = 0.75f),
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun TransformingLazyColumnItemScope.FollowCard(follow: FollowState, spec: TransformationSpec, onOpen: () -> Unit, onStop: () -> Unit) {
+    val press = remember { MutableInteractionSource() }
+    val nowMs by rememberClock()
+    Card(
+        onClick = onOpen,
+        modifier = itemModifier(spec).squish(press),
+        interactionSource = press,
+        transformation = surface(spec),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+    ) {
+        // Still waiting for the user to set off.
+        val leave = follow.leaveIn(nowMs)
+        CardLabel(
+            if (leave != null) Icons.AutoMirrored.Rounded.DirectionsWalk else Icons.Rounded.NotificationsActive,
+            when {
+                leave == null -> stringResource(R.string.following)
+                leave <= 0 -> stringResource(R.string.leave_now)
+                else -> stringResource(R.string.leave_in, stringResource(R.string.eta_minutes, leave))
+            },
+        ) {
+            val at = follow.arrivalAt
+            if (at != null) Eta(at, follow.live) else follow.minutes?.let { Eta(it, follow.live, LocalDateTime.now(CLUJ_ZONE)) }
+        }
+        BusLine(follow.followed)
+        StopLine(follow.followed.stopName)
+        CompactButton(
+            onClick = onStop,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            icon = { Icon(Icons.Rounded.Close, contentDescription = null) },
+            label = { Text(stringResource(R.string.stop_following)) },
+        )
+    }
+}
+
+@Composable
+private fun TransformingLazyColumnItemScope.ReminderCard(reminder: Reminder, spec: TransformationSpec, onOpen: () -> Unit, onDelete: () -> Unit) {
+    val press = remember { MutableInteractionSource() }
+    Card(
+        onClick = onOpen,
+        modifier = itemModifier(spec).squish(press),
+        interactionSource = press,
+        transformation = surface(spec),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        ),
+    ) {
+        val leaveAt = reminder.leaveAt
+        CardLabel(
+            if (leaveAt != null) Icons.AutoMirrored.Rounded.DirectionsWalk else Icons.Rounded.NotificationsActive,
+            if (leaveAt != null) stringResource(R.string.leave_at, clockText(leaveAt)) else stringResource(R.string.reminder),
+        ) { Eta(reminder.atMs, live = false) }
+        BusLine(reminder.followed)
+        StopLine(reminder.followed.stopName)
+        CompactButton(
+            onClick = onDelete,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            icon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
+            label = { Text(stringResource(R.string.remind_delete)) },
+        )
+    }
+}
+
+@Composable
+private fun TransformingLazyColumnItemScope.JourneyCard(trip: JourneySync, spec: TransformationSpec, onOpen: () -> Unit, onEnd: () -> Unit) {
+    val press = remember { MutableInteractionSource() }
+    Card(
+        onClick = onOpen,
+        modifier = itemModifier(spec).squish(press),
+        interactionSource = press,
+        transformation = surface(spec),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        ),
+    ) {
+        CardLabel(Icons.Rounded.Navigation, stringResource(R.string.journey_to, trip.title)) {
+            if (trip.countsDown) Countdown(trip.arrivalAt!!, MaterialTheme.typography.labelLarge)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            trip.line?.let { LineBadge(it, trip.color.orEmpty(), height = 24.dp) }
+            FitText(trip.step, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, maxLines = 3)
+        }
+        if (!trip.countsDown) trip.detail?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        trip.etaAt?.let {
+            Text(
+                stringResource(R.string.nav_arrive_at, clockText(it)),
+                style = MaterialTheme.typography.bodySmall,
+                color = LocalContentColor.current.copy(alpha = 0.75f),
+                maxLines = 1,
+            )
+        }
+        CompactButton(
+            onClick = onEnd,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            icon = { Icon(Icons.Rounded.Close, contentDescription = null) },
+            label = { Text(stringResource(R.string.end_journey)) },
+        )
     }
 }

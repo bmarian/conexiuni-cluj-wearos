@@ -67,8 +67,16 @@
     <string name="following">Following</string>
     <string name="stop_following">Stop</string>
     <string name="follow_channel">Followed buses</string>
+    <string name="follow_alerts_channel">Bus alerts</string>
     <string name="follow_arriving">Arriving in %1$s</string>
     <string name="follow_now">Arriving now</string>
+    <string name="follow_done">Arrived at %1$s</string>
+    <string name="follow_no_bus">No more buses</string>
+    <string name="remind_saved">Reminder set</string>
+    <string name="reminder">Reminder</string>
+    <string name="remind_delete">Delete</string>
+    <string name="saved">Saved</string>
+    <string name="nav_arrive_at">Arrive %1$s</string>
     <string name="my_location">Show your location</string>
     <string name="save">Save</string>
     <string name="favorite_line">Favorite line</string>
@@ -94,6 +102,7 @@
     <string name="setup_open_settings">Settings</string>
     <string name="setup_not_now">Not now</string>
     <string name="leave_in">Leave in %1$s</string>
+    <string name="leave_at">Leave at %1$s</string>
     <string name="leave_now">Leave now</string>
     <string name="leave_by">Leave by %1$s to catch your bus</string>
     <string name="get_ready">Your bus leaves at %1$s, get ready</string>
