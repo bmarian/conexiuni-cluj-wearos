@@ -12,11 +12,15 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import online.bmarian.bus.R
@@ -38,10 +42,10 @@ private const val REMINDER_CHANNEL = "reminders"
 private const val ALERT_CHANNEL = "reminder_alerts"
 private const val REARM_SLACK_MS = 2 * 60_000L
 private const val MISSED_MS = 2 * 60_000L
-private const val LOCATE_MS = 5_000L
+internal const val LOCATE_MS = 5_000L
 private val CLOCK = DateTimeFormatter.ofPattern("HH:mm")
 
-/** The next bus of [followed] at [atMs], [lat]/[lon] its stop; [walk] and [leaveAt] once the heads-up has gone out. */
+/** The next bus of [followed] at [atMs], [lat]/[lon] its stop; [walk], its fix's time and [leaveAt] once the heads-up has gone out. */
 @Serializable
 data class Reminder(
     val id: String,
@@ -50,6 +54,7 @@ data class Reminder(
     val lon: Double,
     val atMs: Long,
     val walk: Int? = null,
+    val walkAt: Long = 0,
     val leaveAt: Long? = null,
 ) {
     /** The bus at any of a station's platforms. */
@@ -64,6 +69,7 @@ enum class Reminded { Following, Reminder }
 
 /** The phone's reminder rules for the watch's own button. */
 object Reminders {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val mutable = MutableStateFlow<List<Reminder>>(emptyList())
     val all: StateFlow<List<Reminder>> = mutable
 
@@ -80,7 +86,7 @@ object Reminders {
     internal fun arm(context: Context) {
         for (reminder in all.value) {
             val leaveAt = reminder.leaveAt
-            if (leaveAt != null) schedule(context, leaveAt, pending(context, reminder.id, ReminderReceiver.ACTION_LEAVE)) else fire(context, reminder.id)
+            if (leaveAt != null) schedule(context, leaveAt, pending(context, reminder.id, ReminderReceiver.ACTION_LEAVE)) else launch { fire(context, reminder.id) }
         }
     }
 
@@ -96,7 +102,7 @@ object Reminders {
         }
         val reminder = Reminder(UUID.randomUUID().toString(), followed, lat, lon, System.currentTimeMillis() + minutes * 60_000L)
         put(context, reminder)
-        fire(context, reminder.id)
+        launch { fire(context, reminder.id) }
         // Without exact alarms the time to leave can come late.
         if (!exactAllowed(context)) {
             runCatching {
@@ -122,12 +128,19 @@ object Reminders {
         save(context)
     }
 
-    /** Times the walk from the last fresh fix and looks again later, or speaks. */
-    internal fun fire(context: Context, id: String) {
+    /** The phone's walk, when its fix is newer than [than]. */
+    private suspend fun phoneWalk(context: Context, reminder: Reminder, than: Long) =
+        PhoneLink.walkFromPhone(context, reminder.followed.city, reminder.lat, reminder.lon)?.takeIf { it.walk != null && it.at > than }
+
+    /** Times the walk from the newer of the phone's fix and the watch's last fresh one, and looks again later, or speaks. */
+    internal suspend fun fire(context: Context, id: String) {
         val reminder = all.value.firstOrNull { it.id == id && it.leaveAt == null } ?: return
         val now = System.currentTimeMillis()
         if (reminder.atMs < now - MISSED_MS) return remove(context, id)
-        val walk = UserLocation.recent(context, reminder.followed.city)?.let { walkMinutes(it.lat, it.lon, reminder.lat, reminder.lon) }
+        val own = UserLocation.recent(context, reminder.followed.city)
+        val ownAt = if (own != null) UserLocation.savedAt(context) else 0
+        val phone = phoneWalk(context, reminder, ownAt)
+        val walk = phone?.walk ?: own?.let { walkMinutes(it.lat, it.lon, reminder.lat, reminder.lon) }
         val wakeAt = tellAt(reminder.atMs, walk)
         if (wakeAt > now + REARM_SLACK_MS) return schedule(context, wakeAt, pending(context, id, ReminderReceiver.ACTION_FIRE))
         val leaveAt = reminder.atMs - leadMinutes(walk) * 60_000L
@@ -138,7 +151,7 @@ object Reminders {
         }
         if (kind == Nudge.LeaveBy) {
             // Kept until it's time to leave, so it can still be called off.
-            put(context, reminder.copy(walk = walk, leaveAt = leaveAt))
+            put(context, reminder.copy(walk = walk, walkAt = phone?.at ?: ownAt, leaveAt = leaveAt))
             schedule(context, leaveAt, pending(context, id, ReminderReceiver.ACTION_LEAVE))
         } else {
             remove(context, id)
@@ -146,12 +159,23 @@ object Reminders {
         notify(context, reminder, kind, walk, leaveAt)
     }
 
-    internal fun leave(context: Context, id: String) {
+    /** Asks the phone again: closer, it waits; at the stop, it only says the bus is coming. */
+    internal suspend fun leave(context: Context, id: String) {
         val reminder = all.value.firstOrNull { it.id == id } ?: return
+        val now = System.currentTimeMillis()
+        if (reminder.atMs < now - MISSED_MS) return remove(context, id)
+        val phone = phoneWalk(context, reminder, reminder.walkAt)
+        val walk = phone?.walk ?: reminder.walk
+        val leaveAt = reminder.atMs - leadMinutes(walk) * 60_000L
+        if (walk != 0 && leaveAt > now + REARM_SLACK_MS) {
+            put(context, reminder.copy(walk = walk, walkAt = phone?.at ?: reminder.walkAt, leaveAt = leaveAt))
+            return schedule(context, leaveAt, pending(context, id, ReminderReceiver.ACTION_LEAVE))
+        }
         remove(context, id)
-        if (reminder.atMs < System.currentTimeMillis() - MISSED_MS) return
-        notify(context, reminder, Nudge.LeaveNow, reminder.walk, reminder.leaveAt ?: System.currentTimeMillis())
+        notify(context, reminder, if (walk == 0) Nudge.GetReady else Nudge.LeaveNow, walk, leaveAt)
     }
+
+    fun launch(block: suspend () -> Unit) = scope.launch { block() }
 
     private fun put(context: Context, reminder: Reminder) {
         mutable.update { list -> if (list.any { it.id == reminder.id }) list.map { if (it.id == reminder.id) reminder else it } else list + reminder }
@@ -240,9 +264,18 @@ class ReminderReceiver : BroadcastReceiver() {
         // Exact alarms were allowed or taken away: set them all again.
         if (intent.action == AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED) return Reminders.arm(context.applicationContext)
         val id = intent.getStringExtra(EXTRA_ID) ?: return
-        when (intent.action) {
-            ACTION_FIRE -> Reminders.fire(context.applicationContext, id)
-            ACTION_LEAVE -> Reminders.leave(context.applicationContext, id)
+        val action = intent.action
+        val app = context.applicationContext
+        val done = goAsync()
+        Reminders.launch {
+            try {
+                when (action) {
+                    ACTION_FIRE -> Reminders.fire(app, id)
+                    ACTION_LEAVE -> Reminders.leave(app, id)
+                }
+            } finally {
+                done.finish()
+            }
         }
     }
 

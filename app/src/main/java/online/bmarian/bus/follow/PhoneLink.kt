@@ -20,12 +20,15 @@ import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Node
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.Serializable
 import online.bmarian.bus.BuildConfig
 import online.bmarian.bus.Links
 import online.bmarian.bus.R
@@ -36,6 +39,17 @@ import online.bmarian.bus.data.LanguageSync
 import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
 import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+
+// The phone's own fix takes up to LOCATE_MS; the round trip gets as long again.
+private const val PHONE_WALK_MS = 2 * LOCATE_MS
+
+@Serializable
+data class WalkRequest(val id: String, val city: String, val lat: Double, val lon: Double)
+
+@Serializable
+data class WalkAnswer(val id: String, val walk: Int? = null, val at: Long = 0)
 
 object PhoneLink {
     const val CAPABILITY = "conexiuni_follow"
@@ -45,6 +59,8 @@ object PhoneLink {
     const val PATH_JOURNEY_STOP = "/journey/stop"
     const val PATH_JOURNEY_PLAN = "/journey/plan"
     const val PATH_JOURNEY_PLAN_REQUEST = "/journey/plan/request"
+    const val PATH_WALK_REQUEST = "/follow/walk/request"
+    const val PATH_WALK = "/follow/walk"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -78,6 +94,28 @@ object PhoneLink {
                 .getOrNull()
                 ?.let { JourneyMirror.onRemotePlan(it) }
             FavoritesSync.PATH -> FavoritesSync.onRemoteJson(data.decodeToString())
+            PATH_WALK -> runCatching { Api.json.decodeFromString<WalkAnswer>(data.decodeToString()) }
+                .getOrNull()
+                ?.let { walks[it.id]?.complete(it) }
+        }
+    }
+
+    private val walks = ConcurrentHashMap<String, CompletableDeferred<WalkAnswer>>()
+
+    /** The walk to [lat]/[lon] from the phone, asked only while it's beside the watch. */
+    suspend fun walkFromPhone(context: Context, city: String, lat: Double, lon: Double): WalkAnswer? {
+        val nearby = peers(context).filter { it.isNearby }
+        if (nearby.isEmpty() && !BuildConfig.DEBUG) return null
+        val request = WalkRequest(UUID.randomUUID().toString(), city, lat, lon)
+        val answer = CompletableDeferred<WalkAnswer>().also { walks[request.id] = it }
+        try {
+            val data = Api.json.encodeToString(request).encodeToByteArray()
+            relay(PATH_WALK_REQUEST, data)
+            val client = Wearable.getMessageClient(context)
+            for (node in nearby) runCatching { client.sendMessage(node.id, PATH_WALK_REQUEST, data).await() }
+            return withTimeoutOrNull(PHONE_WALK_MS) { answer.await() }
+        } finally {
+            walks.remove(request.id)
         }
     }
 

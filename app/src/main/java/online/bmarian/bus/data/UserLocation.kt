@@ -53,6 +53,8 @@ object UserLocation {
     }
 
     /** The saved fix while it's fresh. */
+    fun savedAt(context: Context) = prefs(context).getLong("at", 0)
+
     fun recent(context: Context, city: String? = Cities.current.value): Fix? =
         saved(context, city)?.takeIf { permitted(context) && System.currentTimeMillis() - prefs(context).getLong("at", 0) <= RECENT_MS }
 
