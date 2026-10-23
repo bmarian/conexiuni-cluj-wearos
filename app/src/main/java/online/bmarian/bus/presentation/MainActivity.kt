@@ -107,6 +107,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        Services.scope.launch { Services.sync.syncNow() }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         take(intent)

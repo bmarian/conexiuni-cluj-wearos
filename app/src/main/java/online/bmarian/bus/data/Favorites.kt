@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import online.bmarian.bus.data.sync.SyncRecords
 
 @Serializable
 data class FavoriteRoute(val routeId: Int, val direction: String)
@@ -65,6 +66,7 @@ class Favorites(
 
     @Synchronized
     fun toggleStop(stopId: Int) {
+        if (stopId !in _stops.value && _stops.value.size >= SyncRecords.CITY_CAP) return
         _stops.value = if (stopId in _stops.value) _stops.value - stopId else _stops.value + stopId
         changed()
     }
@@ -72,19 +74,25 @@ class Favorites(
     @Synchronized
     fun toggleRoute(routeId: Int, direction: String) {
         val fav = FavoriteRoute(routeId, direction)
+        if (fav !in _routes.value && _routes.value.size >= SyncRecords.CITY_CAP) return
         _routes.value = if (fav in _routes.value) _routes.value - fav else _routes.value + fav
         changed()
     }
 
+    fun savedIn(city: String): Pair<List<Int>, List<FavoriteRoute>> {
+        val prefs = prefsOf(city)
+        return parseStopIds(read(prefs, "stops")) to parseFavoriteRoutes(read(prefs, "routes"))
+    }
+
+    /** What sync agreed on. */
     @Synchronized
-    fun import(favorites: JsonObject, city: String) {
-        val routes = parseFavoriteRoutes(favorites["routes"])
-        val stops = parseStopIds(favorites["stops"])
+    fun replaceSynced(city: String, stops: List<Int>, routes: List<FavoriteRoute>) {
+        if (savedIn(city) == stops to routes) return
         val now = System.currentTimeMillis()
         write(prefsOf(city), stops, routes, now)
         if (city == this.city) {
-            _routes.value = routes
             _stops.value = stops
+            _routes.value = routes
         }
         onChange(city, stops, routes, now)
     }

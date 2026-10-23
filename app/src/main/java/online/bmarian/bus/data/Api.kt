@@ -47,10 +47,10 @@ object Api {
 
     fun url(path: String, city: String = Cities.current.value) = BuildConfig.API_BASE + "$city/" + path
 
-    /** Not under a city: the city list and transfers. */
+    /** Not under a city: the city list and sync. */
     fun sharedUrl(path: String) = BuildConfig.API_BASE + path
 
-    private suspend fun send(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->
+    suspend fun send(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->
         val call = via.newCall(request)
         cont.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
@@ -64,7 +64,7 @@ object Api {
         })
     }
 
-    private suspend fun <T> fetch(request: Request, via: OkHttpClient = client, read: (Response) -> T): T {
+    suspend fun <T> fetch(request: Request, via: OkHttpClient = client, read: (Response) -> T): T {
         val response = send(request, via)
         try {
             return withContext(Dispatchers.IO) { read(response) }
@@ -106,40 +106,5 @@ object Api {
     suspend fun networkText(city: String): String = fetch(Request.Builder().url(url("network", city)).build(), bundleClient) { response ->
         if (!response.isSuccessful) throw HttpException(response.code)
         response.body?.string() ?: ""
-    }
-
-    suspend fun createTransfer(): TransferLink {
-        val request = Request.Builder().url(sharedUrl("transfer")).post(ByteArray(0).toRequestBody()).build()
-        return fetch(request) { response ->
-            if (!response.isSuccessful) throw HttpException(response.code)
-            json.decodeFromString(response.body?.string() ?: "")
-        }
-    }
-
-    sealed interface TransferRead {
-        data object Waiting : TransferRead
-        data object Gone : TransferRead
-        class Received(val data: JsonElement) : TransferRead
-    }
-
-    suspend fun readTransfer(link: TransferLink): TransferRead {
-        val request = Request.Builder().url(sharedUrl("transfer/${link.code}"))
-            .header("X-Link-Secret", link.secret)
-            .header("Cache-Control", "no-store")
-            .build()
-        return fetch(request) { response ->
-            when {
-                response.code == 404 -> TransferRead.Gone
-                !response.isSuccessful -> throw HttpException(response.code)
-                response.code == 204 -> TransferRead.Waiting
-                else -> TransferRead.Received(json.parseToJsonElement(response.body?.string() ?: ""))
-            }
-        }
-    }
-
-    suspend fun deleteTransfer(link: TransferLink) {
-        runCatching {
-            send(Request.Builder().url(sharedUrl("transfer/${link.code}")).delete().header("X-Link-Secret", link.secret).build()).close()
-        }
     }
 }
