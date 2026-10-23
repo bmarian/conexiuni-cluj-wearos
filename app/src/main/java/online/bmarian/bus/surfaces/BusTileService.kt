@@ -42,6 +42,7 @@ import online.bmarian.bus.presentation.EXTRA_LINK
 import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
 import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
+import online.bmarian.bus.presentation.theme.ownHex
 import kotlin.time.Duration.Companion.seconds
 
 private const val ROWS_SHOWN = 3
@@ -160,7 +161,7 @@ class BusTileService : Material3TileService(allowDynamicTheme = false, defaultCo
     private fun MaterialScope.badge(line: String, color: String?): LayoutElement = box(
         text(line.layoutString, typography = Typography.LABEL_SMALL, color = 0xFFFFFFFF.argb),
         modifier = LayoutModifier
-            .background(runCatching { color!!.toColorInt() }.getOrDefault(GRAY).argb)
+            .background(runCatching { ownHex(line, color)!!.toColorInt() }.getOrDefault(GRAY).argb)
             .clip(6f)
             .padding(horizontal = 5f, vertical = 1f),
     )

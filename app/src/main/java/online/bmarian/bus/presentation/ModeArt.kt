@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import online.bmarian.bus.data.StationLook
 import online.bmarian.bus.logic.Mode
+import online.bmarian.bus.presentation.theme.lineColor
 import online.bmarian.bus.presentation.theme.routeColor
 
 /** Port of utils/modeIcons.ts. */
@@ -104,7 +105,7 @@ fun StationLines(look: StationLook?, modifier: Modifier = Modifier) {
     FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         for (route in routes) {
             Box(
-                Modifier.widthIn(min = 28.dp).clip(RoundedCornerShape(5.dp)).background(routeColor(route.color)).padding(horizontal = 5.dp, vertical = 1.dp),
+                Modifier.widthIn(min = 28.dp).clip(RoundedCornerShape(5.dp)).background(lineColor(route.shortName, route.color)).padding(horizontal = 5.dp, vertical = 1.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(route.shortName, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black, maxLines = 1)

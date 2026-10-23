@@ -53,7 +53,7 @@ import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
 import online.bmarian.bus.presentation.squish
 import online.bmarian.bus.presentation.surface
-import online.bmarian.bus.presentation.theme.routeColor
+import online.bmarian.bus.presentation.theme.lineColor
 
 private const val SEARCH_LIMIT = 25
 
@@ -110,7 +110,7 @@ fun RoutesScreen(onOpenRoute: (Int) -> Unit) {
                     Button(
                         onClick = { onOpenRoute(route.routeId) },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = routeColor(route.color), contentColor = Color.White),
+                        colors = ButtonDefaults.buttonColors(containerColor = lineColor(route.shortName, route.color), contentColor = Color.White),
                         contentPadding = PaddingValues(0.dp),
                     ) {
                         Text(route.shortName, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1)

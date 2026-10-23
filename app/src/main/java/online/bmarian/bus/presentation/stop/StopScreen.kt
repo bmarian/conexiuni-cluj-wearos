@@ -90,7 +90,8 @@ import online.bmarian.bus.presentation.reminding
 import online.bmarian.bus.presentation.squish
 import online.bmarian.bus.presentation.surface
 import online.bmarian.bus.presentation.theme.Palette
-import online.bmarian.bus.presentation.theme.routeColor
+import online.bmarian.bus.presentation.theme.lineColor
+import online.bmarian.bus.presentation.theme.manyLines
 import java.time.LocalDateTime
 
 private const val STOP_MAP_ZOOM = 13f
@@ -330,6 +331,7 @@ fun StopMapScreen(vm: StopViewModel) {
     val name by vm.name.collectAsStateWithLifecycle()
     val location by vm.location.collectAsStateWithLifecycle()
     val layer by vm.mapLayer.collectAsStateWithLifecycle()
+    val apart = manyLines(layer.lines.map { it.name })
     val me by rememberUserLocation()
     val camera = rememberMapCamera()
     val frame = location?.let { MapFrame.Focus(it.first, it.second, STOP_MAP_ZOOM) }
@@ -340,9 +342,9 @@ fun StopMapScreen(vm: StopViewModel) {
                 camera = camera,
                 frame = frame,
                 onMapTap = chrome::toggle,
-                lines = layer.lines.map { MapLine(it.points, routeColor(it.color)) },
+                lines = layer.lines.map { MapLine(it.points, lineColor(it.name, it.color, apart)) },
                 stops = listOfNotNull(location?.let { stationMapStop(vm.stopId, it.first, it.second, selected = true) }),
-                vehicles = layer.vehicles.map { MapVehicle(it.id, it.lat, it.lon, it.name, routeColor(it.color), it.heading) },
+                vehicles = layer.vehicles.map { MapVehicle(it.id, it.lat, it.lon, it.name, lineColor(it.name, it.color, apart), it.heading) },
                 me = me,
                 ambient = LocalAmbient.current,
             )

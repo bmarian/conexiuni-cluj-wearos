@@ -8,6 +8,7 @@ import android.os.LocaleList
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.CitySync
+import online.bmarian.bus.data.ColorSync
 import online.bmarian.bus.data.Favorites
 import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.data.LanguageSync
@@ -58,6 +59,7 @@ object Services {
         FavoritesSync.pull(app)
         LanguageSync.pull(app)
         CitySync.pull(app)
+        ColorSync.pull(app)
         Reminders.init(app)
         scope.launch { updateSurfacesOnChange(app) }
     }

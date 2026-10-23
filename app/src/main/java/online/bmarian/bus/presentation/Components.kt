@@ -76,7 +76,7 @@ import online.bmarian.bus.R
 import online.bmarian.bus.follow.minutesUntil
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.formatMinutesFromNow
-import online.bmarian.bus.presentation.theme.routeColor
+import online.bmarian.bus.presentation.theme.LocalLineLooks
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -188,17 +188,12 @@ fun FitText(
 
 @Composable
 fun LineBadge(shortName: String, color: String, modifier: Modifier = Modifier, height: Dp = 28.dp) {
-    Box(
-        modifier = modifier
-            .widthIn(min = height * 1.3f)
-            .heightIn(min = height)
-            .clip(RoundedCornerShape(height / 3))
-            .background(routeColor(color))
-            .padding(horizontal = 5.dp),
-        contentAlignment = Alignment.Center,
-    ) {
+    val looks = LocalLineLooks.current
+    val morph = rememberMorph(shortName, looks.color(shortName, color), looks.favorite(shortName))
+    FavoriteMorph(morph, RoundedCornerShape(height / 3), modifier.widthIn(min = height * 1.3f).heightIn(min = height)) {
         Text(
             shortName,
+            Modifier.padding(horizontal = 5.dp),
             color = Color.White,
             fontSize = (height.value * 0.5f).sp,
             fontWeight = FontWeight.Bold,

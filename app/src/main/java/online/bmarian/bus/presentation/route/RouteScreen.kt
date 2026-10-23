@@ -94,7 +94,7 @@ import online.bmarian.bus.presentation.rememberOpenOnPhone
 import online.bmarian.bus.presentation.rememberRemind
 import online.bmarian.bus.presentation.reminding
 import online.bmarian.bus.presentation.theme.Palette
-import online.bmarian.bus.presentation.theme.routeColor
+import online.bmarian.bus.presentation.theme.lineColor
 import java.time.LocalDateTime
 
 private const val FROM_STOP_ZOOM = 13f
@@ -148,7 +148,7 @@ private fun RouteMapView(
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
     val nowLabel = stringResource(R.string.now)
     val soonLabel = stringResource(R.string.soon)
-    val color = routeColor(info?.color ?: "")
+    val color = lineColor(info?.shortName, info?.color ?: "")
     val fromStopId = vm.fromStopId
 
     val current = ui
