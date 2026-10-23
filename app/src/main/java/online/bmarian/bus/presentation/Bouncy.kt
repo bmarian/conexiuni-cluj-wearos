@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
@@ -47,6 +48,7 @@ import kotlin.math.sin
 object Bouncy {
     val press = spring<Float>(dampingRatio = 0.32f, stiffness = 650f)
     val pop = spring<Float>(dampingRatio = 0.26f, stiffness = Spring.StiffnessMedium)
+    val slide = spring<Float>(dampingRatio = 0.58f, stiffness = 340f)
     val land = spring<Float>(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow)
 }
 
@@ -109,22 +111,24 @@ fun PopIcon(icon: ImageVector, on: Boolean, modifier: Modifier = Modifier, conte
         icon,
         contentDescription,
         modifier
-            .drawBehind {
-                val b = burst.value
-                if (b >= 1f) return@drawBehind
-                val reach = size.minDimension * (0.55f + 0.75f * b)
-                val dot = size.minDimension * 0.12f * (1f - b)
-                for (i in 0 until 8) {
-                    val angle = (i / 8f) * 2f * PI.toFloat() - PI.toFloat() / 2f
-                    drawCircle(tint.copy(alpha = (1f - b) * tint.alpha), dot, center + Offset(cos(angle) * reach, sin(angle) * reach))
-                }
-            }
+            .drawBehind { drawSparks(burst.value, tint) }
             .graphicsLayer {
                 scaleX = pop.value
                 scaleY = pop.value
                 rotationZ = (1f - pop.value) * -55f
             },
     )
+}
+
+/** PopIcon's ring of sparks at [burst] (0 to 1) around a [box]-sized icon. */
+fun DrawScope.drawSparks(burst: Float, tint: Color, box: Float = size.minDimension) {
+    if (burst >= 1f) return
+    val reach = box * (0.55f + 0.75f * burst)
+    val dot = box * 0.12f * (1f - burst)
+    for (i in 0 until 8) {
+        val angle = (i / 8f) * 2f * PI.toFloat() - PI.toFloat() / 2f
+        drawCircle(tint.copy(alpha = (1f - burst) * tint.alpha), dot, center + Offset(cos(angle) * reach, sin(angle) * reach))
+    }
 }
 
 /** Text that rolls up to its new value. */

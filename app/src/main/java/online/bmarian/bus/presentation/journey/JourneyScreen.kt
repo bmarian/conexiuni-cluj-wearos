@@ -74,7 +74,9 @@ import online.bmarian.bus.presentation.map.rememberMapChrome
 import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
-import online.bmarian.bus.presentation.theme.routeColor
+import online.bmarian.bus.presentation.theme.LineLooks
+import online.bmarian.bus.presentation.theme.LocalLineLooks
+import online.bmarian.bus.presentation.theme.manyLines
 
 private const val MAX_SEGMENTS = 20
 private const val BUS_OFF_PATH_M = 150.0
@@ -184,12 +186,14 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
     val vehicles by produceState(emptyList<Vehicle>(), leg) {
         LiveStream.live(emptyList(), leg.tripIds, plan.city).collect { value = it.vehiclesByTrip.values.flatten() }
     }
-    val lines = remember(plan, sync.legIndex) {
+    val looks = LocalLineLooks.current
+    val apart = manyLines(plan.legs.map { it.lines.firstOrNull().orEmpty() })
+    val lines = remember(plan, sync.legIndex, looks) {
         buildList {
             plan.walks.filter { it.size >= 2 }.forEach { walk -> add(MapLine(walk.map { it.lat to it.lon }, Walk, dotted = true)) }
             plan.legs.forEachIndexed { i, l ->
                 val alpha = if (i == sync.legIndex) 1f else 0.5f
-                add(MapLine(pathOf(l), routeColor(l.colors.firstOrNull().orEmpty()).copy(alpha = alpha)))
+                add(MapLine(pathOf(l), looks.color(l.lines.firstOrNull(), l.colors.firstOrNull().orEmpty(), apart).copy(alpha = alpha)))
             }
         }
     }
@@ -230,7 +234,7 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
             lines = lines,
             stops = stops,
             labels = labels,
-            vehicles = vehicles.mapNotNull { v -> busOf(leg, v) },
+            vehicles = vehicles.mapNotNull { v -> busOf(leg, v, looks, apart) },
             me = me,
             ambient = ambient,
             follow = follow.takeIf { following },
@@ -287,10 +291,11 @@ private fun withHeading(fix: Fix?): Fix? {
 private fun pathOf(leg: JourneyLeg): List<Pair<Double, Double>> =
     (leg.path.takeIf { it.size >= 2 }?.map { it.lat to it.lon }) ?: leg.stops.map { it.lat to it.lon }
 
-private fun busOf(leg: JourneyLeg, v: Vehicle): MapVehicle? {
+private fun busOf(leg: JourneyLeg, v: Vehicle, looks: LineLooks, apart: Boolean): MapVehicle? {
     if (v.latitude == 0.0 || v.longitude == 0.0) return null
     val i = leg.routeIds.indexOf(v.routeId).takeIf { it >= 0 } ?: 0
     val path = pathOf(leg)
     if (path.none { haversineMeters(it.first, it.second, v.latitude, v.longitude) <= BUS_OFF_PATH_M }) return null
-    return MapVehicle("${v.id}", v.latitude, v.longitude, leg.lines.getOrNull(i) ?: leg.lines.first(), routeColor(leg.colors.getOrNull(i) ?: leg.colors.first()), v.heading)
+    val line = leg.lines.getOrNull(i) ?: leg.lines.first()
+    return MapVehicle("${v.id}", v.latitude, v.longitude, line, looks.color(line, leg.colors.getOrNull(i) ?: leg.colors.first(), apart), v.heading)
 }

@@ -1,6 +1,9 @@
 package online.bmarian.bus.presentation.theme
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -54,5 +57,8 @@ fun routeColor(hex: String): Color =
 fun ConexiuniClujWearOSTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val scheme = remember(context) { dynamicColorScheme(context) ?: BrandColors }
-    MaterialTheme(colorScheme = scheme, content = content)
+    val lineLooks by LineColors.looks.collectAsState()
+    CompositionLocalProvider(LocalLineLooks provides lineLooks) {
+        MaterialTheme(colorScheme = scheme, content = content)
+    }
 }
