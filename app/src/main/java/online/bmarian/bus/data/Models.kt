@@ -119,8 +119,6 @@ data class Vehicle(
     @SerialName("wheelchair_accessible") val wheelchairAccessible: String = "",
 )
 
-@Serializable
-data class TransferLink(val code: String, val secret: String, val expiresIn: Int = 600)
 
 fun routeIdFromTripId(tripId: String): Int? = tripId.substringBefore('_').toIntOrNull()
 

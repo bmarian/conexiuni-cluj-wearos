@@ -11,6 +11,7 @@ import online.bmarian.bus.data.CitySync
 import online.bmarian.bus.data.Favorites
 import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.data.LanguageSync
+import online.bmarian.bus.data.sync.Sync
 import online.bmarian.bus.data.Repository
 import online.bmarian.bus.data.UserLocation
 import online.bmarian.bus.follow.Reminders
@@ -19,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 class App : Application() {
     override fun onCreate() {
@@ -33,17 +35,26 @@ object Services {
         private set
     lateinit var favorites: Favorites
         private set
+    lateinit var sync: Sync
+        private set
 
     fun init(app: Application) {
         Api.init(app)
         Cities.init(app)
         repository = Repository(app)
         favorites = Favorites(app) { city, stops, routes, updatedAt -> FavoritesSync.publish(app, city, stops, routes, updatedAt) }
+        sync = Sync(app)
         scope.launch {
             repository.loadCached()
             repository.refreshNetwork(now = true)
         }
         scope.launch { openOnCity(app) }
+        // Records are per city, so it waits for the city list.
+        scope.launch {
+            Cities.list.first { it.isNotEmpty() }
+            sync.start(scope)
+            sync.syncNow()
+        }
         FavoritesSync.pull(app)
         LanguageSync.pull(app)
         CitySync.pull(app)

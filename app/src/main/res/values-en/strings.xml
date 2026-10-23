@@ -5,7 +5,7 @@
     <string name="no_favorites">No favorites yet. Save a stop or a line to see it here.</string>
     <string name="all_routes">All lines</string>
     <string name="all_stops">All stops</string>
-    <string name="copy_favorites">Copy favorites</string>
+    <string name="copy_favorites">Sync with phone or computer</string>
     <string name="load_failed">Couldn\'t load. Check your connection.</string>
     <string name="retry">Try again</string>
     <string name="loading_route">Loading line…</string>
@@ -40,13 +40,6 @@
     <string name="nearby_none">No stops within 700 m.</string>
     <string name="nearby_unavailable">Location is off.</string>
 
-    <string name="transfer_hint">Scan the code, or type the number under Settings, Send on the other device.</string>
-    <string name="transfer_expired">The code expired.</string>
-    <string name="transfer_failed">Couldn\'t get a code. Try again in a moment.</string>
-    <string name="transfer_broken">That didn\'t work. Get a new code and send again.</string>
-    <string name="transfer_new_code">New code</string>
-    <string name="pair_review">Copy these favorites?</string>
-    <string name="pair_done">Favorites copied</string>
 
 
 
@@ -112,4 +105,19 @@
     <string name="reminder_channel">Reminders</string>
     <string name="reminder_alerts_channel">Reminder alerts</string>
     <string name="app_version">Version %1$s</string>
+    <string name="sync_hint">On your phone or computer, open Settings, Sync with other devices, and scan this or enter the code.</string>
+    <string name="sync_connecting">Connecting…</string>
+    <string name="sync_confirm_title">Sync with %1$s?</string>
+    <string name="sync_confirm_check">Check that the other screen shows this number.</string>
+    <string name="sync_done">Syncing</string>
+    <string name="sync_expired">The code expired.</string>
+    <string name="sync_failed">Couldn\'t get a code. Try again in a moment.</string>
+    <string name="sync_broken">Couldn\'t connect. Try again.</string>
+    <string name="sync_both">Both devices already sync. Turn sync off on one of them first.</string>
+    <string name="sync_new_code">New code</string>
+    <string name="sync_through_phone">Your favorites sync through your phone.</string>
+    <string name="sync_on">Your favorites sync with your other devices.</string>
+    <string name="sync_problem">Some synced data couldn\'t be read. Your favorites here are unchanged.</string>
+    <string name="sync_turn_off">Turn off sync</string>
+    <string name="sync_removed">This watch was removed from sync. Pair it again to keep syncing.</string>
 </resources>

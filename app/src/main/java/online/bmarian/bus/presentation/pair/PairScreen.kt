@@ -1,20 +1,25 @@
 package online.bmarian.bus.presentation.pair
 
-import android.content.Context
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,8 +35,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.wear.compose.material3.AlertDialog
 import androidx.wear.compose.material3.AlertDialogDefaults
 import androidx.wear.compose.material3.ConfirmationDialogDefaults
@@ -39,21 +42,8 @@ import androidx.wear.compose.material3.FilledTonalButton
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.SuccessConfirmationDialog
-import androidx.wear.compose.material3.curvedText
 import androidx.wear.compose.material3.Text
-import online.bmarian.bus.R
-import online.bmarian.bus.Services
-import online.bmarian.bus.data.Api
-import online.bmarian.bus.data.Transfer
-import online.bmarian.bus.data.TransferLink
-import online.bmarian.bus.presentation.ListScreen
-import online.bmarian.bus.presentation.Loading
-import online.bmarian.bus.presentation.Message
-import online.bmarian.bus.presentation.contentModifier
-import online.bmarian.bus.presentation.itemModifier
-import online.bmarian.bus.presentation.squish
-import online.bmarian.bus.presentation.surface
-import online.bmarian.bus.presentation.theme.Palette
+import androidx.wear.compose.material3.curvedText
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -62,84 +52,176 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
+import online.bmarian.bus.BuildConfig
+import online.bmarian.bus.R
+import online.bmarian.bus.Services
+import online.bmarian.bus.data.sync.Sync
+import online.bmarian.bus.data.sync.SyncApi
+import online.bmarian.bus.data.sync.SyncCrypto
+import online.bmarian.bus.data.sync.SyncHttpException
+import online.bmarian.bus.data.sync.SyncMessages
+import online.bmarian.bus.presentation.ListScreen
+import online.bmarian.bus.presentation.Loading
+import online.bmarian.bus.presentation.Message
+import online.bmarian.bus.presentation.contentModifier
+import online.bmarian.bus.presentation.itemModifier
+import online.bmarian.bus.presentation.squish
+import online.bmarian.bus.presentation.surface
+import online.bmarian.bus.presentation.theme.Palette
+import java.io.IOException
 
 private const val POLL_MS = 2000L
 
-enum class PairState { Loading, Waiting, Review, Done, Expired, Failed, Broken }
+enum class PairState { Loading, Showing, Connecting, Confirm, Waiting, Done, Expired, Failed, Broken, Both }
 
-// Held until confirmed: anyone who guesses the code can send.
+/** The watch shows a code; the phone or computer enters it (protocol.md §2, the D side of the phone's SyncPairingViewModel). */
 class PairViewModel : ViewModel() {
     val state = MutableStateFlow(PairState.Loading)
-    val link = MutableStateFlow<TransferLink?>(null)
-    val summary = MutableStateFlow<Transfer.Summary?>(null)
-    var key = ""
-        private set
-    private var received: JsonElement? = null
-    private var job: Job? = null
+    val code = MutableStateFlow("")
+    val url = MutableStateFlow("")
+    val check = MutableStateFlow("")
+    val peer = MutableStateFlow<SyncMessages.Hello?>(null)
 
-    init {
-        start()
+    private class Pairing(val slot: SyncApi.Slot, val keys: SyncCrypto.KeyPair, val k: ByteArray) {
+        var t: ByteArray? = null
+        var read = 0
+        var mine: SyncMessages.Hello? = null
+        var giving = false
+        var confirmed = false
+        var peerReady = false
+        var sentSecret = false
     }
+
+    private var pairing: Pairing? = null
+    private var job: Job? = null
 
     fun start() {
         job?.cancel()
         release()
         state.value = PairState.Loading
+        peer.value = null
         job = viewModelScope.launch {
-            val created = try {
-                Api.createTransfer()
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
+            try {
+                val keys = SyncCrypto.newKeyPair()
+                val k = SyncCrypto.random(16)
+                val slot = SyncApi.openSlot(SyncCrypto.toB64(SyncCrypto.sha256(keys.spki)))
+                val p = Pairing(slot, keys, k)
+                pairing = p
+                code.value = slot.code
+                url.value = "${BuildConfig.SITE_ORIGIN}/settings?pair=${slot.code}#k=${SyncCrypto.toB64(k)}"
+                state.value = PairState.Showing
+                while (pairing === p && poll(p)) delay(POLL_MS)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: IOException) {
                 state.value = PairState.Failed
-                return@launch
-            }
-            key = Transfer.newKey()
-            link.value = created
-            state.value = PairState.Waiting
-            poll(created, System.currentTimeMillis() + created.expiresIn * 1000L)
-        }
-    }
-
-    private suspend fun poll(current: TransferLink, expiresAt: Long) {
-        while (state.value == PairState.Waiting) {
-            delay(POLL_MS)
-            if (System.currentTimeMillis() > expiresAt) {
-                state.value = PairState.Expired
-                return
-            }
-            val result = runCatching { Api.readTransfer(current) }.getOrNull() ?: continue
-            when (result) {
-                Api.TransferRead.Waiting -> {}
-                Api.TransferRead.Gone -> state.value = PairState.Expired
-                is Api.TransferRead.Received -> receive(current, result.data)
+            } catch (_: Exception) {
+                fail(PairState.Broken)
             }
         }
     }
 
-    private fun receive(from: TransferLink, payload: JsonElement) {
-        Services.scope.launch { Api.deleteTransfer(from) }
-        link.value = null
-        received = runCatching { Transfer.open(payload, key) }.getOrNull()
-        summary.value = received?.let(Transfer::describe)
-        state.value = if (summary.value != null) PairState.Review else PairState.Broken
+    private fun fail(why: PairState) {
+        release()
+        state.value = why
     }
 
-    fun accept(context: Context) {
-        val data = received as? JsonObject
-        if (state.value != PairState.Review || data == null) return
-        for ((city, favorites) in Transfer.favoritesByCity(data)) Services.favorites.import(favorites, city)
-        state.value = PairState.Done
-        context.getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createOneShot(60, VibrationEffect.DEFAULT_AMPLITUDE))
-        Transfer.localeOf(data)?.let { Services.setLanguage(context, it) }
+    /** False once pairing ended. */
+    private suspend fun poll(p: Pairing): Boolean {
+        val read = try {
+            SyncApi.readSlot(p.slot)
+        } catch (e: SyncHttpException) {
+            if (e.status != 404) throw e
+            pairing = null
+            state.value = if (p.sentSecret) PairState.Done else if (p.t != null) PairState.Broken else PairState.Expired
+            return false
+        } catch (_: IOException) {
+            return true
+        }
+        if (p.t == null && read.pub != null) {
+            val other = SyncCrypto.fromB64(read.pub, SyncCrypto.SPKI_SIZE)?.takeIf { SyncCrypto.publicKey(it) != null }
+                ?: return false.also { fail(PairState.Broken) }
+            SyncApi.revealKey(p.slot, SyncCrypto.toB64(p.keys.spki))
+            val t = SyncCrypto.pairKey(SyncCrypto.ecdh(p.keys.private, other), if (read.scanned) p.k else null, p.slot.code, other, p.keys.spki)
+            p.t = t
+            check.value = SyncCrypto.checkNumber(t)
+            val sync = Services.sync
+            val member = sync.engine.membership()
+            val mine = SyncMessages.Hello("wear", label(), member != null, if (member != null) maxOf(sync.devices.value, 1) else 0)
+            p.mine = mine
+            state.value = PairState.Connecting
+            send(p, mine)
+        }
+        val t = p.t ?: return true
+        while (p.read < read.messages.size) {
+            val sealed = SyncCrypto.fromB64(read.messages[p.read++])
+            val plain = sealed?.let { SyncCrypto.open(t, it, SyncCrypto.pairAAD(p.slot.code, 'E')) }
+            val message = plain?.let(SyncCrypto::unpad)?.let { SyncMessages.read(String(it, Charsets.UTF_8)) }
+                ?: return false.also { fail(PairState.Broken) }
+            handle(p, message)
+            if (pairing !== p) return false
+        }
+        return true
+    }
+
+    private fun label() = android.os.Build.MODEL.orEmpty().trim().take(40).ifEmpty { "Wear OS" }
+
+    private suspend fun send(p: Pairing, message: SyncMessages.Message) {
+        val plain = SyncCrypto.pad(SyncMessages.write(message).toByteArray(Charsets.UTF_8), SyncCrypto.PAIR_PADDED)
+        SyncApi.sendMessage(p.slot, SyncCrypto.toB64(SyncCrypto.seal(p.t!!, plain, SyncCrypto.pairAAD(p.slot.code, 'D'))))
+    }
+
+    private suspend fun handle(p: Pairing, message: SyncMessages.Message) {
+        when (message) {
+            is SyncMessages.Hello -> {
+                if (peer.value != null) return fail(PairState.Broken)
+                peer.value = message
+                if (p.mine!!.syncs && message.syncs) return fail(PairState.Both)
+                p.giving = p.mine!!.syncs
+                state.value = PairState.Confirm
+            }
+            SyncMessages.Ready -> {
+                if (!p.giving || p.peerReady) return fail(PairState.Broken)
+                p.peerReady = true
+                give(p)
+            }
+            is SyncMessages.Secret -> {
+                if (p.giving || !p.confirmed) return fail(PairState.Broken)
+                Services.sync.engine.joinChain(message.chain, message.s)
+                Services.scope.launch { SyncApi.closeSlot(p.slot) }
+                pairing = null
+                Services.sync.joined()
+                state.value = PairState.Done
+            }
+        }
+    }
+
+    private suspend fun give(p: Pairing) {
+        if (!p.giving || !p.confirmed || !p.peerReady || p.sentSecret) return
+        p.sentSecret = true
+        val m = Services.sync.engine.membership() ?: return fail(PairState.Broken)
+        send(p, SyncMessages.Secret(m.chain, m.epoch, SyncCrypto.toB64(m.s)))
+    }
+
+    fun confirm() {
+        val p = pairing ?: return
+        if (state.value != PairState.Confirm) return
+        p.confirmed = true
+        state.value = PairState.Waiting
+        viewModelScope.launch {
+            try {
+                if (p.giving) give(p) else send(p, SyncMessages.Ready)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                fail(PairState.Broken)
+            }
+        }
     }
 
     private fun release() {
-        link.value?.let { Services.scope.launch { Api.deleteTransfer(it) } }
-        link.value = null
-        summary.value = null
-        received = null
+        pairing?.let { p -> Services.scope.launch { SyncApi.closeSlot(p.slot) } }
+        pairing = null
     }
 
     override fun onCleared() {
@@ -163,44 +245,90 @@ private fun QrCode(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+/** With the phone app on the paired phone, favorites already follow it; otherwise the watch joins sync itself. */
 @Composable
-fun PairScreen(onDone: () -> Unit, vm: PairViewModel = viewModel()) {
+fun PairScreen(onDone: () -> Unit) {
+    val sync = Services.sync
+    val status by sync.status.collectAsStateWithLifecycle()
+    var phoneApp by remember { mutableStateOf<Boolean?>(null) }
+    var pairing by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { phoneApp = sync.phoneHasApp() }
+    // Once pairing starts it stays on screen, so the finished pairing can say so.
+    val showPairing = pairing || (status != Sync.Status.On && status != Sync.Status.Unknown)
+    LaunchedEffect(showPairing) { if (showPairing) pairing = true }
+    when {
+        phoneApp == null || status == Sync.Status.Unknown -> ListScreen { spec -> item { Loading(spec) } }
+        phoneApp == true -> ListScreen { spec -> item { Message(stringResource(R.string.sync_through_phone), spec) } }
+        showPairing -> PairingScreen(onDone)
+        else -> SyncingScreen()
+    }
+}
+
+@Composable
+private fun SyncingScreen() {
+    val scope = rememberCoroutineScope()
+    val broken by Services.sync.broken.collectAsStateWithLifecycle()
+    ListScreen { spec ->
+        item { Message(stringResource(if (broken) R.string.sync_problem else R.string.sync_on), spec) }
+        item {
+            val press = remember { MutableInteractionSource() }
+            FilledTonalButton(
+                onClick = { scope.launch { runCatching { Services.sync.leave() } } },
+                modifier = itemModifier(spec).squish(press),
+                interactionSource = press,
+                transformation = surface(spec),
+                icon = { Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null) },
+                label = { Text(stringResource(R.string.sync_turn_off)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PairingScreen(onDone: () -> Unit, vm: PairViewModel = viewModel()) {
     val context = LocalContext.current
     val state by vm.state.collectAsStateWithLifecycle()
-    val link by vm.link.collectAsStateWithLifecycle()
-    val summary by vm.summary.collectAsStateWithLifecycle()
+    val code by vm.code.collectAsStateWithLifecycle()
+    val url by vm.url.collectAsStateWithLifecycle()
+    val check by vm.check.collectAsStateWithLifecycle()
+    val peer by vm.peer.collectAsStateWithLifecycle()
+    val removed by Services.sync.removed.collectAsStateWithLifecycle()
+    LaunchedEffect(vm) { if (vm.state.value == PairState.Loading) vm.start() }
 
     val view = LocalView.current
     DisposableEffect(view) {
         view.keepScreenOn = true
         onDispose { view.keepScreenOn = false }
     }
+    fun spaced(text: String) = if (text.length == 6) "${text.take(3)} ${text.drop(3)}" else text
 
     ListScreen { spec ->
         when (state) {
-            PairState.Waiting, PairState.Review, PairState.Done -> link?.let { current ->
+            PairState.Showing, PairState.Connecting, PairState.Waiting -> {
+                if (removed) item { Message(stringResource(R.string.sync_removed), spec) }
                 item {
                     Box(contentModifier(spec), contentAlignment = Alignment.Center) {
                         Box(Modifier.size(112.dp).clip(RoundedCornerShape(12.dp)).background(Color.White).padding(8.dp)) {
-                            QrCode(Transfer.url(current.code, vm.key), Modifier.size(96.dp))
+                            QrCode(url, Modifier.size(96.dp))
                         }
                     }
                 }
                 item {
                     Text(
-                        Transfer.spaced(current.code),
+                        spaced(code),
                         modifier = contentModifier(spec).padding(top = 4.dp),
                         style = MaterialTheme.typography.numeralSmall,
                         textAlign = TextAlign.Center,
                     )
                 }
-                item { Message(stringResource(R.string.transfer_hint), spec) }
+                item { Message(stringResource(if (state == PairState.Showing) R.string.sync_hint else R.string.sync_connecting), spec) }
             }
-            PairState.Expired, PairState.Failed, PairState.Broken -> {
+            PairState.Expired, PairState.Failed, PairState.Broken, PairState.Both -> {
                 val message = when (state) {
-                    PairState.Expired -> R.string.transfer_expired
-                    PairState.Failed -> R.string.transfer_failed
-                    else -> R.string.transfer_broken
+                    PairState.Expired -> R.string.sync_expired
+                    PairState.Failed -> R.string.sync_failed
+                    PairState.Both -> R.string.sync_both
+                    else -> R.string.sync_broken
                 }
                 item { Message(stringResource(message), spec) }
                 item {
@@ -211,35 +339,33 @@ fun PairScreen(onDone: () -> Unit, vm: PairViewModel = viewModel()) {
                         interactionSource = press,
                         transformation = surface(spec),
                         icon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
-                        label = { Text(stringResource(R.string.transfer_new_code)) },
+                        label = { Text(stringResource(R.string.sync_new_code)) },
                     )
                 }
             }
-            PairState.Loading -> item { Loading(spec) }
+            else -> item { Loading(spec) }
         }
     }
 
     AlertDialog(
-        visible = state == PairState.Review && summary != null,
+        visible = state == PairState.Confirm && peer != null,
         onDismissRequest = onDone,
-        title = { Text(stringResource(R.string.pair_review)) },
+        title = { Text(stringResource(R.string.sync_confirm_title, peer?.label.orEmpty())) },
         text = {
-            summary?.let { counts ->
-                Text(
-                    listOf(
-                        stringResource(R.string.count_line, stringResource(R.string.favorite_stops), counts.stops),
-                        stringResource(R.string.count_line, stringResource(R.string.favorite_routes), counts.lines),
-                    ).joinToString("\n"),
-                    textAlign = TextAlign.Center,
-                )
-            }
+            Text(
+                spaced(check) + "\n" + stringResource(R.string.sync_confirm_check),
+                textAlign = TextAlign.Center,
+            )
         },
-        confirmButton = { AlertDialogDefaults.ConfirmButton(onClick = { vm.accept(context) }) },
+        confirmButton = { AlertDialogDefaults.ConfirmButton(onClick = vm::confirm) },
         dismissButton = { AlertDialogDefaults.DismissButton(onClick = onDone) },
     )
 
-    val doneText = stringResource(R.string.pair_done)
+    val doneText = stringResource(R.string.sync_done)
     val doneStyle = ConfirmationDialogDefaults.curvedTextStyle
+    LaunchedEffect(state) {
+        if (state == PairState.Done) context.getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createOneShot(60, VibrationEffect.DEFAULT_AMPLITUDE))
+    }
     SuccessConfirmationDialog(
         visible = state == PairState.Done,
         onDismissRequest = onDone,

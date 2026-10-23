@@ -6,7 +6,7 @@
     <string name="no_favorites">Nu ai preferate încă. Salvează o stație sau o linie ca să apară aici.</string>
     <string name="all_routes">Toate liniile</string>
     <string name="all_stops">Toate stațiile</string>
-    <string name="copy_favorites">Copiază preferatele</string>
+    <string name="copy_favorites">Sincronizează cu telefonul sau calculatorul</string>
     <string name="load_failed">Nu s-a putut încărca. Verifică conexiunea.</string>
     <string name="retry">Încearcă din nou</string>
     <string name="loading_route">Se încarcă linia…</string>
@@ -43,13 +43,6 @@
     <string name="nearby_none">Nicio stație pe o rază de 700 m.</string>
     <string name="nearby_unavailable">Locația este oprită.</string>
 
-    <string name="transfer_hint">Scanează codul sau scrie numărul la Setări, Trimite pe celălalt dispozitiv.</string>
-    <string name="transfer_expired">Codul a expirat.</string>
-    <string name="transfer_failed">Nu s-a putut obține un cod. Încearcă din nou.</string>
-    <string name="transfer_broken">Nu a mers. Ia un cod nou și trimite din nou.</string>
-    <string name="transfer_new_code">Cod nou</string>
-    <string name="pair_review">Copiezi aceste preferate?</string>
-    <string name="pair_done">Preferate copiate</string>
     <string name="count_line" translatable="false">%1$s: %2$d</string>
 
     <string name="credits" translatable="false">© OpenMapTiles, OpenStreetMap · tranzy.ai · CTP Cluj-Napoca</string>
@@ -119,4 +112,19 @@
     <string name="reminder_channel">Mementouri</string>
     <string name="reminder_alerts_channel">Alerte mementouri</string>
     <string name="app_version">Versiunea %1$s</string>
+    <string name="sync_hint">Pe telefon sau calculator, deschide Setări, Sincronizare cu alte dispozitive, și scanează codul sau introdu-l.</string>
+    <string name="sync_connecting">Se conectează…</string>
+    <string name="sync_confirm_title">Sincronizezi cu %1$s?</string>
+    <string name="sync_confirm_check">Verifică dacă celălalt ecran arată acest număr.</string>
+    <string name="sync_done">Sincronizat</string>
+    <string name="sync_expired">Codul a expirat.</string>
+    <string name="sync_failed">Nu s-a putut obține un cod. Încearcă din nou.</string>
+    <string name="sync_broken">Nu s-a putut conecta. Încearcă din nou.</string>
+    <string name="sync_both">Ambele dispozitive se sincronizează deja. Oprește sincronizarea pe unul dintre ele mai întâi.</string>
+    <string name="sync_new_code">Cod nou</string>
+    <string name="sync_through_phone">Preferatele se sincronizează prin telefon.</string>
+    <string name="sync_on">Preferatele se sincronizează cu celelalte dispozitive.</string>
+    <string name="sync_problem">Unele date sincronizate nu au putut fi citite. Preferatele de aici nu s-au schimbat.</string>
+    <string name="sync_turn_off">Oprește sincronizarea</string>
+    <string name="sync_removed">Ceasul a fost scos din sincronizare. Asociază-l din nou ca să se sincronizeze.</string>
 </resources>
