@@ -37,12 +37,13 @@ class NetworkRoute(
     @SerialName("route_long_name") val longName: String = "",
     @SerialName("route_type") val type: Int = 3,
     @SerialName("route_color") val color: String = "#64748b",
+    @SerialName("route_colorful") val colorful: String = "",
     @SerialName("route_desc") val desc: String = "",
     val timetable: Timetable? = null,
     val trips: List<NetworkTrip> = emptyList(),
     val offsets: Map<String, List<IntArray>> = emptyMap(),
 ) {
-    fun toRoute() = Route(routeId, shortName, longName, type, color)
+    fun toRoute() = Route(routeId, shortName, longName, type, color, colorful)
 }
 
 @Serializable
