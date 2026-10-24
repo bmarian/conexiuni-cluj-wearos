@@ -199,9 +199,9 @@ private fun RouteMapView(
                 stops = mapStops,
                 labels = labels,
                 vehicles = current?.roundTripVehicles.orEmpty().map {
-                    MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading, faded = true)
+                    MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading, faded = true, vehicle = it)
                 } + current?.vehicles.orEmpty().map {
-                    MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading)
+                    MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading, vehicle = it)
                 },
                 me = me,
                 ambient = LocalAmbient.current,

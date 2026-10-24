@@ -1,13 +1,19 @@
 package online.bmarian.bus.presentation.map
 
 import online.bmarian.bus.logic.Mode
+import online.bmarian.bus.logic.RoutePath
+import online.bmarian.bus.logic.VehicleTrack
+import online.bmarian.bus.logic.haversineMeters
+import online.bmarian.bus.logic.pathOf
 import online.bmarian.bus.Services
 import online.bmarian.bus.presentation.theme.Palette
 import online.bmarian.bus.presentation.theme.routeColor
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.RectF
 import android.location.Location
+import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -20,6 +26,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -41,6 +48,7 @@ import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.UserLocation
+import online.bmarian.bus.data.Vehicle
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -89,6 +97,8 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import java.time.OffsetDateTime
+import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.sign
 
@@ -125,7 +135,7 @@ fun stationMapStop(stopId: Int, lat: Double, lon: Double, selected: Boolean = fa
 }
 class MapLabel(val id: String, val lat: Double, val lon: Double, val text: String, val live: Boolean, val rank: Int)
 /** [faded]: on the other direction now, counted on coming back. */
-class MapVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: Color, val heading: Double, val faded: Boolean = false)
+class MapVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: Color, val heading: Double, val faded: Boolean = false, val vehicle: Vehicle? = null)
 
 data class MapFollow(val zoom: Double, val tilt: Double)
 
@@ -224,6 +234,7 @@ fun TransitMap(
             if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) host.map.onPause()
             if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) host.map.onStop()
             camera.map = null
+            session?.destroy()
             host.map.onDestroy()
         }
     }
@@ -250,6 +261,12 @@ fun TransitMap(
     LaunchedEffect(session, stops) { session?.setStops(stops) }
     LaunchedEffect(session, labels) { session?.setLabels(labels) }
     LaunchedEffect(session, vehicles) { session?.setVehicles(vehicles) }
+    val vehicleTrips = remember(vehicles) { vehicles.mapNotNull { it.vehicle?.tripId }.distinct().sorted() }
+    val vehiclePaths by produceState(emptyMap<String, RoutePath>(), vehicleTrips) {
+        value = runCatching { Services.repository.shapes(vehicleTrips) }.getOrDefault(emptyMap())
+            .filterValues { it.size > 1 }.mapValues { pathOf(it.value) }
+    }
+    LaunchedEffect(session, vehiclePaths) { session?.setVehiclePaths(vehiclePaths) }
     LaunchedEffect(session, me) { session?.setMe(me) }
     LaunchedEffect(session, follow) { session?.setFollow(follow) }
     LaunchedEffect(session, ambient) {
@@ -327,6 +344,8 @@ private const val SRC_VEHICLES = "ct-vehicles"
 private const val LAYER_STOPS = "ct-stops"
 private const val FADED_VEHICLE_OPACITY = 0.5f
 private const val FADED_VEHICLE_SIZE = 0.7f
+private const val MIN_STEP_PX = 0.3
+private const val MAX_IDLE_MS = 250L
 
 private class MapSession(
     private val context: Context,
@@ -341,6 +360,14 @@ private class MapSession(
     private var followed: MapFollow? = null
     private var followMove = 0
     private var settling = false
+    private var vehicles: List<MapVehicle> = emptyList()
+    private var paths: Map<String, RoutePath> = emptyMap()
+    private val tracks = HashMap<String, VehicleTrack>()
+    private val untracked = HashMap<String, String?>()
+    private val drawn = HashMap<String, Pair<Pair<Double, Double>, Double>>()
+    private var ambient = false
+    private var moving = false
+    private val frame = Choreographer.FrameCallback { stepVehicles() }
 
     init {
         listOf(SRC_LINES, SRC_STOPS, SRC_LABELS, SRC_VEHICLES).forEach { style.addSource(GeoJsonSource(it)) }
@@ -464,15 +491,79 @@ private class MapSession(
         )
     }
 
-    fun setVehicles(vehicles: List<MapVehicle>) {
+    fun setVehicles(list: List<MapVehicle>) {
+        vehicles = list.filter { it.lat != 0.0 && it.lon != 0.0 }
+        followVehicles()
+    }
+
+    fun setVehiclePaths(paths: Map<String, RoutePath>) {
+        this.paths = paths
+        followVehicles()
+    }
+
+    private fun followVehicles() {
+        val now = System.currentTimeMillis()
+        tracks.keys.retainAll(vehicles.mapTo(HashSet()) { it.id })
+        for (v in vehicles) {
+            val bus = v.vehicle
+            val tripId = bus?.tripId
+            val path = tripId?.let(paths::get)
+            val fixMs = bus?.let { runCatching { OffsetDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull() }
+            if (bus == null || path == null || fixMs == null || untracked[v.id] == tripId || !ValueAnimator.areAnimatorsEnabled()) {
+                tracks.remove(v.id)
+                continue
+            }
+            val track = tracks[v.id]?.takeIf { it.path === path } ?: VehicleTrack(path)
+            if (track.fix(v.lat, v.lon, fixMs, bus.speed, v.heading, now)) {
+                tracks[v.id] = track
+            } else {
+                tracks.remove(v.id)
+                untracked[v.id] = tripId
+            }
+        }
+        pushVehicles()
+        move()
+    }
+
+    private fun move() {
+        if (moving || ambient || tracks.isEmpty()) return
+        moving = true
+        Choreographer.getInstance().postFrameCallback(frame)
+    }
+
+    private fun stepVehicles() {
+        moving = false
+        if (ambient || tracks.isEmpty()) return
+        val now = System.currentTimeMillis()
+        for (track in tracks.values) track.step(now)
+        val step = map.projection.getMetersPerPixelAtLatitude(map.cameraPosition.target?.latitude ?: 0.0) * MIN_STEP_PX
+        if (tracks.any { (id, track) -> moved(id, track, step) }) pushVehicles()
+        // Until the fastest bus has moved far enough to see.
+        val fastest = tracks.values.maxOf { it.v }
+        moving = true
+        Choreographer.getInstance().postFrameCallbackDelayed(frame, if (fastest <= 0) MAX_IDLE_MS else (step / fastest * 1000).toLong().coerceAtMost(MAX_IDLE_MS))
+    }
+
+    private fun moved(id: String, track: VehicleTrack, step: Double): Boolean {
+        val (at, heading) = drawn[id] ?: return true
+        val (lat, lon) = track.position
+        return haversineMeters(at.first, at.second, lat, lon) >= step || abs((track.heading - heading + 540) % 360 - 180) >= 1
+    }
+
+    private fun pushVehicles() {
+        drawn.clear()
         source(SRC_VEHICLES)?.setGeoJson(
             FeatureCollection.fromFeatures(
-                vehicles.filter { it.lat != 0.0 && it.lon != 0.0 }.sortedWith(compareBy({ !it.faded }, { -it.lat })).mapIndexed { i, v ->
+                vehicles.sortedWith(compareBy({ !it.faded }, { -it.lat })).mapIndexed { i, v ->
                     val name = "veh-${v.color.toArgb()}-${v.name}"
                     image(name) { images.vehicle(v.color, v.name) }
-                    Feature.fromGeometry(Point.fromLngLat(v.lon, v.lat)).apply {
+                    val track = tracks[v.id]?.takeIf { !ambient }
+                    val at = track?.position ?: (v.lat to v.lon)
+                    val heading = track?.heading ?: v.heading
+                    drawn[v.id] = at to heading
+                    Feature.fromGeometry(Point.fromLngLat(at.second, at.first)).apply {
                         addStringProperty("img", name)
-                        addNumberProperty("heading", v.heading)
+                        addNumberProperty("heading", heading)
                         addNumberProperty("z", i)
                         addBooleanProperty("faded", v.faded)
                         addNumberProperty("opacity", if (v.faded) FADED_VEHICLE_OPACITY else 1f)
@@ -612,12 +703,21 @@ private class MapSession(
         applyFollow()
     }
 
-    /** Ambient mode: mostly black. */
+    /** Ambient mode: mostly black, and the buses hold still. */
     fun setAmbient(on: Boolean) {
         for (layer in style.layers) {
             if (layer.id.startsWith("ct-") || layer.id.startsWith("mapbox-location")) continue
             layer.setProperties(visibility(if (on) Property.NONE else Property.VISIBLE))
         }
+        if (on == ambient) return
+        ambient = on
+        pushVehicles()
+        move()
+    }
+
+    fun destroy() {
+        Choreographer.getInstance().removeFrameCallback(frame)
+        moving = false
     }
 
     fun stopAt(point: android.graphics.PointF, reach: Float): String? =

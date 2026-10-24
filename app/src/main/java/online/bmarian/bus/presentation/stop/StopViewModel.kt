@@ -8,6 +8,7 @@ import online.bmarian.bus.data.LiveState
 import online.bmarian.bus.data.LiveStream
 import online.bmarian.bus.data.ShapePoint
 import online.bmarian.bus.data.StopInfo
+import online.bmarian.bus.data.Vehicle
 import online.bmarian.bus.data.routeIdFromTripId
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
@@ -33,7 +34,7 @@ const val TICK_MS = 10_000L
 
 class StopUi(val departures: List<StopDeparture>, val now: LocalDateTime)
 
-class StopVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: String, val heading: Double)
+class StopVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: String, val heading: Double, val vehicle: Vehicle)
 class StopMapLine(val points: List<Pair<Double, Double>>, val name: String, val color: String)
 class StopMapLayer(val lines: List<StopMapLine>, val vehicles: List<StopVehicle>)
 
@@ -70,7 +71,7 @@ class StopViewModel(val stopId: Int) : ViewModel() {
             val vehicles = live.vehicles(departure.tripId)
             if (shape.isEmpty() || vehicles.isEmpty()) continue
             lines += StopMapLine(shape.map { it.lat to it.lon }, departure.shortName, departure.color)
-            vehicles.mapTo(buses) { StopVehicle("${it.id}", it.latitude, it.longitude, departure.shortName, departure.color, it.heading) }
+            vehicles.mapTo(buses) { StopVehicle("${it.id}", it.latitude, it.longitude, departure.shortName, departure.color, it.heading, it) }
         }
         StopMapLayer(lines, buses)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, StopMapLayer(emptyList(), emptyList()))
