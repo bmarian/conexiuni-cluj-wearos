@@ -297,5 +297,5 @@ private fun busOf(leg: JourneyLeg, v: Vehicle, looks: LineLooks, apart: Boolean)
     val path = pathOf(leg)
     if (path.none { haversineMeters(it.first, it.second, v.latitude, v.longitude) <= BUS_OFF_PATH_M }) return null
     val line = leg.lines.getOrNull(i) ?: leg.lines.first()
-    return MapVehicle("${v.id}", v.latitude, v.longitude, line, looks.color(line, leg.colors.getOrNull(i) ?: leg.colors.first(), apart), v.heading)
+    return MapVehicle("${v.id}", v.latitude, v.longitude, line, looks.color(line, leg.colors.getOrNull(i) ?: leg.colors.first(), apart), v.heading, vehicle = v)
 }

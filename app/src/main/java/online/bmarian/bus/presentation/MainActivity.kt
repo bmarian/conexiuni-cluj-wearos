@@ -154,6 +154,7 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
     // The screens on the stack belong to this city.
     val city by Cities.current.collectAsStateWithLifecycle()
     var stackCity by rememberSaveable { mutableStateOf(city) }
+    LaunchedEffect(navController) { navController.currentBackStackEntryFlow.collect { Services.atHome.value = it.destination.route == "home" } }
     LaunchedEffect(city) {
         if (city == stackCity) return@LaunchedEffect
         navController.popBackStack("home", inclusive = false)

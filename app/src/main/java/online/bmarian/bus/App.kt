@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 
 class App : Application() {
@@ -38,6 +39,7 @@ object Services {
         private set
     lateinit var sync: Sync
         private set
+    val atHome = MutableStateFlow(true)
 
     fun init(app: Application) {
         Api.init(app)
@@ -76,11 +78,11 @@ object Services {
         }
     }
 
-    // Without a word from the phone, the nearest city to the last fix; none is asked for here.
+    // Without a word from the phone, the nearest city to the last fix; none is asked for here. A screen opened meanwhile has the last word.
     private suspend fun openOnCity(context: Context) {
         val shown = Cities.current.value
         Cities.reload()
-        if (Cities.current.value == shown) showCity(Cities.resolve(UserLocation.recent(context, city = null)))
+        if (Cities.current.value == shown && atHome.value) showCity(Cities.resolve(UserLocation.recent(context, city = null)))
     }
 
     fun setLanguage(context: Context, tag: String) {
