@@ -196,6 +196,7 @@ private fun RouteMapView(
                 frame = frame,
                 onMapTap = chrome::toggle,
                 lines = current?.shape?.let { listOf(MapLine(it.shape.map { p -> p.lat to p.lon }, color)) }.orEmpty(),
+                arrows = true,
                 stops = mapStops,
                 labels = labels,
                 vehicles = current?.roundTripVehicles.orEmpty().map {

@@ -126,7 +126,7 @@ private fun startMapLibre(context: Context) {
     OfflineManager.getInstance(app).setMaximumAmbientCacheSize(40L * 1024 * 1024, null)
 }
 
-class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false)
+class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false, val name: String = "")
 class MapStop(val id: String, val lat: Double, val lon: Double, val color: Color, val selected: Boolean = false, val mode: Mode = Mode.BUS, val heart: Boolean = false)
 
 fun stationMapStop(stopId: Int, lat: Double, lon: Double, selected: Boolean = false): MapStop {
@@ -183,6 +183,8 @@ fun TransitMap(
     stops: List<MapStop> = emptyList(),
     labels: List<MapLabel> = emptyList(),
     vehicles: List<MapVehicle> = emptyList(),
+    terminals: Boolean = false,
+    arrows: Boolean = false,
     me: Fix? = null,
     ambient: Boolean = false,
     onStopTap: ((String) -> Unit)? = null,
@@ -258,6 +260,13 @@ fun TransitMap(
     }
 
     LaunchedEffect(session, lines) { session?.setLines(lines) }
+    LaunchedEffect(session, lines, terminals, arrows) {
+        session?.setEnds(
+            if (terminals) lineStarts(lines) else emptyList(),
+            if (terminals) lineEnds(lines) else emptyList(),
+            if (arrows) startArrows(lines) else emptyList(),
+        )
+    }
     LaunchedEffect(session, stops) { session?.setStops(stops) }
     LaunchedEffect(session, labels) { session?.setLabels(labels) }
     LaunchedEffect(session, vehicles) { session?.setVehicles(vehicles) }
@@ -341,6 +350,9 @@ private const val SRC_LINES = "ct-lines"
 private const val SRC_STOPS = "ct-stops"
 private const val SRC_LABELS = "ct-labels"
 private const val SRC_VEHICLES = "ct-vehicles"
+private const val SRC_ENDS = "ct-ends"
+private const val SRC_BADGES = "ct-badges"
+private const val SRC_ARROWS = "ct-arrows"
 private const val LAYER_STOPS = "ct-stops"
 private const val FADED_VEHICLE_OPACITY = 0.5f
 private const val FADED_VEHICLE_SIZE = 0.7f
@@ -370,8 +382,10 @@ private class MapSession(
     private val frame = Choreographer.FrameCallback { stepVehicles() }
 
     init {
-        listOf(SRC_LINES, SRC_STOPS, SRC_LABELS, SRC_VEHICLES).forEach { style.addSource(GeoJsonSource(it)) }
+        listOf(SRC_LINES, SRC_STOPS, SRC_ENDS, SRC_BADGES, SRC_ARROWS, SRC_LABELS, SRC_VEHICLES).forEach { style.addSource(GeoJsonSource(it)) }
         style.addImage("heading", images.heading())
+        style.addImage("arrow-bubble", images.arrowBubble())
+        style.addImage("arrow-glyph", images.arrowGlyph())
         // Under the basemap's labels.
         val layers = style.layers
         val lastGround = layers.indexOfLast { it !is SymbolLayer && !it.id.startsWith("boundary") }
@@ -401,6 +415,25 @@ private class MapSession(
             style.addLayer(layer)
         }
         over(SymbolLayer(LAYER_STOPS, SRC_STOPS).withProperties(iconImage(get("img")), symbolSortKey(get("z"))))
+        over(SymbolLayer("ct-ends", SRC_ENDS).withProperties(iconImage(get("img"))))
+        over(SymbolLayer("ct-badges", SRC_BADGES).withProperties(iconImage(get("img"))))
+        over(
+            SymbolLayer("ct-arrow-bubble", SRC_ARROWS).withProperties(
+                iconImage("arrow-bubble"),
+                iconAnchor(Property.ICON_ANCHOR_TOP),
+                iconTranslate(arrayOf(0f, MapImages.ARROW_DROP_DP)),
+                iconTranslateAnchor(Property.ICON_TRANSLATE_ANCHOR_VIEWPORT),
+            ),
+        )
+        over(
+            SymbolLayer("ct-arrow-glyph", SRC_ARROWS).withProperties(
+                iconImage("arrow-glyph"),
+                iconRotate(get("bearing")),
+                iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                iconTranslate(arrayOf(0f, MapImages.ARROW_GLYPH_DROP_DP)),
+                iconTranslateAnchor(Property.ICON_TRANSLATE_ANCHOR_VIEWPORT),
+            ),
+        )
         over(
             SymbolLayer("ct-labels", SRC_LABELS).withProperties(
                 iconImage(get("img")),
@@ -456,6 +489,32 @@ private class MapSession(
                         addBooleanProperty("dotted", line.dotted)
                     }
                 },
+            ),
+        )
+    }
+
+    fun setEnds(badges: List<MapBadge>, ends: List<MapEnd>, arrows: List<MapArrow>) {
+        source(SRC_ENDS)?.setGeoJson(
+            FeatureCollection.fromFeatures(
+                ends.map { end ->
+                    val name = "end-${end.color.toArgb()}"
+                    image(name) { images.end(end.color) }
+                    Feature.fromGeometry(Point.fromLngLat(end.lon, end.lat)).apply { addStringProperty("img", name) }
+                },
+            ),
+        )
+        source(SRC_BADGES)?.setGeoJson(
+            FeatureCollection.fromFeatures(
+                badges.map { badge ->
+                    val name = "badge-" + badge.routes.joinToString(",") { "${it.first}:${it.second.toArgb()}" }
+                    image(name) { images.badge(badge.routes) }
+                    Feature.fromGeometry(Point.fromLngLat(badge.lon, badge.lat)).apply { addStringProperty("img", name) }
+                },
+            ),
+        )
+        source(SRC_ARROWS)?.setGeoJson(
+            FeatureCollection.fromFeatures(
+                arrows.map { arrow -> Feature.fromGeometry(Point.fromLngLat(arrow.lon, arrow.lat)).apply { addNumberProperty("bearing", arrow.bearing) } },
             ),
         )
     }

@@ -69,7 +69,7 @@ private fun TransformingLazyColumnScope.stopItems(stops: List<Stop>, spec: Trans
             modifier = itemModifier(spec).squish(press).cascade(i, "list"),
             interactionSource = press,
             transformation = surface(spec),
-            icon = { StationIcon(look, size = 26.dp) },
+            icon = if (look == null) ({ StationIcon(null, size = 26.dp) }) else null,
             label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
             secondaryLabel = if (look != null) ({ StationLines(look) }) else null,
         )
