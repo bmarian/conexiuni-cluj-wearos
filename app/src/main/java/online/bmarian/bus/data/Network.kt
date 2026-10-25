@@ -2,7 +2,6 @@ package online.bmarian.bus.data
 
 import online.bmarian.bus.logic.Mode
 import online.bmarian.bus.logic.byModeThenNumber
-import online.bmarian.bus.logic.mainMode
 import online.bmarian.bus.logic.modeOf
 import android.content.Context
 import androidx.core.content.edit
@@ -73,7 +72,13 @@ fun clujClock(nowMs: Long, calendar: ScheduleCalendar = ScheduleDays.current): P
 
 private fun hasEntries(t: Timetable) = t.weekdays.entries.isNotEmpty() || t.saturday.entries.isNotEmpty() || t.sunday.entries.isNotEmpty()
 
-class StationLook(val mode: Mode, val color: String, val routes: List<NetworkRoute>)
+class ModeLines(val mode: Mode, val color: String, val routes: List<NetworkRoute>)
+
+class StationLook(val groups: List<ModeLines>) {
+    val mode = groups.first().mode
+    val color = groups.first().color
+    val routes = groups.flatMap { it.routes }
+}
 
 private fun modeColors(routes: List<NetworkRoute>): Map<Mode, String> =
     routes.sortedWith(byModeThenNumber({ it.type }, { it.shortName })).groupBy { modeOf(it.type) }.mapValues { (_, lines) ->
@@ -104,9 +109,9 @@ class NetworkIndex(val bundle: NetworkBundle) {
         }
         val colorOf = modeColors(bundle.routes)
         linesAt.mapValues { (_, lines) ->
-            val mode = mainMode(lines.map { it.type })
-            val colors = lines.filter { modeOf(it.type) == mode }.map { it.color }.toSet()
-            StationLook(mode, colors.singleOrNull() ?: colorOf.getValue(mode), lines)
+            StationLook(lines.groupBy { modeOf(it.type) }.map { (mode, routes) ->
+                ModeLines(mode, routes.map { it.color }.toSet().singleOrNull() ?: colorOf.getValue(mode), routes)
+            })
         }
     }
 

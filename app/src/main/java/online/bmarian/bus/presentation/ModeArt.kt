@@ -3,7 +3,9 @@ package online.bmarian.bus.presentation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -33,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import online.bmarian.bus.data.NetworkRoute
 import online.bmarian.bus.data.StationLook
 import online.bmarian.bus.logic.Mode
 import online.bmarian.bus.presentation.theme.lineColor
@@ -99,8 +102,28 @@ fun StationIcon(look: StationLook?, modifier: Modifier = Modifier, size: Dp = 36
 }
 
 @Composable
+fun ModeBadge(mode: Mode, color: String, size: Dp) {
+    Box(Modifier.size(size).clip(CircleShape).background(routeColor(color)), contentAlignment = Alignment.Center) {
+        Icon(ModeGlyphs.vector(mode), null, Modifier.size(size * 0.6f), tint = Color.White)
+    }
+}
+
+@Composable
 fun StationLines(look: StationLook?, modifier: Modifier = Modifier) {
-    val routes = look?.routes.orEmpty()
+    val groups = look?.groups.orEmpty()
+    if (groups.isEmpty()) return
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        for (group in groups) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ModeBadge(group.mode, group.color, 22.dp)
+                LineBadges(group.routes)
+            }
+        }
+    }
+}
+
+@Composable
+fun LineBadges(routes: List<NetworkRoute>, modifier: Modifier = Modifier) {
     if (routes.isEmpty()) return
     FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         for (route in routes) {
