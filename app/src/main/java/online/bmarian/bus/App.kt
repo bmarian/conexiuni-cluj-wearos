@@ -78,7 +78,7 @@ object Services {
         }
     }
 
-    // Without a word from the phone, the nearest city to the last fix; none is asked for here. A screen opened meanwhile has the last word.
+    // A screen opened meanwhile has the last word.
     private suspend fun openOnCity(context: Context) {
         val shown = Cities.current.value
         Cities.reload()
