@@ -99,7 +99,7 @@ class VehicleTrack(val path: RoutePath) {
     private var lateMs = 30_000.0
     private var lastMs = 0L
 
-    /** False when [path] can't hold this bus: off it, or running back along it. */
+    /** False when [path] can't hold this bus. */
     fun fix(lat: Double, lon: Double, fixMs: Long, speedKmh: Double, heading: Double, nowMs: Long): Boolean {
         val last = fixes.lastOrNull()
         if (last != null && fixMs <= last.ms) return true
@@ -123,7 +123,7 @@ class VehicleTrack(val path: RoutePath) {
         return true
     }
 
-    /** Where the bus should be at [nowMs], and how fast it goes there. */
+    /** Position and speed at [nowMs]. */
     fun target(nowMs: Long): Pair<Double, Double> {
         val t = nowMs - lateMs * LATE_SHARE
         val last = fixes.last()
@@ -142,7 +142,7 @@ class VehicleTrack(val path: RoutePath) {
         return min(last.s + pace * run, path.length) to pace * coast
     }
 
-    /** True when the bus had to be moved there at once. */
+    /** True when the bus jumped. */
     fun step(nowMs: Long): Boolean {
         val dt = (nowMs - lastMs) / 1000.0
         lastMs = nowMs

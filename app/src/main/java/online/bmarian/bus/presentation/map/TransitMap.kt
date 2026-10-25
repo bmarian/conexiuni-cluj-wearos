@@ -762,7 +762,7 @@ private class MapSession(
         applyFollow()
     }
 
-    /** Ambient mode: mostly black, and the buses hold still. */
+    /** Mostly black, and the buses hold still. */
     fun setAmbient(on: Boolean) {
         for (layer in style.layers) {
             if (layer.id.startsWith("ct-") || layer.id.startsWith("mapbox-location")) continue
