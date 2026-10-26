@@ -122,6 +122,8 @@ class NetworkIndex(val bundle: NetworkBundle) {
         return listOf(stop) + platformsByStation[stop.station].orEmpty().filter { it.stopId != stopId }
     }
 
+    fun stationInfos(stopId: Int, nowMs: Long): List<StopInfo> = platforms(stopId).mapNotNull { stopInfo(it.stopId, nowMs) }
+
     fun oneStopPerStation(stops: List<Stop>): List<Stop> {
         val seen = HashSet<Int>()
         return stops.filter { seen.add((stopById[it.stopId] ?: it).station) }

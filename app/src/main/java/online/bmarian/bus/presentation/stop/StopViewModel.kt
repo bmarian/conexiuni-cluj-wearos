@@ -3,7 +3,7 @@ package online.bmarian.bus.presentation.stop
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import online.bmarian.bus.Services
-import online.bmarian.bus.presentation.AmbientTicks
+import online.bmarian.bus.presentation.keepTime
 import online.bmarian.bus.data.LiveState
 import online.bmarian.bus.data.LiveStream
 import online.bmarian.bus.data.ShapePoint
@@ -16,7 +16,6 @@ import online.bmarian.bus.logic.stationDepartures
 import online.bmarian.bus.logic.trackableTripIds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -29,8 +28,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
-
-const val TICK_MS = 10_000L
 
 class StopUi(val departures: List<StopDeparture>, val now: LocalDateTime)
 
@@ -50,10 +47,12 @@ class StopViewModel(val stopId: Int) : ViewModel() {
     private val live = MutableStateFlow<LiveState?>(null)
     private val clock = MutableStateFlow(System.currentTimeMillis())
 
+    val beat: StateFlow<Long?> = live.map { it?.asOfMs }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     val infos: StateFlow<List<StopInfo>> = combine(info, repository.network.index) { info, index ->
         if (info == null) return@combine emptyList()
         val nowMs = System.currentTimeMillis()
-        listOf(info) + index?.platforms(stopId)?.drop(1)?.mapNotNull { index.stopInfo(it.stopId, nowMs) }.orEmpty()
+        listOf(info) + index?.stationInfos(stopId, nowMs)?.drop(1).orEmpty()
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val ui: StateFlow<StopUi?> = combine(infos, live, clock) { infos, live, nowMs ->
@@ -106,13 +105,7 @@ class StopViewModel(val stopId: Int) : ViewModel() {
     }
 
     suspend fun live() = coroutineScope {
-        launch { AmbientTicks.ticks.collect { clock.value = System.currentTimeMillis() } }
-        launch {
-            while (true) {
-                clock.value = System.currentTimeMillis()
-                delay(TICK_MS)
-            }
-        }
+        launch { clock.keepTime() }
         launch {
             favoriteTripIds.collectLatest { ids ->
                 shapes.value = runCatching { repository.shapes(ids) }.getOrDefault(emptyMap())

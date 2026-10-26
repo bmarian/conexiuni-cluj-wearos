@@ -1,8 +1,27 @@
 package online.bmarian.bus.presentation
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.drawscope.scale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import online.bmarian.bus.logic.Mode
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.text.BasicText
@@ -202,16 +221,41 @@ fun LineBadge(shortName: String, color: String, modifier: Modifier = Modifier, h
     }
 }
 
+/** When fresh live times last landed. */
+val LocalLiveBeat = compositionLocalOf<Long?> { null }
+
+@Composable
+fun OnLiveBeat(action: suspend CoroutineScope.() -> Unit) {
+    val beat = LocalLiveBeat.current
+    var seen by remember { mutableStateOf(beat) }
+    LaunchedEffect(beat) {
+        if (beat == null || beat == seen) return@LaunchedEffect
+        seen = beat
+        action()
+    }
+}
+
+// Port of RealtimeIcon.
 @Composable
 fun RealtimeIcon(color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) {
+    val parts = remember { List(3) { Animatable(1f) } }
+    OnLiveBeat {
+        parts.forEach { it.snapTo(0.2f) }
+        parts.forEachIndexed { i, part ->
+            launch {
+                delay(120L + i * 95L)
+                part.animateTo(1f, tween(210, easing = LinearEasing))
+            }
+        }
+    }
     Canvas(modifier.size(size)) {
         val stroke = this.size.width * 0.13f
         val corner = Offset(stroke, this.size.height - stroke)
-        drawCircle(color, stroke * 1.1f, corner)
+        drawCircle(color.copy(alpha = color.alpha * parts[0].value), stroke * 1.1f, corner)
         for (step in 1..2) {
             val radius = this.size.width * (0.32f + 0.3f * (step - 1))
             drawArc(
-                color = color,
+                color = color.copy(alpha = color.alpha * parts[step].value),
                 startAngle = -90f,
                 sweepAngle = 90f,
                 useCenter = false,
@@ -240,10 +284,80 @@ fun etaText(minutes: Int, now: LocalDateTime): String {
 fun clockText(atMs: Long): String = CLOCK.format(Instant.ofEpochMilli(atMs).atZone(CLUJ_ZONE))
 
 @Composable
-fun Eta(minutes: Int, live: Boolean, now: LocalDateTime, style: TextStyle = MaterialTheme.typography.labelLarge, arcs: Boolean = true) {
-    val color = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        if (live && arcs) RealtimeIcon(color, Modifier.padding(bottom = 2.dp))
+fun ModeIcon(mode: Mode, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) { scale(size.width / 24f, pivot = Offset.Zero) { drawModeGlyph(mode, color) } }
+}
+
+// Port of TimePill.
+@Composable
+fun Eta(
+    minutes: Int,
+    live: Boolean,
+    now: LocalDateTime,
+    style: TextStyle = MaterialTheme.typography.labelLarge,
+    arcs: Boolean = true,
+    mode: Mode = Mode.BUS,
+    iconSize: Dp = 12.dp,
+    idle: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val due = live && minutes == 0
+    val solid = tween<Color>(190, delayMillis = 485, easing = LinearEasing)
+    val fill by animateColorAsState(if (due) scheme.primary else scheme.primary.copy(alpha = 0f), if (due) solid else snap(), label = "eta")
+    val color by animateColorAsState(
+        when {
+            due -> scheme.onPrimary
+            live -> scheme.primary
+            else -> idle
+        },
+        if (due) solid else snap(),
+        label = "etaText",
+    )
+    val pill = rememberPop()
+    val vehicle = rememberPop()
+    val arrive = remember { Animatable(1f) }
+    var was by remember { mutableStateOf(live to due) }
+    // Not when a screen opens on a bus already due.
+    LaunchedEffect(due) {
+        val (wasLive, wasDue) = was
+        was = live to due
+        if (!due || wasDue || !wasLive) return@LaunchedEffect arrive.snapTo(1f)
+        arrive.snapTo(0f)
+        launch {
+            delay(70)
+            arrive.animateTo(1f, tween(540, easing = EmphasizedDecelerate))
+        }
+        launch {
+            delay(540)
+            pill.from(0.86f)
+        }
+        delay(610)
+        vehicle.squash()
+    }
+    Row(
+        Modifier.popped(pill).clip(CircleShape).background(fill).padding(horizontal = iconSize / 2),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(iconSize / 4),
+    ) {
+        if (live && arcs) {
+            Box(Modifier.padding(bottom = 2.dp).size(iconSize), contentAlignment = Alignment.Center) {
+                androidx.compose.animation.AnimatedVisibility(!due, enter = fadeIn(), exit = scaleOut(tween(140)) + fadeOut(tween(140))) {
+                    RealtimeIcon(color, size = iconSize)
+                }
+                if (due) {
+                    ModeIcon(
+                        mode,
+                        color,
+                        Modifier.fillMaxSize().popped(vehicle).graphicsLayer {
+                            val k = 0.15f + 0.85f * arrive.value
+                            scaleX *= k
+                            scaleY *= k
+                            alpha = arrive.value.coerceIn(0f, 1f)
+                        },
+                    )
+                }
+            }
+        }
         Ticker(etaText(minutes, now), style = style, color = color)
     }
 }
@@ -278,6 +392,24 @@ fun ButtonGroupScope.PillAction(icon: ImageVector, description: String, onClick:
 }
 
 @Composable
+fun ButtonGroupScope.LabelAction(icon: ImageVector, label: String, onClick: () -> Unit, weight: Float = LABELLED_WEIGHT) {
+    val interaction = remember { MutableInteractionSource() }
+    Button(
+        onClick = onClick,
+        modifier = Modifier.weight(weight).animateWidth(interaction).height(ACTION_HEIGHT).squish(interaction, 0.9f),
+        shape = CircleShape,
+        colors = ButtonDefaults.filledTonalButtonColors(),
+        contentPadding = PaddingValues(horizontal = 8.dp),
+        interactionSource = interaction,
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, Modifier.size(18.dp))
+            FitText(label, Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        }
+    }
+}
+
+@Composable
 fun ButtonGroupScope.ToggleAction(
     icon: ImageVector,
     label: String,
@@ -293,7 +425,7 @@ fun ButtonGroupScope.ToggleAction(
     val haptics = LocalHapticFeedback.current
     val corner by animateDpAsState(
         if (checked) 14.dp else ACTION_HEIGHT / 2,
-        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 530f),
         label = "corner",
     )
     Button(

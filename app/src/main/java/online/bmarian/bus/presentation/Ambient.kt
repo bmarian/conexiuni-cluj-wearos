@@ -23,7 +23,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import online.bmarian.bus.R
@@ -39,6 +41,15 @@ object AmbientTicks {
 }
 
 private const val CLOCK_TICK_MS = 15_000L
+const val TICK_MS = 10_000L
+
+suspend fun MutableStateFlow<Long>.keepTime() = coroutineScope {
+    launch { AmbientTicks.ticks.collect { value = System.currentTimeMillis() } }
+    while (true) {
+        value = System.currentTimeMillis()
+        delay(TICK_MS)
+    }
+}
 
 @Composable
 fun rememberClock(): State<Long> = produceState(System.currentTimeMillis()) {
