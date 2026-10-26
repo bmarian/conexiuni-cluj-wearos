@@ -39,7 +39,7 @@ fun reminding(follows: List<FollowState>, reminders: List<Reminder>, stopIds: Co
 )
 
 @Composable
-fun rememberRemind(): (Reminding, () -> RemindTarget?) -> Unit {
+fun rememberRemind(onSet: ((Followed) -> Unit)? = null): (Reminding, () -> RemindTarget?) -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var pending by remember { mutableStateOf<(() -> RemindTarget?)?>(null) }
@@ -49,12 +49,13 @@ fun rememberRemind(): (Reminding, () -> RemindTarget?) -> Unit {
         val wanted = target() ?: return
         val app = context.applicationContext
         scope.launch {
-            done = if (wanted.lat == null || wanted.lon == null || wanted.minutes == null) {
+            val set = if (wanted.lat == null || wanted.lon == null || wanted.minutes == null) {
                 FollowManager.start(app, wanted.followed)
                 Reminded.Following
             } else {
                 Reminders.remind(app, wanted.followed, wanted.lat, wanted.lon, wanted.minutes)
             }
+            if (onSet != null) onSet(wanted.followed) else done = set
         }
     }
     // POST_NOTIFICATIONS needs a runtime grant on Wear OS 4+.

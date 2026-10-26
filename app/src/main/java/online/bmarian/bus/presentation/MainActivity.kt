@@ -45,16 +45,16 @@ import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.follow.soonest
 import online.bmarian.bus.follow.JourneyMirror
+import online.bmarian.bus.presentation.follow.FollowScreen
 import online.bmarian.bus.presentation.home.HomeScreen
 import online.bmarian.bus.presentation.home.NearbyMapScreen
-import online.bmarian.bus.presentation.home.NearbyScreen
-import online.bmarian.bus.presentation.home.RoutesScreen
 import online.bmarian.bus.presentation.home.SearchScreen
-import online.bmarian.bus.presentation.home.StopsScreen
-import online.bmarian.bus.presentation.journey.JourneyMapScreen
+import online.bmarian.bus.presentation.home.SearchStartScreen
+import online.bmarian.bus.presentation.home.SettingsScreen
 import online.bmarian.bus.presentation.journey.JourneyScreen
 import online.bmarian.bus.presentation.pair.PairScreen
 import online.bmarian.bus.presentation.route.RouteScreen
+import online.bmarian.bus.presentation.route.RouteView
 import online.bmarian.bus.presentation.setup.Setup
 import online.bmarian.bus.presentation.setup.SetupScreen
 import online.bmarian.bus.presentation.setup.SetupStep
@@ -139,6 +139,10 @@ class MainActivity : ComponentActivity() {
 
 private const val DEPARTURE_ROUTE = "departure/{stopId}/{routeId}/{tripId}"
 
+private const val FOLLOW_ROUTE = "follow/{stopId}/{routeId}/{tripId}"
+
+private fun followRoute(followed: Followed) = "follow/${followed.stopId}/${followed.routeId}/${followed.tripId}"
+
 @Composable
 private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableStateFlow<Links.Destination?>) {
     val navController = rememberSwipeDismissableNavController()
@@ -170,10 +174,10 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
         if (setup.isEmpty() && !Setup.notificationsAllowed(context)) setup = listOf(SetupStep.Notifications)
     }
 
-    fun openBus(followed: Followed) {
+    fun openFollow(followed: Followed) {
         scope.launch {
             inCity(followed.city)
-            navController.navigate("departure/${followed.stopId}/${followed.routeId}/${followed.tripId}")
+            navController.navigate(followRoute(followed))
         }
     }
 
@@ -187,9 +191,9 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
         inCity(follow.followed.city)
         val here = navController.currentBackStackEntry
         askForNotifications()
-        if (here?.destination?.route == DEPARTURE_ROUTE && here.arguments?.getString("tripId") == follow.followed.tripId) return@LaunchedEffect
+        if (here?.destination?.route == FOLLOW_ROUTE && here.arguments?.getString("tripId") == follow.followed.tripId) return@LaunchedEffect
         navController.popBackStack("home", inclusive = false)
-        openBus(follow.followed)
+        openFollow(follow.followed)
     }
 
     LaunchedEffect(linked) {
@@ -199,7 +203,7 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
         val route = link.route
         val here = navController.currentBackStackEntry?.destination?.route
         if (route == "journey") askForNotifications()
-        if (route == "journey" && (here == "journey" || here == "journeyMap")) return@LaunchedEffect
+        if (route == "journey" && here == "journey") return@LaunchedEffect
         navController.popBackStack("home", inclusive = false)
         if (route != "home") navController.navigate(route)
     }
@@ -212,51 +216,32 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
                         HomeScreen(
                             state = homeState,
                             onOpenStop = { navController.navigate("stop/$it") },
+                            onOpenDeparture = { stopId, departure -> navController.navigate("departure/$stopId/${departure.routeId}/${departure.tripId}") },
                             onOpenRoute = { id, direction -> navController.navigate("route/$id/$direction") },
-                            onOpenBus = ::openBus,
-                            onSearch = { navController.navigate("search/${Uri.encode(it)}") },
-                            onNearby = { navController.navigate("nearby") },
-                            onBrowseRoutes = { navController.navigate("routes") },
-                            onBrowseStops = { navController.navigate("stops") },
-                            onCopyFavorites = { navController.navigate("pair") },
+                            onOpenFollow = ::openFollow,
                             onOpenJourney = { navController.navigate("journey") },
+                            onSearch = { navController.navigate("search") },
+                            onMap = { navController.navigate("nearbyMap") },
+                            onSettings = { navController.navigate("settings") },
+                        )
+                    }
+                    composable("search") {
+                        SearchStartScreen(
+                            onSearch = { navController.navigate("search/${Uri.encode(it)}") },
+                            onOpenStop = { navController.navigate("stop/$it") },
+                            onOpenRoute = { navController.navigate("route/$it/auto") },
                         )
                     }
                     composable("search/{query}") { entry ->
                         SearchScreen(
                             query = entry.arguments?.getString("query").orEmpty(),
-                            onSearch = { navController.navigate("search/${Uri.encode(it)}") { popUpTo("home") } },
-                            onOpenRoute = { navController.navigate("route/$it/0") },
+                            onSearchAgain = { navController.popBackStack() },
+                            onOpenRoute = { navController.navigate("route/$it/auto") },
                             onOpenStop = { navController.navigate("stop/$it") },
-                        )
-                    }
-                    composable("nearby") {
-                        NearbyScreen(
-                            onOpenStop = { navController.navigate("stop/$it") },
-                            onOpenMap = { navController.navigate("nearbyMap") },
                         )
                     }
                     composable("nearbyMap") {
                         NearbyMapScreen(onOpenStop = { navController.navigate("stop/$it") })
-                    }
-                    composable("routes") {
-                        RoutesScreen(onOpenRoute = { navController.navigate("route/$it/0") })
-                    }
-                    composable(
-                        "stops?letter={letter}&prefix={prefix}",
-                        arguments = listOf(
-                            navArgument("letter") { type = NavType.StringType; nullable = true },
-                            navArgument("prefix") { type = NavType.StringType; nullable = true },
-                        ),
-                    ) { entry ->
-                        StopsScreen(
-                            letter = entry.arguments?.getString("letter"),
-                            prefix = entry.arguments?.getString("prefix"),
-                            onBrowse = { letter, prefix ->
-                                navController.navigate("stops?letter=$letter" + (prefix?.let { "&prefix=$it" } ?: ""))
-                            },
-                            onOpenStop = { navController.navigate("stop/$it") },
-                        )
                     }
                     composable("stop/{stopId}", arguments = listOf(navArgument("stopId") { type = NavType.IntType })) { entry ->
                         val stopId = entry.arguments?.getInt("stopId") ?: 0
@@ -278,48 +263,65 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
                         val stopId = args?.getInt("stopId") ?: 0
                         val routeId = args?.getInt("routeId") ?: 0
                         val tripId = args?.getString("tripId").orEmpty()
+                        val line = "route/$routeId/${directionFromTripId(tripId)}?from=$stopId"
                         DepartureScreen(
                             vm = stopViewModel(stopId),
                             routeId = routeId,
                             tripId = tripId,
-                            onOpenRoute = { navController.navigate("route/$routeId/${directionFromTripId(tripId)}?from=$stopId") },
+                            onOpenMap = { navController.navigate("$line&view=map") },
+                            onOpenLine = { navController.navigate(line) },
+                            onOpenFollow = { navController.navigate(followRoute(it)) },
+                        )
+                    }
+                    composable(
+                        FOLLOW_ROUTE,
+                        arguments = listOf(
+                            navArgument("stopId") { type = NavType.IntType },
+                            navArgument("routeId") { type = NavType.IntType },
+                            navArgument("tripId") { type = NavType.StringType },
+                        ),
+                    ) { entry ->
+                        val args = entry.arguments
+                        FollowScreen(
+                            stopId = args?.getInt("stopId") ?: 0,
+                            routeId = args?.getInt("routeId") ?: 0,
+                            tripId = args?.getString("tripId").orEmpty(),
+                            onEnded = { navController.popBackStack() },
                         )
                     }
                     composable("stopMap/{stopId}", arguments = listOf(navArgument("stopId") { type = NavType.IntType })) { entry ->
                         StopMapScreen(stopViewModel(entry.arguments?.getInt("stopId") ?: 0))
                     }
                     composable(
-                        "route/{routeId}/{direction}?from={from}",
+                        "route/{routeId}/{direction}?from={from}&view={view}",
                         arguments = listOf(
                             navArgument("routeId") { type = NavType.IntType },
                             navArgument("direction") { type = NavType.StringType },
                             navArgument("from") { type = NavType.IntType; defaultValue = -1 },
+                            navArgument("view") { type = NavType.StringType; nullable = true },
                         ),
                     ) { entry ->
                         val args = entry.arguments
+                        val routeId = args?.getInt("routeId") ?: 0
                         val from = args?.getInt("from") ?: -1
                         RouteScreen(
                             routeViewModel(
-                                routeId = args?.getInt("routeId") ?: 0,
+                                routeId = routeId,
                                 direction = args?.getString("direction") ?: "0",
                                 fromStopId = from.takeIf { it >= 0 },
                             ),
+                            start = if (args?.getString("view") == "map") RouteView.Map else RouteView.Summary,
+                            onOpenDeparture = { stopId, tripId -> navController.navigate("departure/$stopId/$routeId/$tripId") },
                         )
                     }
                     composable("journey") {
-                        JourneyScreen(
-                            onEnded = { navController.popBackStack("home", inclusive = false) },
-                            onMap = { navController.navigate("journeyMap") },
-                        )
+                        JourneyScreen(onEnded = { navController.popBackStack("home", inclusive = false) })
                     }
-                    composable("journeyMap") {
-                        JourneyMapScreen(onEnded = { navController.popBackStack("home", inclusive = false) })
+                    composable("settings") {
+                        SettingsScreen(onSync = { navController.navigate("pair") })
                     }
                     composable("pair") {
-                        PairScreen(onDone = {
-                            scope.launch { homeState.scrollToItem(0) }
-                            navController.popBackStack("home", inclusive = false)
-                        })
+                        PairScreen(onDone = { navController.popBackStack() })
                     }
                 }
                 if (setup.isNotEmpty()) {

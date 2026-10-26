@@ -3,7 +3,7 @@ package online.bmarian.bus.presentation.route
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import online.bmarian.bus.Services
-import online.bmarian.bus.presentation.AmbientTicks
+import online.bmarian.bus.presentation.keepTime
 import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.LiveState
 import online.bmarian.bus.data.LiveStream
@@ -18,11 +18,9 @@ import online.bmarian.bus.logic.directionShape
 import online.bmarian.bus.logic.haversineMeters
 import online.bmarian.bus.logic.routeStopArrivals
 import online.bmarian.bus.logic.stopsForDirection
-import online.bmarian.bus.presentation.stop.TICK_MS
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -127,13 +125,7 @@ class RouteViewModel(val routeId: Int, initialDirection: String, val fromStopId:
     }
 
     suspend fun live() = coroutineScope {
-        launch { AmbientTicks.ticks.collect { clock.value = System.currentTimeMillis() } }
-        launch {
-            while (true) {
-                clock.value = System.currentTimeMillis()
-                delay(TICK_MS)
-            }
-        }
+        launch { clock.keepTime() }
         LiveStream.live(emptyList(), listOf(tripIdFor(routeId, "0"), tripIdFor(routeId, "1"))).collect { live.value = it }
     }
 }

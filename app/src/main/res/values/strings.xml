@@ -4,9 +4,6 @@
     <string name="favorite_stops">Stații preferate</string>
     <string name="favorite_routes">Linii preferate</string>
     <string name="no_favorites">Nu ai preferate încă. Salvează o stație sau o linie ca să apară aici.</string>
-    <string name="all_routes">Toate liniile</string>
-    <string name="all_stops">Toate stațiile</string>
-    <string name="copy_favorites">Sincronizează cu telefonul sau calculatorul</string>
     <string name="load_failed">Nu s-a putut încărca. Verifică conexiunea.</string>
     <string name="retry">Încearcă din nou</string>
     <string name="loading_route">Se încarcă linia…</string>
@@ -48,8 +45,6 @@
     <string name="credits" translatable="false">© OpenMapTiles, OpenStreetMap · tranzy.ai · CTP Cluj-Napoca</string>
 
 
-    <string name="favorites">Preferate</string>
-    <string name="explore">Explorează</string>
     <string name="search">Caută</string>
     <string name="search_label">Stație sau linie</string>
     <string name="search_again">Caută din nou</string>
@@ -59,7 +54,6 @@
     <string name="eta_minutes" translatable="false">%1$d min</string>
     <string name="then_times">Apoi %1$s</string>
     <string name="from_stop">Din %1$s</string>
-    <string name="walk_distance">%1$s · %2$d min pe jos</string>
     <string name="live">Live</string>
     <string name="scheduled">Programat</string>
     <string name="remind_set">Amintește-mi</string>
@@ -73,7 +67,6 @@
     <string name="follow_no_bus">Nu mai sunt autobuze</string>
     <string name="remind_saved">Memento salvat</string>
     <string name="reminder">Memento</string>
-    <string name="remind_delete">Șterge</string>
     <string name="saved">Salvat</string>
     <string name="nav_arrive_at">Sosire la %1$s</string>
     <string name="my_location">Vezi locația ta</string>
@@ -88,9 +81,7 @@
     <string name="journey_alerts_channel">Alerte de călătorie</string>
     <string name="tile_empty">Salvează mai întâi o stație în aplicație.</string>
     <string name="next_bus">Următorul autobuz</string>
-    <string name="journey_plan_loading">Se aduce călătoria de pe telefon…</string>
     <string name="journey_recenter">Recentrează</string>
-    <string name="journey_overview">Toată porțiunea</string>
 
     <string name="setup_language_title">Limba</string>
     <string name="setup_notifications_title">Notificări</string>
@@ -127,4 +118,32 @@
     <string name="sync_problem">Unele date sincronizate nu au putut fi citite. Preferatele de aici nu s-au schimbat.</string>
     <string name="sync_turn_off">Oprește sincronizarea</string>
     <string name="sync_removed">Ceasul a fost scos din sincronizare. Asociază-l din nou ca să se sincronizeze.</string>
+    <string name="near_you">Lângă tine</string>
+    <string name="saved_stops">Salvate</string>
+    <string name="settings">Setări</string>
+    <string name="recent">Recente</string>
+    <string name="walk_to_stop">%1$d min pe jos până la %2$s</string>
+    <string name="whole_line">Toată linia %1$s</string>
+    <string name="at_stop">La %1$s</string>
+    <string name="city">Oraș</string>
+    <string name="board_line">Urcă în %1$s</string>
+    <string name="get_off_at">Coboară la %1$s</string>
+    <plurals name="after_stops">
+        <item quantity="one">după o stație</item>
+        <item quantity="few">după %d stații</item>
+        <item quantity="other">după %d de stații</item>
+    </plurals>
+    <string name="walk_to_destination">Mergi până la destinație</string>
+    <string name="walk_minutes">%1$d min pe jos</string>
+    <string name="colorful_lines">Linii colorate</string>
+    <string name="setting_on">Pornit</string>
+    <string name="setting_off">Oprit</string>
+    <string name="sync_title">Sincronizare</string>
+    <string name="sync_value_on">Pornită</string>
+    <string name="sync_value_phone">Prin telefon</string>
+    <string name="sync_value_off">Oprită</string>
+    <string name="status_from">%1$s · din %2$s</string>
+    <string name="line_timetable">Programul liniei</string>
+    <string name="arrives_at_stop">Sosește în stația %1$s</string>
+    <string name="buzz_when_close">Te anunț când e aproape</string>
 </resources>

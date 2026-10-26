@@ -36,6 +36,9 @@ import kotlin.math.roundToInt
 
 private val NavArrow by lazy { PathParser().parsePathString("M12 2L21 21l-9-4-9 4 9-19z").toPath() }
 private val DirectionArrow by lazy { PathParser().parsePathString("M12 3 L20 19 L12 15 L4 19 Z").toPath() }
+private val Flag by lazy {
+    PathParser().parsePathString("m14.4 6-.24-1.2c-.09-.46-.5-.8-.98-.8H6c-.55 0-1 .45-1 1v15c0 .55.45 1 1 1s1-.45 1-1v-6h5.6l.24 1.2c.09.47.5.8.98.8H19c.55 0 1-.45 1-1V7c0-.55-.45-1-1-1h-4.6z").toPath()
+}
 private val Ink = Color(0xFF0F172A)
 private val Paper = Color(0xFFF1F5F9)
 
@@ -106,34 +109,40 @@ internal class MapImages(context: Context) {
         }
     }
 
-    fun end(color: Color) = draw(18f, 18f) {
-        val at = Offset(9.dp.toPx(), 8.5.dp.toPx())
-        drawCircle(Color.Black.copy(alpha = 0.25f), 7.8.dp.toPx(), at + Offset(0f, 1.dp.toPx()))
-        drawCircle(Ink, 7.dp.toPx(), at)
-        drawCircle(color, 5.4.dp.toPx(), at)
-        val sq = 3.6.dp.toPx()
-        drawRoundRect(Ink, Offset(at.x - sq / 2, at.y - sq / 2), Size(sq, sq), CornerRadius(1.2.dp.toPx()))
+    // Port of lineEndIcon.
+    fun end(color: Color) = draw(STOP_DP + 2f, STOP_DP + 2f) {
+        val r = STOP_DP.dp.toPx() / 2
+        drawCircle(Color.Black.copy(alpha = 0.25f), r + 1.dp.toPx(), center)
+        drawCircle(Color.White, r, center)
+        drawCircle(color, r - 1.5.dp.toPx(), center)
+        val glyph = r * 1.15f
+        translate(center.x - glyph / 2, center.y - glyph / 2) {
+            scale(glyph / 24f, glyph / 24f, pivot = Offset.Zero) { drawPath(Flag, Color.White) }
+        }
     }
 
+    // Port of lineStartIcon.
     fun badge(routes: List<Pair<String, Color>>): Bitmap {
         val style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color.White)
         val layouts = routes.map { measurer.measure(it.first, style) }
         val d = density.density
-        val h = 18f
+        val h = 16f
         val gap = 2f
-        val widths = layouts.map { maxOf(h, it.size.width / d + 10f) }
+        val widths = layouts.map { maxOf(22f, it.size.width / d + 11f) }
         val total = widths.sum() + gap * (widths.size - 1)
-        return draw(total + 2f, h + 2f) {
+        return draw(total + 2f, h + 3f) {
             var left = 1.dp.toPx()
+            val top = 1.dp.toPx()
             val hp = h.dp.toPx()
+            val border = 1.5.dp.toPx()
+            val corner = 5.dp.toPx()
             routes.forEachIndexed { i, (_, color) ->
                 val w = widths[i].dp.toPx()
-                drawRoundRect(Color.Black.copy(alpha = 0.25f), Offset(left, 1.dp.toPx()), Size(w, hp), CornerRadius(hp / 2))
-                drawRoundRect(Ink, Offset(left, 0f), Size(w, hp), CornerRadius(hp / 2))
-                val inset = 2.dp.toPx()
-                drawRoundRect(color, Offset(left + inset, inset), Size(w - inset * 2, hp - inset * 2), CornerRadius(hp / 2 - inset))
+                drawRoundRect(Color.Black.copy(alpha = 0.25f), Offset(left - 1.dp.toPx(), top), Size(w + 2.dp.toPx(), hp + 2.dp.toPx()), CornerRadius(corner + 1.dp.toPx()))
+                drawRoundRect(Color.White, Offset(left, top), Size(w, hp), CornerRadius(corner))
+                drawRoundRect(color, Offset(left + border, top + border), Size(w - border * 2, hp - border * 2), CornerRadius(corner - border))
                 val layout = layouts[i]
-                drawText(layout, topLeft = Offset(left + (w - layout.size.width) / 2, (hp - layout.size.height) / 2))
+                drawText(layout, topLeft = Offset(left + (w - layout.size.width) / 2, top + (hp - layout.size.height) / 2))
                 left += w + gap.dp.toPx()
             }
         }

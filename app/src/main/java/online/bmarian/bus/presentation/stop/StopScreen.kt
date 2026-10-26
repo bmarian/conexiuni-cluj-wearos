@@ -21,9 +21,12 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,9 +55,10 @@ import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.follow.Reminders
 import online.bmarian.bus.logic.CLUJ_ZONE
+import online.bmarian.bus.logic.DueArrivals
+import online.bmarian.bus.logic.haversineMeters
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.presentation.ActionRow
-import online.bmarian.bus.presentation.LABELLED_WEIGHT
 import online.bmarian.bus.presentation.Eta
 import online.bmarian.bus.presentation.PillAction
 import online.bmarian.bus.presentation.RemindTarget
@@ -66,7 +70,7 @@ import online.bmarian.bus.presentation.ListScreen
 import online.bmarian.bus.presentation.Loading
 import online.bmarian.bus.presentation.LocalAmbient
 import online.bmarian.bus.presentation.Message
-import online.bmarian.bus.presentation.RealtimeIcon
+import online.bmarian.bus.presentation.LocalLiveBeat
 import online.bmarian.bus.presentation.Title
 import online.bmarian.bus.presentation.cascade
 import online.bmarian.bus.presentation.etaText
@@ -75,6 +79,7 @@ import online.bmarian.bus.presentation.itemModifier
 import online.bmarian.bus.presentation.map.ChipText
 import online.bmarian.bus.presentation.map.MAP_CHIP_TOP
 import online.bmarian.bus.presentation.map.MapChip
+import online.bmarian.bus.presentation.map.MapArrival
 import online.bmarian.bus.presentation.map.MapFrame
 import online.bmarian.bus.presentation.map.MapLine
 import online.bmarian.bus.presentation.map.MapVehicle
@@ -90,8 +95,17 @@ import online.bmarian.bus.presentation.reminding
 import online.bmarian.bus.presentation.squish
 import online.bmarian.bus.presentation.surface
 import online.bmarian.bus.presentation.theme.Palette
+import online.bmarian.bus.presentation.theme.LocalLineLooks
 import online.bmarian.bus.presentation.theme.lineColor
 import online.bmarian.bus.presentation.theme.manyLines
+import androidx.compose.ui.platform.LocalContext
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.CompactButton
+import online.bmarian.bus.data.UserLocation
+import online.bmarian.bus.logic.formatMeters
+import online.bmarian.bus.presentation.LabelAction
+import online.bmarian.bus.presentation.PopIcon
 import java.time.LocalDateTime
 
 private const val STOP_MAP_ZOOM = 13f
@@ -109,7 +123,7 @@ fun LiveWhileVisible(vm: StopViewModel) {
 fun StopDeparture.destination() = longName.substringAfterLast(" - ")
 
 @Composable
-private fun laterTimes(later: List<Int>, now: LocalDateTime): String? {
+fun laterTimes(later: List<Int>, now: LocalDateTime): String? {
     if (later.isEmpty()) return null
     return stringResource(R.string.then_times, later.map { etaText(it, now) }.joinToString(" · "))
 }
@@ -121,7 +135,9 @@ fun StopScreen(
     onOpenMap: () -> Unit,
 ) {
     LiveWhileVisible(vm)
+    val context = LocalContext.current
     val name by vm.name.collectAsStateWithLifecycle()
+    val location by vm.location.collectAsStateWithLifecycle()
     val failed by vm.failed.collectAsStateWithLifecycle()
     val ui by vm.ui.collectAsStateWithLifecycle()
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
@@ -134,31 +150,18 @@ fun StopScreen(
     val look = remember(index, vm.stopId) { index?.look(vm.stopId) }
     val platforms = infos.map { it.stopId }.ifEmpty { listOf(vm.stopId) }
     val favoritePlatform = platforms.firstOrNull { it in favoriteStops }
+    val fix = remember { UserLocation.recent(context) }
+    val meters = location?.let { at -> fix?.let { haversineMeters(it.lat, it.lon, at.first, at.second) } }
 
     val sorted = remember(ui, favoriteRoutes) {
         ui?.departures?.sortedWith(compareBy({ if (vm.isDepartureFavorite(it)) 0 else 1 }, { it.minutesLeft }))
     }
+    val beat by vm.beat.collectAsStateWithLifecycle()
 
+    CompositionLocalProvider(LocalLiveBeat provides beat) {
     ListScreen { spec ->
-        item { StationKind(look, spec) }
+        item { StationKind(look, meters, spec) }
         item { Title(name ?: "…", spec) }
-        item {
-            val favorite = favoritePlatform != null
-            ActionRow(spec) {
-                ToggleAction(
-                    if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    stringResource(R.string.save),
-                    favorite,
-                    { Services.favorites.toggleStop(favoritePlatform ?: vm.stopId) },
-                    color = Palette.Heart,
-                    onColor = Color.White,
-                    weight = LABELLED_WEIGHT,
-                    checkedLabel = stringResource(R.string.saved),
-                )
-                PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenMap)
-                PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
-            }
-        }
         when {
             failed -> {
                 item { Message(stringResource(R.string.load_failed), spec) }
@@ -192,7 +195,7 @@ fun StopScreen(
                             if (reminded) Icon(Icons.Rounded.NotificationsActive, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                         }
                     },
-                    time = { Eta(departure.nextTimes.firstOrNull()?.minutes ?: departure.minutesLeft, !departure.isStatic, now) },
+                    time = { Eta(departure.nextTimes.firstOrNull()?.minutes ?: departure.minutesLeft, !departure.isStatic, now, mode = look?.mode ?: Mode.BUS) },
                 ) {
                     Column {
                         Text(departure.destination(), style = MaterialTheme.typography.titleSmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -203,12 +206,36 @@ fun StopScreen(
                 }
             }
         }
+        item {
+            val favorite = favoritePlatform != null
+            ActionRow(spec) {
+                ToggleAction(
+                    if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    stringResource(if (favorite) R.string.saved else R.string.save),
+                    favorite,
+                    { Services.favorites.toggleStop(favoritePlatform ?: vm.stopId) },
+                    color = Palette.Heart,
+                    onColor = Color.White,
+                    iconOnly = true,
+                )
+                PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenMap)
+                PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
+            }
+        }
+    }
     }
 }
 
 // While followed, the follow's own reading is shown, so the screen says the same as its card.
 @Composable
-fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute: () -> Unit) {
+fun DepartureScreen(
+    vm: StopViewModel,
+    routeId: Int,
+    tripId: String,
+    onOpenMap: () -> Unit,
+    onOpenLine: () -> Unit,
+    onOpenFollow: (Followed) -> Unit,
+) {
     LiveWhileVisible(vm)
     val name by vm.name.collectAsStateWithLifecycle()
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -221,9 +248,11 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
     val platforms = infos.map { it.stopId }.ifEmpty { listOf(vm.stopId) }
     val reminded = reminding(follows, reminders, platforms, routeId, tripId)
     val follow = reminded.follow
-    val openOnPhone = rememberOpenOnPhone(Links.stop(vm.stopId))
-    val remind = rememberRemind()
+    val remind = rememberRemind(onSet = onOpenFollow)
     val nowMs by rememberClock()
+    val beat by vm.beat.collectAsStateWithLifecycle()
+    val index by Services.repository.network.index.collectAsStateWithLifecycle()
+    val mode = remember(index, vm.stopId) { index?.look(vm.stopId)?.mode } ?: Mode.BUS
 
     fun target(): RemindTarget? {
         val d = departure ?: return null
@@ -233,6 +262,7 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
         return RemindTarget(followed, stop.lat, stop.lon, d.nextTimes.firstOrNull()?.minutes ?: d.minutesLeft)
     }
 
+    CompositionLocalProvider(LocalLiveBeat provides beat) {
     ListScreen { spec ->
         val current = departure
         val shortName = current?.shortName ?: follow?.followed?.shortName
@@ -251,32 +281,48 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
         val later = follow?.later?.takeIf { follow.minutes != null } ?: current?.nextTimes?.drop(1)?.map { it.minutes }.orEmpty()
         item {
             Column(contentModifier(spec), horizontalAlignment = Alignment.CenterHorizontally) {
-                val tint = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (live) RealtimeIcon(tint, size = 16.dp)
-                    Ticker(if (minutes == null) "…" else etaText(minutes, now), style = MaterialTheme.typography.numeralSmall, color = tint)
-                }
+                if (minutes == null) Ticker("…", style = MaterialTheme.typography.numeralMedium, color = MaterialTheme.colorScheme.onSurface)
+                else Eta(minutes, live, now, style = MaterialTheme.typography.numeralMedium, mode = mode, iconSize = 18.dp, idle = MaterialTheme.colorScheme.onSurface)
                 Text(
-                    stringResource(if (live) R.string.live else R.string.scheduled),
+                    stringResource(R.string.status_from, stringResource(if (live) R.string.live else R.string.scheduled), name ?: follow?.followed?.stopName.orEmpty()),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
         item {
+            val press = remember { MutableInteractionSource() }
+            val set = reminded.follow?.followed ?: reminded.reminder?.followed
+            Button(
+                onClick = { if (set != null) onOpenFollow(set) else remind(reminded, ::target) },
+                modifier = itemModifier(spec).squish(press),
+                interactionSource = press,
+                transformation = surface(spec),
+                colors = if (set != null) ButtonDefaults.filledTonalButtonColors() else ButtonDefaults.buttonColors(),
+                icon = { PopIcon(Icons.Rounded.NotificationsActive, set != null, Modifier.size(20.dp)) },
+                label = {
+                    Text(
+                        stringResource(
+                            when {
+                                reminded.follow != null -> R.string.following
+                                reminded.reminder != null -> R.string.reminder
+                                else -> R.string.remind_set
+                            },
+                        ),
+                    )
+                },
+            )
+        }
+        item {
             val favorite = favoriteRoutes.any { it.routeId == routeId && it.direction == direction }
             ActionRow(spec) {
-                ToggleAction(
-                    Icons.Rounded.NotificationsActive,
-                    stringResource(R.string.remind_set),
-                    reminded.on,
-                    { remind(reminded, ::target) },
-                    weight = LABELLED_WEIGHT,
-                    checkedLabel = stringResource(if (reminded.reminder != null) R.string.reminder else R.string.following),
-                )
+                LabelAction(Icons.Rounded.Map, stringResource(R.string.map), onOpenMap)
                 ToggleAction(
                     if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    stringResource(R.string.save),
+                    stringResource(if (favorite) R.string.saved else R.string.save),
                     favorite,
                     { Services.favorites.toggleRoute(routeId, direction) },
                     color = Palette.Heart,
@@ -285,35 +331,45 @@ fun DepartureScreen(vm: StopViewModel, routeId: Int, tripId: String, onOpenRoute
                 )
             }
         }
-        item {
-            ActionRow(spec) {
-                PillAction(Icons.Rounded.Map, stringResource(R.string.open_map), onOpenRoute)
-                PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
-            }
-        }
-        item {
-            Column(contentModifier(spec), horizontalAlignment = Alignment.CenterHorizontally) {
-                laterTimes(later, now)?.let { Text(it, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
+        if (later.isNotEmpty()) {
+            item {
                 Text(
-                    stringResource(R.string.from_stop, name ?: follow?.followed?.stopName.orEmpty()),
+                    laterTimes(later, now).orEmpty(),
+                    contentModifier(spec).padding(horizontal = 12.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
             }
         }
+        if (shortName != null) {
+            item {
+                Box(contentModifier(spec), contentAlignment = Alignment.Center) {
+                    CompactButton(
+                        onClick = onOpenLine,
+                        label = { Text(stringResource(R.string.whole_line, shortName)) },
+                        colors = ButtonDefaults.filledTonalButtonColors(),
+                    )
+                }
+            }
+        }
+    }
     }
 }
 
 @Composable
-private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope.StationKind(look: StationLook?, spec: androidx.wear.compose.material3.lazy.TransformationSpec) {
+private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope.StationKind(look: StationLook?, meters: Double?, spec: androidx.wear.compose.material3.lazy.TransformationSpec) {
     Row(
         contentModifier(spec),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StationIcon(look, size = 20.dp)
-        Text(stringResource(stopKind(look?.mode ?: Mode.BUS)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        Text(
+            stringResource(stopKind(look?.mode ?: Mode.BUS)) + meters?.let { " · " + formatMeters(it) }.orEmpty(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
@@ -336,6 +392,18 @@ fun StopMapScreen(vm: StopViewModel) {
     val camera = rememberMapCamera()
     val frame = location?.let { MapFrame.Focus(it.first, it.second, STOP_MAP_ZOOM) }
     val chrome = rememberMapChrome()
+    val ui by vm.ui.collectAsStateWithLifecycle()
+    val dueArrivals = remember { DueArrivals() }
+    var arrival by remember { mutableStateOf<MapArrival?>(null) }
+    val looks = LocalLineLooks.current
+    LaunchedEffect(ui) {
+        val departures = ui?.departures ?: return@LaunchedEffect
+        val at = location ?: return@LaunchedEffect
+        for (departure in dueArrivals.newlyDue(departures).filter(vm::isDepartureFavorite)) {
+            val bus = layer.vehicles.filter { it.vehicle.tripId == departure.tripId }.minByOrNull { haversineMeters(it.lat, it.lon, at.first, at.second) }
+            arrival = MapArrival(at.first, at.second, looks.color(departure.shortName, departure.color, apart), bus?.id, (arrival?.seq ?: 0) + 1)
+        }
+    }
     ScreenScaffold {
         Box(Modifier.fillMaxSize()) {
             TransitMap(
@@ -348,6 +416,7 @@ fun StopMapScreen(vm: StopViewModel) {
                 vehicles = layer.vehicles.map { MapVehicle(it.id, it.lat, it.lon, it.name, lineColor(it.name, it.color, apart), it.heading, vehicle = it.vehicle) },
                 me = me,
                 ambient = LocalAmbient.current,
+                arrival = arrival,
             )
             name?.let {
                 MapControls(chrome, Modifier.align(Alignment.TopCenter).padding(top = MAP_CHIP_TOP)) {

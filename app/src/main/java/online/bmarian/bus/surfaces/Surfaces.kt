@@ -19,6 +19,10 @@ import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.logic.stopDepartures
+import online.bmarian.bus.logic.stationDepartures
+import online.bmarian.bus.logic.nearestStation
+import online.bmarian.bus.data.LiveStream
+import online.bmarian.bus.data.UserLocation
 import online.bmarian.bus.logic.formatMinutesFromNow
 import java.time.Instant
 import java.time.LocalDateTime
@@ -46,6 +50,24 @@ suspend fun nextAtFavoriteStops(count: Int): List<NextAtStop> = coroutineScope {
             NextAtStop(id, names[id] ?: info?.name.orEmpty(), next?.first, next?.second, nowMs)
         }
     }.awaitAll()
+}
+
+class NearStop(val stopId: Int, val name: String, val nearby: Boolean, val departures: List<StopDeparture>, val nowMs: Long)
+
+suspend fun nextNearby(context: Context, count: Int): NearStop? {
+    val repository = Services.repository
+    repository.loadCached()
+    val index = repository.network.index.value ?: return null
+    val near = UserLocation.recent(context)?.let { nearestStation(index, it.lat, it.lon) }?.first
+    val stop = near ?: Services.favorites.stops.value.firstNotNullOfOrNull { index.platforms(it).firstOrNull() } ?: return null
+    val platforms = index.platforms(stop.stopId).map { it.stopId }
+    val live = withTimeoutOrNull(FETCH_TIMEOUT_MS) { LiveStream.once(platforms, emptyList()) }
+    val nowMs = System.currentTimeMillis()
+    val now = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), CLUJ_ZONE)
+    val departures = withContext(Dispatchers.Default) {
+        stationDepartures(index.stationInfos(stop.stopId, nowMs), live, now, nowMs).take(count)
+    }
+    return NearStop(stop.stopId, stop.name, near != null, departures, nowMs)
 }
 
 fun etaLabel(context: Context, minutes: Int, nowMs: Long, scheduled: Boolean): String {

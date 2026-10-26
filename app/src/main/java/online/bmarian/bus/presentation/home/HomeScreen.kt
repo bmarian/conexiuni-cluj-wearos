@@ -1,45 +1,46 @@
 package online.bmarian.bus.presentation.home
 
-import online.bmarian.bus.presentation.StationIcon
-import online.bmarian.bus.presentation.StationLines
-import android.app.RemoteInput
-import android.content.Intent
-import android.view.inputmethod.EditorInfo
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.DirectionsBus
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Map
+import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.Navigation
-import androidx.compose.material.icons.rounded.NearMe
-import androidx.compose.material.icons.rounded.NotificationsActive
-import androidx.compose.material.icons.rounded.Place
-import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
+import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.CardDefaults
 import androidx.wear.compose.material3.CompactButton
@@ -49,12 +50,9 @@ import androidx.wear.compose.material3.LocalContentColor
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.TransformationSpec
-import androidx.wear.input.RemoteInputIntentHelper
-import androidx.wear.input.WearableRemoteInputExtender
-import online.bmarian.bus.BuildConfig
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
-import online.bmarian.bus.data.Cities
+import online.bmarian.bus.data.Route
 import online.bmarian.bus.data.bothWays
 import online.bmarian.bus.data.terminalName
 import online.bmarian.bus.follow.FollowManager
@@ -64,207 +62,196 @@ import online.bmarian.bus.follow.JourneyMirror
 import online.bmarian.bus.follow.JourneySync
 import online.bmarian.bus.follow.Reminder
 import online.bmarian.bus.follow.Reminders
+import online.bmarian.bus.follow.minutesUntil
 import online.bmarian.bus.logic.CLUJ_ZONE
+import online.bmarian.bus.logic.Mode
+import online.bmarian.bus.logic.StopDeparture
+import online.bmarian.bus.logic.formatMeters
 import online.bmarian.bus.presentation.ActionRow
 import online.bmarian.bus.presentation.Countdown
 import online.bmarian.bus.presentation.Eta
 import online.bmarian.bus.presentation.FitText
-import online.bmarian.bus.presentation.PillAction
+import online.bmarian.bus.presentation.LabelAction
 import online.bmarian.bus.presentation.LineBadge
 import online.bmarian.bus.presentation.ListScreen
+import online.bmarian.bus.presentation.Loading
+import online.bmarian.bus.presentation.LocalLiveBeat
 import online.bmarian.bus.presentation.Message
+import online.bmarian.bus.presentation.PillAction
 import online.bmarian.bus.presentation.SubHeader
-import online.bmarian.bus.presentation.Title
 import online.bmarian.bus.presentation.cascade
+import online.bmarian.bus.presentation.follow.followStatus
 import online.bmarian.bus.presentation.clockText
 import online.bmarian.bus.presentation.contentModifier
 import online.bmarian.bus.presentation.itemModifier
 import online.bmarian.bus.presentation.rememberClock
 import online.bmarian.bus.presentation.squish
+import online.bmarian.bus.presentation.stop.destination
 import online.bmarian.bus.presentation.surface
 import java.time.LocalDateTime
 
-private const val SEARCH_KEY = "query"
-@Composable
-fun rememberSearchInput(onQuery: (String) -> Unit): () -> Unit {
-    val label = stringResource(R.string.search_label)
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val text = result.data?.let { RemoteInput.getResultsFromIntent(it)?.getCharSequence(SEARCH_KEY) }?.toString()
-        if (!text.isNullOrBlank()) onQuery(text.trim())
-    }
-    return remember(launcher, label) {
-        {
-            val intent: Intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
-            val input = WearableRemoteInputExtender(RemoteInput.Builder(SEARCH_KEY).setLabel(label))
-                .setEmojisAllowed(false)
-                .setInputActionType(EditorInfo.IME_ACTION_SEARCH)
-                .get()
-                .build()
-            RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(input))
-            launcher.launch(intent)
-        }
-    }
-}
+private val ROW_MIN_HEIGHT = 36.dp
+private val CARD_SHAPE = RoundedCornerShape(26.dp)
+
+private class SavedLine(val route: Route, val direction: String, val label: String)
 
 @Composable
 fun HomeScreen(
     state: TransformingLazyColumnState,
     onOpenStop: (Int) -> Unit,
+    onOpenDeparture: (Int, StopDeparture) -> Unit,
     onOpenRoute: (Int, String) -> Unit,
-    onOpenBus: (Followed) -> Unit,
-    onSearch: (String) -> Unit,
-    onNearby: () -> Unit,
-    onBrowseRoutes: () -> Unit,
-    onBrowseStops: () -> Unit,
-    onCopyFavorites: () -> Unit,
+    onOpenFollow: (Followed) -> Unit,
     onOpenJourney: () -> Unit,
+    onSearch: () -> Unit,
+    onMap: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val repository = Services.repository
-    val routes by repository.routes.collectAsStateWithLifecycle()
-    val stops by repository.stops.collectAsStateWithLifecycle()
-    val favoriteStopIds by Services.favorites.stops.collectAsStateWithLifecycle()
-    val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
-    val follows by FollowManager.follows.collectAsStateWithLifecycle()
-    val reminders by Reminders.all.collectAsStateWithLifecycle()
-    val journey by JourneyMirror.state.collectAsStateWithLifecycle()
-    val cities by Cities.list.collectAsStateWithLifecycle()
-    val city by Cities.current.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val search = rememberSearchInput(onSearch)
-
+    val vm: HomeViewModel = viewModel()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(vm) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { vm.live() } }
     LaunchedEffect(Unit) {
         repository.loadCached()
         repository.refreshNetwork()
     }
+    val here = rememberHere()
+    LaunchedEffect(here.fix) { vm.locate(here.fix) }
 
-    val favoriteStops = remember(stops, favoriteStopIds) {
-        val byId = stops.associateBy { it.stopId }
-        favoriteStopIds.mapNotNull { byId[it] }
-    }
-    val favoriteRouteRows = remember(routes, favoriteRoutes) {
+    val ui by vm.ui.collectAsStateWithLifecycle()
+    val beat by vm.beat.collectAsStateWithLifecycle()
+    val routes by repository.routes.collectAsStateWithLifecycle()
+    val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
+    val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
+    val follows by FollowManager.follows.collectAsStateWithLifecycle()
+    val reminders by Reminders.all.collectAsStateWithLifecycle()
+    val journey by JourneyMirror.state.collectAsStateWithLifecycle()
+
+    val savedLines = remember(routes, favoriteRoutes) {
         val byId = routes.associateBy { it.routeId }
         // Both directions saved: one row that opens the direction nearest the user.
         favoriteRoutes.groupBy { it.routeId }.mapNotNull { (routeId, favorites) ->
             val route = byId[routeId] ?: return@mapNotNull null
-            if (favorites.size > 1) Triple(route, "auto", bothWays(route.longName))
-            else Triple(route, favorites[0].direction, "→ " + terminalName(route.longName, favorites[0].direction))
+            if (favorites.size > 1) SavedLine(route, "auto", bothWays(route.longName))
+            else SavedLine(route, favorites[0].direction, "→ " + terminalName(route.longName, favorites[0].direction))
         }
     }
-    val cityName = remember(cities, city) { if (cities.size > 1) cities.firstOrNull { it.slug == city }?.name else null }
 
-    ListScreen(state = state) { spec ->
-        item { Title(stringResource(R.string.app_name), spec) }
-        if (cityName != null) {
-            item {
-                Text(
-                    cityName,
-                    modifier = contentModifier(spec),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center,
-                )
+    CompositionLocalProvider(LocalLiveBeat provides beat) {
+        ListScreen(state = state) { spec ->
+            journey?.let { trip -> item(key = "journey") { JourneyCard(trip, spec, onOpenJourney) } }
+            items(follows.size, key = { "follow-${follows[it].id}" }) { i ->
+                FollowCard(follows[i], spec) { onOpenFollow(follows[i].followed) }
             }
-        }
-        journey?.let { trip -> item { JourneyCard(trip, spec, onOpenJourney) { JourneyMirror.end(context, trip.id) } } }
-        items(follows.size, key = { "follow-${follows[it].id}" }) { i ->
-            val follow = follows[i]
-            FollowCard(follow, spec, onOpen = { onOpenBus(follow.followed) }, onStop = { FollowManager.stop(context, follow.id) })
-        }
-        items(reminders.size, key = { "reminder-${reminders[it].id}" }) { i ->
-            val reminder = reminders[i]
-            ReminderCard(reminder, spec, onOpen = { onOpenBus(reminder.followed) }, onDelete = { Reminders.remove(context, reminder.id) })
-        }
-        item {
-            ActionRow(spec) {
-                PillAction(Icons.Rounded.Search, stringResource(R.string.search), search)
-                PillAction(Icons.Rounded.NearMe, stringResource(R.string.nearby_stops), onNearby)
+            items(reminders.size, key = { "reminder-${reminders[it].id}" }) { i ->
+                ReminderCard(reminders[i], spec) { onOpenFollow(reminders[i].followed) }
             }
-        }
 
-        if (favoriteStops.isEmpty() && favoriteRouteRows.isEmpty()) {
-            item { Message(stringResource(R.string.no_favorites), spec) }
-        } else {
-            item { SubHeader(stringResource(R.string.favorites), spec) }
-        }
-        items(favoriteStops.size, key = { "fs-${favoriteStops[it].stopId}" }) { i ->
-            val stop = favoriteStops[i]
-            val look = Services.repository.network.index.value?.look(stop.stopId)
-            val press = remember { MutableInteractionSource() }
-            FilledTonalButton(
-                onClick = { onOpenStop(stop.stopId) },
-                modifier = itemModifier(spec).squish(press).cascade(i, "list"),
-                interactionSource = press,
-                transformation = surface(spec),
-                icon = if (look == null) ({ StationIcon(null, size = 26.dp) }) else null,
-                label = { Text(stop.name, maxLines = 3, overflow = TextOverflow.Ellipsis) },
-                secondaryLabel = if (look != null) ({ StationLines(look) }) else null,
-            )
-        }
-        items(favoriteRouteRows.size, key = { "fr-${favoriteRouteRows[it].first.routeId}-${favoriteRouteRows[it].second}" }) { i ->
-            val (route, direction, label) = favoriteRouteRows[i]
-            val press = remember { MutableInteractionSource() }
-            FilledTonalButton(
-                onClick = { onOpenRoute(route.routeId, direction) },
-                modifier = itemModifier(spec).squish(press).cascade(i, "list"),
-                interactionSource = press,
-                transformation = surface(spec),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LineBadge(route.shortName, route.color)
-                    Text(label, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            val current = ui
+            val nearby = current?.nearby
+            item(key = "near-label") {
+                val distance = nearby?.meters?.let { " · " + formatMeters(it) }.orEmpty()
+                SubHeader(stringResource(R.string.near_you) + distance, spec)
+            }
+            when {
+                here.status == HereStatus.NotAllowed || here.status == HereStatus.Off -> item(key = "near-enable") {
+                    val press = remember { MutableInteractionSource() }
+                    FilledTonalButton(
+                        onClick = here.ask,
+                        modifier = itemModifier(spec).squish(press),
+                        interactionSource = press,
+                        transformation = surface(spec),
+                        icon = { Icon(Icons.Rounded.MyLocation, contentDescription = null) },
+                        label = { Text(stringResource(R.string.nearby_enable), maxLines = 2) },
+                        secondaryLabel = if (here.status == HereStatus.Off) ({ Text(stringResource(R.string.nearby_unavailable)) }) else null,
+                    )
+                }
+                here.status == HereStatus.Waiting || current == null -> item(key = "near-loading") { Loading(spec) }
+                nearby == null -> item(key = "near-none") { Message(stringResource(R.string.nearby_none), spec) }
+                else -> item(key = "near-${nearby.stopId}") { StationCard(nearby, current.now, 0, spec, onOpenStop, onOpenDeparture) }
+            }
+
+            val saved = current?.saved.orEmpty()
+            val noFavorites = favoriteStops.isEmpty() && savedLines.isEmpty()
+            val savedLoading = current == null && favoriteStops.isNotEmpty()
+            // The nearest stop may be the only saved one.
+            if (noFavorites || savedLoading || saved.isNotEmpty() || savedLines.isNotEmpty()) {
+                item(key = "saved-label") { SubHeader(stringResource(R.string.saved_stops), spec) }
+            }
+            if (savedLoading) item(key = "saved-loading") { Loading(spec) }
+            else if (noFavorites) item(key = "saved-none") { Message(stringResource(R.string.no_favorites), spec) }
+            if (current != null) items(saved.size, key = { "saved-${saved[it].stopId}" }) { i -> StationCard(saved[i], current.now, i, spec, onOpenStop, onOpenDeparture) }
+            if (savedLines.isNotEmpty()) item(key = "lines") { SavedLinesCard(savedLines, spec, onOpenRoute) }
+
+            item(key = "actions") {
+                ActionRow(spec) {
+                    LabelAction(Icons.Rounded.Search, stringResource(R.string.search), onSearch)
+                    PillAction(Icons.Rounded.Map, stringResource(R.string.map), onMap)
+                }
+            }
+            item(key = "settings") {
+                Box(contentModifier(spec), contentAlignment = Alignment.Center) {
+                    CompactButton(
+                        onClick = onSettings,
+                        icon = { Icon(Icons.Rounded.Settings, contentDescription = null) },
+                        label = { Text(stringResource(R.string.settings)) },
+                        colors = ButtonDefaults.filledTonalButtonColors(),
+                    )
                 }
             }
         }
+    }
+}
 
-        item { SubHeader(stringResource(R.string.explore), spec) }
-        item {
-            val press = remember { MutableInteractionSource() }
-            FilledTonalButton(
-                onClick = onBrowseRoutes,
-                modifier = itemModifier(spec).squish(press),
-                interactionSource = press,
-                transformation = surface(spec),
-                icon = { Icon(Icons.Rounded.DirectionsBus, contentDescription = null) },
-                label = { Text(stringResource(R.string.all_routes)) },
+@Composable
+private fun TransformingLazyColumnItemScope.StationCard(
+    stop: HomeStop,
+    now: LocalDateTime,
+    index: Int,
+    spec: TransformationSpec,
+    onOpenStop: (Int) -> Unit,
+    onOpenDeparture: (Int, StopDeparture) -> Unit,
+) {
+    HomeCard(spec, index, stop.stopId) {
+        Row(
+            Modifier.fillMaxWidth().clickable { onOpenStop(stop.stopId) }.padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stop.name,
+                Modifier.weight(1f),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+        }
+        if (stop.departures.isEmpty()) {
+            Text(
+                stringResource(R.string.no_departures),
+                Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        item {
-            val press = remember { MutableInteractionSource() }
-            FilledTonalButton(
-                onClick = onBrowseStops,
-                modifier = itemModifier(spec).squish(press),
-                interactionSource = press,
-                transformation = surface(spec),
-                icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
-                label = { Text(stringResource(R.string.all_stops)) },
-            )
-        }
-        item {
-            val press = remember { MutableInteractionSource() }
-            FilledTonalButton(
-                onClick = onCopyFavorites,
-                modifier = itemModifier(spec).squish(press),
-                interactionSource = press,
-                transformation = surface(spec),
-                icon = { Icon(Icons.Rounded.QrCode2, contentDescription = null) },
-                label = { Text(stringResource(R.string.copy_favorites)) },
-            )
-        }
-        item {
-            Column(contentModifier(spec).padding(top = 6.dp, start = 16.dp, end = 16.dp)) {
+        for (departure in stop.departures) {
+            CardRow({ onOpenDeparture(stop.stopId, departure) }) {
+                LineBadge(departure.shortName, departure.color, height = 20.dp)
                 Text(
-                    stringResource(R.string.credits),
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.bodyExtraSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
+                    departure.destination(),
+                    Modifier.weight(1f).padding(horizontal = 6.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    stringResource(R.string.app_version, BuildConfig.VERSION_NAME),
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    style = MaterialTheme.typography.bodyExtraSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
+                Eta(
+                    departure.nextTimes.firstOrNull()?.minutes ?: departure.minutesLeft,
+                    !departure.isStatic,
+                    now,
+                    style = MaterialTheme.typography.labelMedium,
+                    mode = stop.look?.mode ?: Mode.BUS,
+                    iconSize = 10.dp,
                 )
             }
         }
@@ -272,35 +259,71 @@ fun HomeScreen(
 }
 
 @Composable
-private fun CardLabel(icon: ImageVector, text: String, time: @Composable () -> Unit = {}) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Icon(icon, null, Modifier.size(14.dp))
-        Text(text, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        time()
+private fun TransformingLazyColumnItemScope.SavedLinesCard(lines: List<SavedLine>, spec: TransformationSpec, onOpenRoute: (Int, String) -> Unit) {
+    HomeCard(spec, 0, "lines", top = 6.dp) {
+        for (line in lines) {
+            CardRow({ onOpenRoute(line.route.routeId, line.direction) }) {
+                LineBadge(line.route.shortName, line.route.color, height = 20.dp)
+                Text(
+                    line.label,
+                    Modifier.weight(1f).padding(start = 6.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun BusLine(followed: Followed) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        LineBadge(followed.shortName, followed.color, height = 24.dp)
-        FitText("→ ${followed.destination}", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-    }
+private fun TransformingLazyColumnItemScope.HomeCard(
+    spec: TransformationSpec,
+    index: Int,
+    key: Any,
+    top: Dp = 0.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        contentModifier(spec)
+            .cascade(index, key)
+            .clip(CARD_SHAPE)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(top = top, bottom = 6.dp),
+        content = content,
+    )
 }
 
 @Composable
-private fun StopLine(name: String) {
+private fun CardRow(onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = ROW_MIN_HEIGHT).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+@Composable
+private fun CardHint(text: String) {
     Text(
-        stringResource(R.string.from_stop, name),
+        text,
         style = MaterialTheme.typography.bodySmall,
-        color = LocalContentColor.current.copy(alpha = 0.75f),
+        color = LocalContentColor.current.copy(alpha = 0.8f),
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
     )
 }
 
 @Composable
-private fun TransformingLazyColumnItemScope.FollowCard(follow: FollowState, spec: TransformationSpec, onOpen: () -> Unit, onStop: () -> Unit) {
+private fun CardTop(shortName: String, color: String, time: @Composable () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LineBadge(shortName, color, height = 26.dp)
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { time() }
+    }
+}
+
+@Composable
+private fun TransformingLazyColumnItemScope.FollowCard(follow: FollowState, spec: TransformationSpec, onOpen: () -> Unit) {
     val press = remember { MutableInteractionSource() }
     val nowMs by rememberClock()
     Card(
@@ -313,33 +336,20 @@ private fun TransformingLazyColumnItemScope.FollowCard(follow: FollowState, spec
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         ),
     ) {
-        // Still waiting for the user to set off.
-        val leave = follow.leaveIn(nowMs)
-        CardLabel(
-            if (leave != null) Icons.AutoMirrored.Rounded.DirectionsWalk else Icons.Rounded.NotificationsActive,
-            when {
-                leave == null -> stringResource(R.string.following)
-                leave <= 0 -> stringResource(R.string.leave_now)
-                else -> stringResource(R.string.leave_in, stringResource(R.string.eta_minutes, leave))
-            },
-        ) {
-            val at = follow.arrivalAt
-            if (at != null) Eta(at, follow.live) else follow.minutes?.let { Eta(it, follow.live, LocalDateTime.now(CLUJ_ZONE)) }
+        CardTop(follow.followed.shortName, follow.followed.color) {
+            val minutes = follow.minutesAt(nowMs)
+            if (minutes == null) Text("…", style = MaterialTheme.typography.titleLarge)
+            else Eta(minutes, follow.live, LocalDateTime.now(CLUJ_ZONE), style = MaterialTheme.typography.titleLarge, idle = MaterialTheme.colorScheme.onPrimaryContainer)
         }
-        BusLine(follow.followed)
-        StopLine(follow.followed.stopName)
-        CompactButton(
-            onClick = onStop,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            icon = { Icon(Icons.Rounded.Close, contentDescription = null) },
-            label = { Text(stringResource(R.string.stop_following)) },
-        )
+        val walk = follow.walkMinutes?.takeIf { follow.leaveAt != null }
+        CardHint(followStatus(follow, nowMs) + walk?.let { " · " + stringResource(R.string.walk_minutes, it) }.orEmpty())
     }
 }
 
 @Composable
-private fun TransformingLazyColumnItemScope.ReminderCard(reminder: Reminder, spec: TransformationSpec, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun TransformingLazyColumnItemScope.ReminderCard(reminder: Reminder, spec: TransformationSpec, onOpen: () -> Unit) {
     val press = remember { MutableInteractionSource() }
+    val nowMs by rememberClock()
     Card(
         onClick = onOpen,
         modifier = itemModifier(spec).squish(press),
@@ -350,24 +360,19 @@ private fun TransformingLazyColumnItemScope.ReminderCard(reminder: Reminder, spe
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         ),
     ) {
+        CardTop(reminder.followed.shortName, reminder.followed.color) {
+            Eta(minutesUntil(reminder.atMs, nowMs), false, LocalDateTime.now(CLUJ_ZONE), style = MaterialTheme.typography.titleLarge, idle = MaterialTheme.colorScheme.onSecondaryContainer)
+        }
         val leaveAt = reminder.leaveAt
-        CardLabel(
-            if (leaveAt != null) Icons.AutoMirrored.Rounded.DirectionsWalk else Icons.Rounded.NotificationsActive,
-            if (leaveAt != null) stringResource(R.string.leave_at, clockText(leaveAt)) else stringResource(R.string.reminder),
-        ) { Eta(reminder.atMs, live = false) }
-        BusLine(reminder.followed)
-        StopLine(reminder.followed.stopName)
-        CompactButton(
-            onClick = onDelete,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            icon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
-            label = { Text(stringResource(R.string.remind_delete)) },
+        CardHint(
+            if (leaveAt != null) stringResource(R.string.leave_at, clockText(leaveAt)) + " · " + reminder.followed.stopName
+            else stringResource(R.string.arrives_at_stop, reminder.followed.stopName),
         )
     }
 }
 
 @Composable
-private fun TransformingLazyColumnItemScope.JourneyCard(trip: JourneySync, spec: TransformationSpec, onOpen: () -> Unit, onEnd: () -> Unit) {
+private fun TransformingLazyColumnItemScope.JourneyCard(trip: JourneySync, spec: TransformationSpec, onOpen: () -> Unit) {
     val press = remember { MutableInteractionSource() }
     Card(
         onClick = onOpen,
@@ -379,29 +384,14 @@ private fun TransformingLazyColumnItemScope.JourneyCard(trip: JourneySync, spec:
             contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
         ),
     ) {
-        CardLabel(Icons.Rounded.Navigation, stringResource(R.string.journey_to, trip.title)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Rounded.Navigation, null, Modifier.size(14.dp))
+            Text(stringResource(R.string.journey_to, trip.title), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (trip.countsDown) Countdown(trip.arrivalAt!!, MaterialTheme.typography.labelLarge)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             trip.line?.let { LineBadge(it, trip.color.orEmpty(), height = 24.dp) }
             FitText(trip.step, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, maxLines = 3)
         }
-        if (!trip.countsDown) trip.detail?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        trip.etaAt?.let {
-            Text(
-                stringResource(R.string.nav_arrive_at, clockText(it)),
-                style = MaterialTheme.typography.bodySmall,
-                color = LocalContentColor.current.copy(alpha = 0.75f),
-                maxLines = 1,
-            )
-        }
-        CompactButton(
-            onClick = onEnd,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            icon = { Icon(Icons.Rounded.Close, contentDescription = null) },
-            label = { Text(stringResource(R.string.end_journey)) },
-        )
     }
 }

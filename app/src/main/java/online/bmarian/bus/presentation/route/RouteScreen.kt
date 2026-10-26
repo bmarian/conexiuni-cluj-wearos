@@ -15,7 +15,6 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.NotificationsActive
-import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.runtime.Composable
@@ -43,7 +42,6 @@ import androidx.wear.compose.material3.IconButtonDefaults
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
-import online.bmarian.bus.Links
 import androidx.compose.ui.platform.LocalContext
 import online.bmarian.bus.R
 import online.bmarian.bus.data.Cities
@@ -76,6 +74,7 @@ import online.bmarian.bus.presentation.PillAction
 import online.bmarian.bus.presentation.RemindTarget
 import online.bmarian.bus.presentation.ToggleAction
 import online.bmarian.bus.presentation.contentModifier
+import online.bmarian.bus.presentation.Rolling
 import online.bmarian.bus.presentation.map.ChipText
 import online.bmarian.bus.presentation.map.MAP_CHIP_TOP
 import online.bmarian.bus.presentation.map.MapCamera
@@ -90,11 +89,27 @@ import online.bmarian.bus.presentation.map.rememberMapChrome
 import online.bmarian.bus.presentation.map.TransitMap
 import online.bmarian.bus.presentation.map.rememberMapCamera
 import online.bmarian.bus.presentation.map.rememberUserLocation
-import online.bmarian.bus.presentation.rememberOpenOnPhone
 import online.bmarian.bus.presentation.rememberRemind
 import online.bmarian.bus.presentation.reminding
 import online.bmarian.bus.presentation.theme.Palette
 import online.bmarian.bus.presentation.theme.lineColor
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.Card
+import androidx.wear.compose.material3.CompactButton
+import androidx.wear.compose.material3.ListHeader
+import online.bmarian.bus.logic.formatMeters
+import online.bmarian.bus.logic.haversineMeters
+import online.bmarian.bus.presentation.Eta
+import online.bmarian.bus.presentation.LabelAction
+import online.bmarian.bus.presentation.itemModifier
+import online.bmarian.bus.presentation.squish
+import online.bmarian.bus.presentation.surface
+import online.bmarian.bus.presentation.stop.laterTimes
 import java.time.LocalDateTime
 
 private const val FROM_STOP_ZOOM = 13f
@@ -109,26 +124,134 @@ fun routeViewModel(routeId: Int, direction: String, fromStopId: Int?): RouteView
     }
 }
 
+enum class RouteView { Summary, Map, Timetable }
+
 @Composable
-fun RouteScreen(vm: RouteViewModel) {
+fun RouteScreen(vm: RouteViewModel, start: RouteView = RouteView.Summary, onOpenDeparture: (Int, String) -> Unit) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(vm) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { vm.live() } }
 
     val info by vm.shapeInfo.collectAsStateWithLifecycle()
     val direction by vm.direction.collectAsStateWithLifecycle()
     val failed by vm.failed.collectAsStateWithLifecycle()
-    var timetableOpen by rememberSaveable { mutableStateOf(false) }
+    var view by rememberSaveable { mutableStateOf(start) }
     val camera = rememberMapCamera()
 
-    BackHandler(enabled = timetableOpen) { timetableOpen = false }
+    BackHandler(enabled = view != start) { view = start }
 
     val terminal = info?.let { terminalName(it.longName, direction) }.orEmpty()
     val canSwap = info != null && vm.hasDirection(if (direction == "0") "1" else "0")
 
-    if (timetableOpen) {
-        TimetableView(vm, info, direction, terminal, canSwap, onMap = { timetableOpen = false })
-    } else {
-        RouteMapView(vm, camera, info, terminal, failed, canSwap, onTimetable = { timetableOpen = true })
+    when (view) {
+        RouteView.Summary -> LineSummary(
+            vm, info, terminal, failed, canSwap,
+            onMap = { view = RouteView.Map },
+            onTimetable = { view = RouteView.Timetable },
+            onOpenDeparture = onOpenDeparture,
+        )
+        RouteView.Map -> RouteMapView(vm, camera, info, terminal, failed, canSwap, onTimetable = { view = RouteView.Timetable })
+        RouteView.Timetable -> TimetableView(vm, info, direction, terminal, canSwap, onMap = { view = RouteView.Map })
+    }
+}
+
+@Composable
+private fun LineSummary(
+    vm: RouteViewModel,
+    info: ShapeInfo?,
+    terminal: String,
+    failed: Boolean,
+    canSwap: Boolean,
+    onMap: () -> Unit,
+    onTimetable: () -> Unit,
+    onOpenDeparture: (Int, String) -> Unit,
+) {
+    val context = LocalContext.current
+    val ui by vm.ui.collectAsStateWithLifecycle()
+    val me by rememberUserLocation()
+    LaunchedEffect(me) { me?.let(vm::locate) }
+    val fix = me ?: remember { UserLocation.recent(context) }
+    val allStops by Services.repository.stops.collectAsStateWithLifecycle()
+    val names = remember(allStops) { allStops.associate { it.stopId to it.name } }
+    val direction by vm.direction.collectAsStateWithLifecycle()
+
+    val current = ui
+    val stops = current?.stops.orEmpty()
+    val at = remember(stops, fix, names) {
+        val from = vm.fromStopId
+        val opened = from?.let { id -> stops.indexOfFirst { it.stop.stopId == id }.takeIf { it >= 0 } ?: names[id]?.let { name -> stops.indexOfFirst { names[it.stop.stopId] == name } }?.takeIf { it >= 0 } }
+        opened ?: fix?.let { f ->
+            stops.indices.filter { stops[it].stop.lat != 0.0 }.minByOrNull { haversineMeters(f.lat, f.lon, stops[it].stop.lat, stops[it].stop.lon) }
+        } ?: stops.indices.firstOrNull()
+    }
+    val stop = at?.let { stops[it].stop }
+    val arrivals = at?.let { current?.arrivals?.getOrNull(it) }.orEmpty()
+
+    ListScreen { spec ->
+        item {
+            ListHeader(modifier = itemModifier(spec), transformation = surface(spec)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                    info?.let { LineBadge(it.shortName, it.color, height = 30.dp) }
+                    if (terminal.isNotEmpty()) Rolling(terminal) { Text("→ $it", style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                }
+            }
+        }
+        when {
+            failed -> item { Message(stringResource(R.string.load_failed), spec) }
+            current == null -> item { Loading(spec) }
+            stop == null -> item { Message(stringResource(R.string.no_schedule), spec) }
+            else -> {
+                item {
+                    val meters = fix?.takeIf { stop.lat != 0.0 }?.let { haversineMeters(it.lat, it.lon, stop.lat, stop.lon) }
+                    Text(
+                        stringResource(R.string.at_stop, names[stop.stopId] ?: stop.headsign) + meters?.let { " · " + formatMeters(it) }.orEmpty(),
+                        contentModifier(spec).padding(horizontal = 16.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                item {
+                    val press = remember { MutableInteractionSource() }
+                    val first = arrivals.firstOrNull()
+                    Card(
+                        onClick = { onOpenDeparture(stop.stopId, tripIdFor(vm.routeId, direction)) },
+                        modifier = itemModifier(spec).squish(press),
+                        interactionSource = press,
+                        transformation = surface(spec),
+                        enabled = first != null,
+                    ) {
+                        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (first == null) {
+                                Text(stringResource(R.string.no_more_today), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                            } else {
+                                Eta(first.minutes, first.isLive, current.now, style = MaterialTheme.typography.numeralSmall, iconSize = 16.dp, idle = MaterialTheme.colorScheme.onSurface)
+                                laterTimes(arrivals.drop(1).map { it.minutes }, current.now)?.let {
+                                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            ActionRow(spec) {
+                LabelAction(Icons.Rounded.Map, stringResource(R.string.map), onMap)
+                if (canSwap) PillAction(Icons.Rounded.SwapVert, stringResource(R.string.switch_direction), vm::swap)
+            }
+        }
+        item {
+            Box(contentModifier(spec), contentAlignment = Alignment.Center) {
+                CompactButton(
+                    onClick = onTimetable,
+                    icon = { Icon(Icons.Rounded.Schedule, contentDescription = null) },
+                    label = { Text(stringResource(R.string.line_timetable)) },
+                    colors = ButtonDefaults.filledTonalButtonColors(),
+                )
+            }
+        }
     }
 }
 
@@ -188,6 +311,14 @@ private fun RouteMapView(
         }
     }
 
+    // The other direction re-fits before its line draws.
+    val shape = current?.shape
+    var framedShape by remember { mutableStateOf(shape) }
+    LaunchedEffect(shape) {
+        if (shape != null && framedShape != null && shape !== framedShape) camera.framed = false
+        if (shape != null) framedShape = shape
+    }
+
     val chrome = rememberMapChrome()
     ScreenScaffold {
         Box(Modifier.fillMaxSize()) {
@@ -212,7 +343,7 @@ private fun RouteMapView(
                     MapChip {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             LineBadge(info.shortName, info.color, height = 20.dp)
-                            if (terminal.isNotEmpty()) ChipText("→ $terminal")
+                            if (terminal.isNotEmpty()) Rolling(terminal) { ChipText("→ $it") }
                         }
                     }
                 }
@@ -262,7 +393,6 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
     val now = ui?.now ?: LocalDateTime.now(CLUJ_ZONE)
     val outgoing = direction == "0"
     val isFavorite = favoriteRoutes.any { it.routeId == vm.routeId && it.direction == direction }
-    val openOnPhone = rememberOpenOnPhone(Links.route(vm.routeId, direction))
 
     val allStops by Services.repository.stops.collectAsStateWithLifecycle()
     val names = remember(allStops) { allStops.associate { it.stopId to it.name } }
@@ -341,7 +471,6 @@ private fun TimetableView(vm: RouteViewModel, info: ShapeInfo?, direction: Strin
             ActionRow(spec) {
                 if (canSwap) PillAction(Icons.Rounded.SwapVert, stringResource(R.string.switch_direction), vm::swap)
                 PillAction(Icons.Rounded.Map, stringResource(R.string.map), onMap)
-                PillAction(Icons.Rounded.PhoneAndroid, stringResource(R.string.open_on_phone), openOnPhone)
             }
         }
         if (special != null) {

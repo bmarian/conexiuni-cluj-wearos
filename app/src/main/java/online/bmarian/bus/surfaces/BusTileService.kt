@@ -21,6 +21,7 @@ import androidx.wear.protolayout.material3.MaterialScope
 import androidx.wear.protolayout.material3.Typography
 import androidx.wear.protolayout.material3.primaryLayout
 import androidx.wear.protolayout.material3.text
+import androidx.wear.protolayout.material3.textEdgeButton
 import androidx.wear.protolayout.modifiers.LayoutModifier
 import androidx.wear.protolayout.modifiers.background
 import androidx.wear.protolayout.modifiers.clickable
@@ -42,10 +43,11 @@ import online.bmarian.bus.presentation.EXTRA_LINK
 import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
 import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
 import online.bmarian.bus.presentation.MainActivity
+import online.bmarian.bus.presentation.stop.destination
 import online.bmarian.bus.presentation.theme.ownHex
 import kotlin.time.Duration.Companion.seconds
 
-private const val ROWS_SHOWN = 3
+private const val ROWS_SHOWN = 2
 private const val ROW_HEIGHT = 34f
 private const val ROW_SPACING = 4f
 private const val GRAY = 0xFF64748B.toInt()
@@ -66,8 +68,9 @@ class BusTileService : Material3TileService(allowDynamicTheme = false, defaultCo
     override suspend fun MaterialScope.tileResponse(requestParams: RequestBuilders.TileRequest): TileBuilders.Tile {
         val nowMs = System.currentTimeMillis()
         val follows = FollowManager.follows.value.sortedBy { it.minutesAt(nowMs) ?: Int.MAX_VALUE }.take(ROWS_SHOWN)
-        val stops = nextAtFavoriteStops(ROWS_SHOWN - follows.size)
+        val near = nextNearby(context, ROWS_SHOWN - follows.size)
         val app = ComponentName(context, MainActivity::class.java)
+        fun open(path: String) = launchAction(app, mapOf(EXTRA_LINK to stringExtra(Links.app(path).toString())))
         val rows = buildList {
             for (follow in follows) {
                 val followed = follow.followed
@@ -83,25 +86,29 @@ class BusTileService : Material3TileService(allowDynamicTheme = false, defaultCo
                     ),
                 )
             }
-            for (stop in stops) {
-                val departure = stop.departure
+            for (departure in near?.departures.orEmpty()) {
                 add(
                     tileRow(
-                        id = "stop-${stop.stopId}",
-                        action = launchAction(app, mapOf(EXTRA_LINK to stringExtra(Links.app(Links.stop(stop.stopId)).toString()))),
-                        line = departure?.shortName,
-                        color = departure?.color,
-                        label = stop.name,
-                        time = stop.minutes?.let { etaLabel(context, it, stop.nowMs, scheduled = true) },
+                        id = "departure-${departure.tripId}",
+                        action = open(Links.departure(near!!.stopId, departure.routeId, departure.tripId)),
+                        line = departure.shortName,
+                        color = departure.color,
+                        label = departure.destination(),
+                        time = etaLabel(context, departure.nextTimes.firstOrNull()?.minutes ?: departure.minutesLeft, near.nowMs, scheduled = departure.isStatic),
                         highlighted = false,
                     ),
                 )
             }
         }
+        val title = when {
+            near?.nearby == true -> R.string.near_you
+            near != null -> R.string.saved_stops
+            else -> R.string.app_name
+        }
         val layout = primaryLayout(
-            titleSlot = { text(context.getString(R.string.app_name).layoutString, color = colorScheme.onBackground) },
+            titleSlot = { text(context.getString(title).layoutString, color = colorScheme.onBackground) },
             mainSlot = {
-                if (rows.isEmpty()) {
+                if (near == null && rows.isEmpty()) {
                     text(
                         context.getString(R.string.tile_empty).layoutString,
                         typography = Typography.BODY_MEDIUM,
@@ -109,9 +116,15 @@ class BusTileService : Material3TileService(allowDynamicTheme = false, defaultCo
                         maxLines = 3,
                     )
                 } else {
-                    val spaced = rows.flatMapIndexed { i, row -> if (i == 0) listOf(row) else listOf(spacer(height = dp(ROW_SPACING)), row) }
+                    val name = near?.let {
+                        text(it.name.layoutString, typography = Typography.LABEL_MEDIUM, color = colorScheme.primary, maxLines = 1)
+                    }
+                    val spaced = listOfNotNull(name) + rows.flatMap { listOf(spacer(height = dp(ROW_SPACING)), it) }
                     column(*spaced.toTypedArray(), width = expand())
                 }
+            },
+            bottomSlot = {
+                textEdgeButton(onClick = clickable(open(Links.SEARCH), "search")) { text(context.getString(R.string.search).layoutString) }
             },
             onClick = clickable(launchAction(app), "app"),
         )

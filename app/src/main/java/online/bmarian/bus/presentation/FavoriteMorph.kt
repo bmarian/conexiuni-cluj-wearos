@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 import online.bmarian.bus.presentation.theme.Palette
 import kotlin.math.hypot
 
-private const val MORPH_MS = 1300
+private const val MORPH_MS = 1130
 
 /** Port of the phone's FavoriteMorph.kt. */
 @Stable
@@ -103,23 +103,23 @@ class Morph(color: Color, private var saved: Boolean?) {
                 phase.animateTo(1f, tween(MORPH_MS, easing = LinearEasing))
             }
             launch {
-                content.animateTo(0f, tween(160, easing = FastOutLinearInEasing))
-                delay(940)
+                content.animateTo(0f, tween(140, easing = FastOutLinearInEasing))
+                delay(820)
                 content.animateTo(1f, Bouncy.pop)
             }
-            delay(100)
+            delay(85)
             heart.snapTo(0.25f)
             launch { heart.animateTo(1f, Bouncy.pop) }
             if (saving) {
                 spin.snapTo(-41f)
                 burst.snapTo(0f)
-                launch { burst.animateTo(1f, tween(520)) }
+                launch { burst.animateTo(1f, tween(450)) }
                 launch { spin.animateTo(0f, Bouncy.pop) }
-                delay(850)
-                heart.animateTo(0f, tween(160, easing = FastOutLinearInEasing))
+                delay(740)
+                heart.animateTo(0f, tween(140, easing = FastOutLinearInEasing))
             } else {
-                delay(400)
-                crack.animateTo(1f, tween(650, easing = FastOutLinearInEasing))
+                delay(350)
+                crack.animateTo(1f, tween(565, easing = FastOutLinearInEasing))
             }
         }
         mark = null
