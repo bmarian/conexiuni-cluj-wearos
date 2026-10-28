@@ -137,5 +137,4 @@
     <string name="status_from">%1$s · from %2$s</string>
     <string name="line_timetable">Line timetable</string>
     <string name="arrives_at_stop">Arrives at %1$s</string>
-    <string name="buzz_when_close">You\'ll get a buzz when it\'s close</string>
 </resources>
