@@ -59,8 +59,6 @@ class Favorites(
         onChange(city, _stops.value, _routes.value, now)
     }
 
-    fun isStopFavorite(stopId: Int) = stopId in _stops.value
-
     fun isRouteFavorite(routeId: Int, direction: String? = null) =
         _routes.value.any { it.routeId == routeId && (direction == null || it.direction == direction) }
 

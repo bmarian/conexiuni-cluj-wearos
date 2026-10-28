@@ -77,7 +77,8 @@ class SyncEngine(private val vault: SyncVault) {
 
     private fun sealRecord(keys: SyncCrypto.ChainKeys, chain: String, epoch: Long, name: String, rev: Long, text: String): String {
         val plain = text.toByteArray(Charsets.UTF_8)
-        return SyncCrypto.toB64(SyncCrypto.seal(keys.data, SyncCrypto.pad(plain, SyncCrypto.bucketFor(plain.size)), SyncCrypto.recordAAD(chain, epoch, name, rev)))
+        val padded = SyncCrypto.pad(plain, SyncCrypto.bucketFor(plain.size))
+        return SyncCrypto.toB64(SyncCrypto.seal(keys.data, padded, SyncCrypto.recordAAD(chain, epoch, name, rev)))
     }
 
     private suspend fun <T> syncRecord(run: Run, kind: Kind<T>, logical: String, name: String, remoteRev: Long) {
@@ -143,7 +144,8 @@ class SyncEngine(private val vault: SyncVault) {
 
     private suspend fun catchUp(m: Membership, epoch: Long): Membership {
         val (wrapEpoch, body) = SyncApi.readWrap(m.member)
-        val s = SyncCrypto.fromB64(body)?.takeIf { wrapEpoch == epoch }?.let { SyncCrypto.unwrapSecret(m.deviceKey, it, SyncCrypto.wrapInfo(m.chain, epoch, m.device)) }
+        val s = SyncCrypto.fromB64(body)?.takeIf { wrapEpoch == epoch }
+            ?.let { SyncCrypto.unwrapSecret(m.deviceKey, it, SyncCrypto.wrapInfo(m.chain, epoch, m.device)) }
             ?: throw SyncHttpException(409, JsonObject(emptyMap()))
         val next = Membership(m.chain, epoch, m.device, m.token, s, m.deviceKey, m.devicePub)
         vault.save(next)
@@ -185,7 +187,12 @@ class SyncEngine(private val vault: SyncVault) {
         val device = SyncCrypto.newKeyPair()
         val registered = send(SyncCrypto.toB64(keys.join))
         vault.forget()
-        vault.save(Membership(registered.chain ?: chain!!, registered.epoch, registered.device, registered.token, s, device.private, SyncCrypto.toB64(device.spki)))
+        vault.save(
+            Membership(
+                registered.chain ?: chain!!, registered.epoch, registered.device, registered.token,
+                s, device.private, SyncCrypto.toB64(device.spki),
+            ),
+        )
     }
 
     suspend fun createChain(): SyncMessages.Secret {

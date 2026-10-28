@@ -15,13 +15,13 @@ import androidx.wear.watchface.complications.data.TimeDifferenceComplicationText
 import androidx.wear.watchface.complications.data.TimeDifferenceStyle
 import androidx.wear.watchface.complications.datasource.ComplicationRequest
 import androidx.wear.watchface.complications.datasource.SuspendingComplicationDataSourceService
-import online.bmarian.bus.Links
 import online.bmarian.bus.R
+import online.bmarian.bus.data.Links
 import online.bmarian.bus.follow.FollowManager
 import online.bmarian.bus.follow.soonest
-import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
-import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
-import online.bmarian.bus.presentation.MainActivity
+import online.bmarian.bus.ui.EXTRA_FOLLOW_ID
+import online.bmarian.bus.ui.EXTRA_OPEN_FOLLOWED
+import online.bmarian.bus.ui.MainActivity
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 

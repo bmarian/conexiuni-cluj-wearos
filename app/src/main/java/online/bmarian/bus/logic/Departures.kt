@@ -30,7 +30,7 @@ fun stopDepartures(info: StopInfo, live: LiveState?, now: LocalDateTime, nowMs: 
         if (entries != null) {
             if (entries.isEmpty()) return@mapNotNull null
             departure.copy(
-                nextTimes = entries.map { Arrival(it.minutes, it.live) },
+                nextTimes = entries.map { Arrival(it.minutes, it.live, it.vehicleId) },
                 minutesLeft = entries.first().minutes,
                 isStatic = entries.none { it.live },
             )
@@ -57,7 +57,8 @@ fun directionShape(shape: List<ShapePoint>): DirectionShape? = if (shape.isEmpty
 
 private fun scheduledRow(shapeInfo: ShapeInfo, stop: IndexedStop, outgoing: Boolean, now: LocalDateTime): List<Arrival> {
     val departures = departureMinutes(daySchedule(shapeInfo.timetable, now), outgoing)
-    return nextArrivals(scheduledArrivals(departures, stop.secondsFromStart, exactMinutesOfDay(now), SCHEDULE_HORIZON_MIN, shapeInfo.lateGraceMin), DEPARTURES_SHOWN)
+    val scheduled = scheduledArrivals(departures, stop.secondsFromStart, exactMinutesOfDay(now), SCHEDULE_HORIZON_MIN, shapeInfo.lateGraceMin)
+    return nextArrivals(scheduled, DEPARTURES_SHOWN)
 }
 
 /** The route's stop list: the server's rows where the live feed has them, the timetable otherwise. */
@@ -78,19 +79,4 @@ fun routeStopArrivals(
         }
     }
     return markRepeatedNow(stops.map { scheduledRow(shapeInfo, it, outgoing, now) })
-}
-
-/** Departures from the terminus: the first stop's row, or the timetable. */
-fun routeHeaderArrivals(
-    shapeInfo: ShapeInfo,
-    stops: List<IndexedStop>,
-    outgoing: Boolean,
-    tripId: String,
-    live: LiveState?,
-    now: LocalDateTime,
-    nowMs: Long,
-): List<Arrival> {
-    val first = stops.firstOrNull() ?: return emptyList()
-    live?.entriesAt(tripId, first.stop.stopId, nowMs)?.let { entries -> return entries.map { Arrival(it.minutes, it.live) } }
-    return scheduledRow(shapeInfo, first, outgoing, now)
 }

@@ -16,19 +16,6 @@ fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Dou
     return EARTH_RADIUS_METERS * 2 * atan2(sqrt(a), sqrt(1 - a))
 }
 
-fun findClosestShapeIdx(lat: Double, lon: Double, shape: List<online.bmarian.bus.data.ShapePoint>): Int {
-    var idx = -1
-    var best = Double.POSITIVE_INFINITY
-    for (i in shape.indices) {
-        val d = haversineMeters(shape[i].lat, shape[i].lon, lat, lon)
-        if (d < best) {
-            best = d
-            idx = i
-        }
-    }
-    return idx
-}
-
 fun bearingDegrees(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
     val phi1 = Math.toRadians(lat1)
     val phi2 = Math.toRadians(lat2)

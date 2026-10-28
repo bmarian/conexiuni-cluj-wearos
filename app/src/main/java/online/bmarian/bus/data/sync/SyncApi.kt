@@ -47,13 +47,18 @@ object SyncApi {
     private fun pair(slot: Slot) = mapOf("X-Pair-Secret" to slot.secret)
     private fun JsonObject.text(key: String) = this[key]!!.jsonPrimitive.content
 
-    suspend fun openSlot(commit: String): Slot = call("POST", "/pair", buildJsonObject { put("commit", commit) })!!.let { Slot(it.text("code"), it.text("secret")) }
+    suspend fun openSlot(commit: String): Slot =
+        call("POST", "/pair", buildJsonObject { put("commit", commit) })!!.let { Slot(it.text("code"), it.text("secret")) }
 
     suspend fun claimSlot(code: String, pub: String, scanned: Boolean): Pair<String, String> =
         call("POST", "/pair/$code/claim", buildJsonObject { put("pub", pub); put("scanned", scanned) })!!.let { it.text("commit") to it.text("secret") }
 
     suspend fun readSlot(slot: Slot): SlotRead = call("GET", "/pair/${slot.code}", headers = pair(slot))!!.let { o ->
-        SlotRead((o["pub"] as? JsonPrimitive)?.contentOrNull, (o["scanned"] as? JsonPrimitive)?.contentOrNull == "true", o["messages"]!!.jsonArray.map { it.jsonPrimitive.content })
+        SlotRead(
+            (o["pub"] as? JsonPrimitive)?.contentOrNull,
+            (o["scanned"] as? JsonPrimitive)?.contentOrNull == "true",
+            o["messages"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
     }
 
     suspend fun revealKey(slot: Slot, pub: String) {
@@ -75,7 +80,8 @@ object SyncApi {
     class ChainState(val epoch: Long, val device: String, val devices: List<DeviceState>, val records: List<RecordState>)
 
     private fun bearer(m: Member) = mapOf("Authorization" to "Bearer ${m.token}")
-    private fun JsonObject.registered() = Registered((this["chain"] as? JsonPrimitive)?.contentOrNull, this["epoch"]!!.jsonPrimitive.long, text("device"), text("token"))
+    private fun JsonObject.registered() =
+        Registered((this["chain"] as? JsonPrimitive)?.contentOrNull, this["epoch"]!!.jsonPrimitive.long, text("device"), text("token"))
 
     suspend fun createChain(join: String, kind: String): Registered =
         call("POST", "/chains", buildJsonObject { put("join", join); put("kind", kind) })!!.registered()
@@ -87,7 +93,9 @@ object SyncApi {
         ChainState(
             o["epoch"]!!.jsonPrimitive.long,
             o.text("device"),
-            o["devices"]!!.jsonArray.map { it.jsonObject }.map { DeviceState(it.text("id"), it.text("kind"), it["created"]!!.jsonPrimitive.long, it["seen"]!!.jsonPrimitive.long) },
+            o["devices"]!!.jsonArray.map { it.jsonObject }.map {
+                DeviceState(it.text("id"), it.text("kind"), it["created"]!!.jsonPrimitive.long, it["seen"]!!.jsonPrimitive.long)
+            },
             o["records"]!!.jsonArray.map { it.jsonObject }.map { RecordState(it.text("name"), it["rev"]!!.jsonPrimitive.long) },
         )
     }
@@ -96,12 +104,23 @@ object SyncApi {
         call("GET", "/chains/${m.chain}/records/$name", headers = bearer(m))!!.let { it["rev"]!!.jsonPrimitive.long to it.text("body") }
 
     suspend fun writeRecord(m: Member, name: String, epoch: Long, base: Long, body: String): Long =
-        call("PUT", "/chains/${m.chain}/records/$name", buildJsonObject { put("epoch", epoch); put("base", base); put("body", body) }, bearer(m))!!["rev"]!!.jsonPrimitive.long
+        call(
+            "PUT", "/chains/${m.chain}/records/$name",
+            buildJsonObject { put("epoch", epoch); put("base", base); put("body", body) }, bearer(m),
+        )!!["rev"]!!.jsonPrimitive.long
 
     suspend fun readWrap(m: Member): Pair<Long, String> =
         call("GET", "/chains/${m.chain}/wrap", headers = bearer(m))!!.let { it["epoch"]!!.jsonPrimitive.long to it.text("body") }
 
-    suspend fun rotate(m: Member, epoch: Long, seen: List<RecordState>, join: String, remove: List<String>, records: List<Pair<String, String>>, wraps: List<Pair<String, String>>): Long =
+    suspend fun rotate(
+        m: Member,
+        epoch: Long,
+        seen: List<RecordState>,
+        join: String,
+        remove: List<String>,
+        records: List<Pair<String, String>>,
+        wraps: List<Pair<String, String>>,
+    ): Long =
         call("POST", "/chains/${m.chain}/rotate", buildJsonObject {
             put("epoch", epoch)
             put("seen", buildJsonArray { seen.forEach { add(buildJsonObject { put("name", it.name); put("rev", it.rev) }) } })

@@ -35,9 +35,9 @@ import online.bmarian.bus.data.StopInfo
 import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.logic.stopDepartures
-import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
-import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
-import online.bmarian.bus.presentation.MainActivity
+import online.bmarian.bus.ui.EXTRA_FOLLOW_ID
+import online.bmarian.bus.ui.EXTRA_OPEN_FOLLOWED
+import online.bmarian.bus.ui.MainActivity
 import java.time.Instant
 import java.time.LocalDateTime
 

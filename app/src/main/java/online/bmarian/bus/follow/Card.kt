@@ -6,11 +6,11 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.wear.ongoing.Status
-import online.bmarian.bus.Links
 import online.bmarian.bus.R
+import online.bmarian.bus.data.Links
 import online.bmarian.bus.logic.CLUJ_ZONE
-import online.bmarian.bus.presentation.EXTRA_LINK
-import online.bmarian.bus.presentation.MainActivity
+import online.bmarian.bus.ui.EXTRA_LINK
+import online.bmarian.bus.ui.MainActivity
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 

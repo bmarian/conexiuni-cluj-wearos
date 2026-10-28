@@ -13,9 +13,12 @@ data class Bounds(val south: Double, val west: Double, val north: Double, val ea
     fun contains(lat: Double, lon: Double) = lat in south..north && lon in west..east
 }
 
+const val MAP_CREDITS = "Â© OpenMapTiles Â© OpenStreetMap"
+
 @Serializable
 data class Credit(val name: String = "", val url: String = "")
 
+/** One entry of /api/cities. */
 @Serializable
 data class City(
     val slug: String,
@@ -28,7 +31,11 @@ data class City(
     val lon: Double,
     val bounds: Bounds? = null,
     val credits: List<Credit> = emptyList(),
-)
+) {
+    /** The map's data credits: the sources, then the operator. */
+    val creditsText: String
+        get() = "$MAP_CREDITS | " + (credits.map { it.name } + operator).filter { it.isNotEmpty() }.joinToString(", ") { "Â© $it" }
+}
 
 object Cities {
     const val DEFAULT = "cluj"

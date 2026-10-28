@@ -62,7 +62,14 @@ object SyncMerge {
         )
     }
 
-    class CityMerge(val merged: City, val dropped: Int, val droppedStops: List<Long>, val droppedLines: List<Line>, val droppedPlaces: List<Place>, val droppedFollowed: List<String>)
+    class CityMerge(
+        val merged: City,
+        val dropped: Int,
+        val droppedStops: List<Long>,
+        val droppedLines: List<Line>,
+        val droppedPlaces: List<Place>,
+        val droppedFollowed: List<String>,
+    )
 
     fun mergeCity(base: City, local: City, remote: City): CityMerge {
         val cap = SyncRecords.CITY_CAP

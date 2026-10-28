@@ -4,7 +4,7 @@ import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.FavoriteRoute
 import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.follow.FollowSync
-import online.bmarian.bus.follow.JourneySync
+import online.bmarian.bus.journey.JourneySync
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
