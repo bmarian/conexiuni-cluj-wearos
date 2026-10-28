@@ -6,7 +6,7 @@ import kotlin.math.ceil
 const val WALK_SPEED = 80.0 // m/min
 private const val WALK_DETOUR = 1.25
 // Within this the user is at the stop: told when the bus comes, not when to leave.
-private const val AT_STOP_METERS = 60.0
+internal const val AT_STOP_METERS = 60.0
 private const val LEAVE_BUFFER_MIN = 5
 // How early to get ready when the walk can't be timed.
 private const val NO_LOCATION_LEAD_MIN = 20

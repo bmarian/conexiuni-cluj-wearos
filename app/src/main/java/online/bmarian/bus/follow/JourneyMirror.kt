@@ -61,6 +61,9 @@ private const val STALE_MS = 15 * 60_000L
 private const val PAST_ARRIVAL_MS = 10 * 60_000L
 
 object JourneyMirror {
+    // The trip screen is in front: it shows each step itself, so steps only buzz.
+    @Volatile var onScreen = false
+
     private val mutableState = MutableStateFlow<JourneySync?>(null)
     val state: StateFlow<JourneySync?> = mutableState
 
@@ -183,6 +186,7 @@ object JourneyMirror {
 
     @SuppressLint("MissingPermission")
     private fun alert(context: Context, sync: JourneySync) {
+        if (onScreen) return Buzz.play(context, if (sync.alert) Buzz.NOW else Buzz.SOON)
         val notification = NotificationCompat.Builder(context, if (sync.alert) URGENT_CHANNEL else ALERT_CHANNEL)
             .setSmallIcon(R.drawable.ic_bus)
             .setContentTitle(sync.step)
