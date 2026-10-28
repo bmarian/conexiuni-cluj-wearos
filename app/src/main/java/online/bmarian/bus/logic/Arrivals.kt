@@ -32,7 +32,7 @@ fun scheduledArrivals(
     .filter { it >= -graceMinutes && it < horizonMinutes }
     .sorted()
 
-data class Arrival(val minutes: Int, val isLive: Boolean)
+data class Arrival(val minutes: Int, val isLive: Boolean, val vehicleId: Int = 0)
 
 /** The next runs from the timetable alone, for a list the live feed is not reaching, as the minutes shown. */
 fun nextArrivals(scheduled: List<Double>, limit: Int): List<Arrival> =

@@ -1,8 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="ro">
     <string name="app_name" translatable="false">Ce autobuz iau?</string>
 
-    <string name="favorite_stops">Stații preferate</string>
-    <string name="favorite_routes">Linii preferate</string>
     <string name="no_favorites">Nu ai preferate încă. Salvează o stație sau o linie ca să apară aici.</string>
     <string name="load_failed">Nu s-a putut încărca. Verifică conexiunea.</string>
     <string name="retry">Încearcă din nou</string>
@@ -40,9 +38,7 @@
     <string name="nearby_none">Nicio stație pe o rază de 700 m.</string>
     <string name="nearby_unavailable">Locația este oprită.</string>
 
-    <string name="count_line" translatable="false">%1$s: %2$d</string>
 
-    <string name="credits" translatable="false">© OpenMapTiles, OpenStreetMap · tranzy.ai · CTP Cluj-Napoca</string>
 
 
     <string name="search">Caută</string>
@@ -71,8 +67,6 @@
     <string name="nav_arrive_at">Sosire la %1$s</string>
     <string name="my_location">Vezi locația ta</string>
     <string name="save">Salvează</string>
-    <string name="favorite_line">Linie preferată</string>
-    <string name="favorite_stop">Stație preferată</string>
     <string name="open_map">Hartă</string>
     <string name="open_on_phone">Deschide pe telefon</string>
     <string name="phone_unreachable">Telefonul nu e conectat</string>

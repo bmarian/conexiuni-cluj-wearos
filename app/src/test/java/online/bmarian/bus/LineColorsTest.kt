@@ -1,6 +1,6 @@
 package online.bmarian.bus
 
-import online.bmarian.bus.presentation.theme.LineLooks
+import online.bmarian.bus.ui.theme.LineLooks
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

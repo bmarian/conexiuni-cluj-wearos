@@ -36,15 +36,15 @@ import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.tile
 import androidx.wear.tiles.timeline
 import androidx.wear.tiles.timelineEntry
-import online.bmarian.bus.Links
 import online.bmarian.bus.R
+import online.bmarian.bus.data.Links
 import online.bmarian.bus.follow.FollowManager
-import online.bmarian.bus.presentation.EXTRA_LINK
-import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
-import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
-import online.bmarian.bus.presentation.MainActivity
-import online.bmarian.bus.presentation.stop.destination
-import online.bmarian.bus.presentation.theme.ownHex
+import online.bmarian.bus.ui.EXTRA_FOLLOW_ID
+import online.bmarian.bus.ui.EXTRA_LINK
+import online.bmarian.bus.ui.EXTRA_OPEN_FOLLOWED
+import online.bmarian.bus.ui.MainActivity
+import online.bmarian.bus.ui.stop.destination
+import online.bmarian.bus.ui.theme.ownHex
 import kotlin.time.Duration.Companion.seconds
 
 private const val ROWS_SHOWN = 2
@@ -94,7 +94,10 @@ class BusTileService : Material3TileService(allowDynamicTheme = false, defaultCo
                         line = departure.shortName,
                         color = departure.color,
                         label = departure.destination(),
-                        time = etaLabel(context, departure.nextTimes.firstOrNull()?.minutes ?: departure.minutesLeft, near.nowMs, scheduled = departure.isStatic),
+                        time = etaLabel(
+                            context, departure.nextTimes.firstOrNull()?.minutes ?: departure.minutesLeft, near.nowMs,
+                            scheduled = departure.isStatic,
+                        ),
                         highlighted = false,
                     ),
                 )

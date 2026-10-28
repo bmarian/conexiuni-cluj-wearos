@@ -65,7 +65,7 @@
             android:name=".follow.StopMirrorReceiver"
             android:exported="false" />
         <receiver
-            android:name=".follow.EndJourneyReceiver"
+            android:name=".journey.EndJourneyReceiver"
             android:exported="false" />
         <receiver
             android:name=".follow.ReminderReceiver"
@@ -126,7 +126,7 @@
             android:value="true" />
 
         <activity
-            android:name=".presentation.MainActivity"
+            android:name=".ui.MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:taskAffinity=""

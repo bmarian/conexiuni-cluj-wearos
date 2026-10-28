@@ -30,16 +30,19 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import online.bmarian.bus.BuildConfig
-import online.bmarian.bus.Links
 import online.bmarian.bus.R
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.CitySync
 import online.bmarian.bus.data.ColorSync
 import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.data.LanguageSync
-import online.bmarian.bus.presentation.EXTRA_FOLLOW_ID
-import online.bmarian.bus.presentation.EXTRA_OPEN_FOLLOWED
-import online.bmarian.bus.presentation.MainActivity
+import online.bmarian.bus.data.Links
+import online.bmarian.bus.journey.Journey
+import online.bmarian.bus.journey.JourneyMirror
+import online.bmarian.bus.journey.JourneySync
+import online.bmarian.bus.ui.EXTRA_FOLLOW_ID
+import online.bmarian.bus.ui.EXTRA_OPEN_FOLLOWED
+import online.bmarian.bus.ui.MainActivity
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 

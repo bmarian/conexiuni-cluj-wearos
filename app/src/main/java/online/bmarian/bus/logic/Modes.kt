@@ -11,8 +11,6 @@ fun modeOf(routeType: Int): Mode = when (routeType) {
     else -> Mode.BUS
 }
 
-fun mainMode(routeTypes: Iterable<Int>): Mode = routeTypes.map(::modeOf).minOrNull() ?: Mode.BUS
-
 fun <T> byModeThenNumber(type: (T) -> Int, shortName: (T) -> String): Comparator<T> =
     compareBy<T> { modeOf(type(it)) }.thenComparator { a, b -> NaturalOrder.compare(shortName(a), shortName(b)) }
 

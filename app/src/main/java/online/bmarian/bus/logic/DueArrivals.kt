@@ -1,6 +1,6 @@
 package online.bmarian.bus.logic
 
-// Port of DueArrivals, keyed by trip.
+/** Port of useDueArrivals. */
 class DueArrivals {
     private var minutes = emptyMap<String, Int>()
 
@@ -9,8 +9,9 @@ class DueArrivals {
         val due = mutableListOf<StopDeparture>()
         for (departure in departures) {
             val first = departure.nextTimes.firstOrNull()?.takeIf { it.isLive } ?: continue
-            next[departure.tripId] = first.minutes
-            if (first.minutes == 0 && (minutes[departure.tripId] ?: 0) > 0) due += departure
+            val key = "${departure.tripId}|${first.vehicleId}"
+            next[key] = first.minutes
+            if (first.minutes == 0 && (minutes[key] ?: 0) > 0) due += departure
         }
         minutes = next
         return due

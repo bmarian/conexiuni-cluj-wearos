@@ -1,7 +1,5 @@
 <resources>
 
-    <string name="favorite_stops">Favorite stops</string>
-    <string name="favorite_routes">Favorite lines</string>
     <string name="no_favorites">No favorites yet. Save a stop or a line to see it here.</string>
     <string name="load_failed">Couldn\'t load. Check your connection.</string>
     <string name="retry">Try again</string>
@@ -65,8 +63,6 @@
     <string name="nav_arrive_at">Arrive %1$s</string>
     <string name="my_location">Show your location</string>
     <string name="save">Save</string>
-    <string name="favorite_line">Favorite line</string>
-    <string name="favorite_stop">Favorite stop</string>
     <string name="open_map">Map</string>
     <string name="open_on_phone">Open on phone</string>
     <string name="phone_unreachable">Phone not connected</string>

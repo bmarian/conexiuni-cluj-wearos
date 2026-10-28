@@ -32,8 +32,8 @@ import online.bmarian.bus.logic.justNotify
 import online.bmarian.bus.logic.leadMinutes
 import online.bmarian.bus.logic.tellAt
 import online.bmarian.bus.logic.walkMinutes
-import online.bmarian.bus.presentation.EXTRA_FOLLOW
-import online.bmarian.bus.presentation.MainActivity
+import online.bmarian.bus.ui.EXTRA_FOLLOW
+import online.bmarian.bus.ui.MainActivity
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -86,7 +86,8 @@ object Reminders {
     internal fun arm(context: Context) {
         for (reminder in all.value) {
             val leaveAt = reminder.leaveAt
-            if (leaveAt != null) schedule(context, leaveAt, pending(context, reminder.id, ReminderReceiver.ACTION_LEAVE)) else launch { fire(context, reminder.id) }
+            if (leaveAt != null) schedule(context, leaveAt, pending(context, reminder.id, ReminderReceiver.ACTION_LEAVE))
+            else launch { fire(context, reminder.id) }
         }
     }
 

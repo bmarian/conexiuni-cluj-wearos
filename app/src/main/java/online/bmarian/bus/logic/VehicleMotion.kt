@@ -79,11 +79,13 @@ class RoutePath(private val lats: DoubleArray, private val lons: DoubleArray, pr
     }
 }
 
-fun pathOf(shape: List<ShapePoint>): RoutePath {
-    val at = DoubleArray(shape.size)
-    for (i in 1 until shape.size) at[i] = at[i - 1] + haversineMeters(shape[i - 1].lat, shape[i - 1].lon, shape[i].lat, shape[i].lon)
-    return RoutePath(DoubleArray(shape.size) { shape[it].lat }, DoubleArray(shape.size) { shape[it].lon }, at)
+fun pathThrough(lats: DoubleArray, lons: DoubleArray): RoutePath {
+    val at = DoubleArray(lats.size)
+    for (i in 1 until lats.size) at[i] = at[i - 1] + haversineMeters(lats[i - 1], lons[i - 1], lats[i], lons[i])
+    return RoutePath(lats, lons, at)
 }
+
+fun pathOf(shape: List<ShapePoint>): RoutePath = pathThrough(DoubleArray(shape.size) { shape[it].lat }, DoubleArray(shape.size) { shape[it].lon })
 
 class VehicleTrack(val path: RoutePath) {
     var s = 0.0
