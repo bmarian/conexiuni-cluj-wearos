@@ -141,7 +141,8 @@ private fun startMapLibre(context: Context) {
     OfflineManager.getInstance(app).setMaximumAmbientCacheSize(40L * 1024 * 1024, null)
 }
 
-class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false, val name: String = "")
+/** [id] keeps a line the same one while its points change, so it's redrawn in place rather than grown again. */
+class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false, val name: String = "", val id: String = "")
 class MapStop(val id: String, val lat: Double, val lon: Double, val color: Color, val selected: Boolean = false, val mode: Mode = Mode.BUS, val heart: Boolean = false)
 
 fun stationMapStop(stopId: Int, lat: Double, lon: Double, selected: Boolean = false): MapStop {
@@ -554,7 +555,7 @@ private class MapSession(
 
     private fun hex(color: Color) = "#%06X".format(0xFFFFFF and color.toArgb())
 
-    private fun key(line: MapLine) = "${line.points.size}|${line.points.first()}|${line.points.last()}|${line.dotted}"
+    private fun key(line: MapLine) = line.id.ifEmpty { "${line.points.size}|${line.points.first()}|${line.points.last()}|${line.dotted}" }
 
     private fun lineFeature(points: List<Pair<Double, Double>>, line: MapLine, opacity: Float = line.color.alpha * 0.9f) =
         Feature.fromGeometry(LineString.fromLngLats(points.map { Point.fromLngLat(it.second, it.first) })).apply {
@@ -577,11 +578,13 @@ private class MapSession(
         val fresh = drawable.indices.filter { !drawable[it].dotted && key(drawable[it]) !in before }
         if (fresh.isEmpty()) {
             if (!after.containsAll(growingKeys)) stopGrowing()
+            else hidden = drawable.indices.filter { key(drawable[it]) in growingKeys }.toSet()
             return applyLines()
         }
         fadeOut(gone)
         stopGrowing()
-        if (!ValueAnimator.areAnimatorsEnabled() || ambient) return applyLines()
+        // A map following someone never settles, so their lines are drawn as they are.
+        if (!ValueAnimator.areAnimatorsEnabled() || ambient || follow != null) return applyLines()
         val grows = fresh.map { drawable[it] }
         hidden = fresh.toSet()
         growingKeys = grows.mapTo(HashSet(), ::key)

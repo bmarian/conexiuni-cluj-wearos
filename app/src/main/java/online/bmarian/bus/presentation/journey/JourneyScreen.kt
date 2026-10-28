@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.CompactButton
@@ -67,7 +68,9 @@ import online.bmarian.bus.follow.StepType
 import online.bmarian.bus.follow.TripStep
 import online.bmarian.bus.follow.minutesUntil
 import online.bmarian.bus.follow.upcomingSteps
+import online.bmarian.bus.logic.AT_STOP_METERS
 import online.bmarian.bus.logic.bearingDegrees
+import online.bmarian.bus.logic.cutBehind
 import online.bmarian.bus.logic.haversineMeters
 import online.bmarian.bus.presentation.Countdown
 import online.bmarian.bus.presentation.FitText
@@ -116,6 +119,10 @@ fun JourneyScreen(onEnded: () -> Unit) {
     val context = LocalContext.current
     val sync by JourneyMirror.state.collectAsStateWithLifecycle()
     val plan by JourneyMirror.plan.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        JourneyMirror.onScreen = true
+        onPauseOrDispose { JourneyMirror.onScreen = false }
+    }
     val current = sync
     LaunchedEffect(current == null) { if (current == null) onEnded() }
     if (current == null) return
@@ -276,15 +283,7 @@ private fun TripMap(sync: JourneySync, plan: Journey) {
     }
     val looks = LocalLineLooks.current
     val apart = manyLines(plan.legs.map { it.lines.firstOrNull().orEmpty() })
-    val lines = remember(plan, sync.legIndex, looks) {
-        buildList {
-            plan.walks.filter { it.size >= 2 }.forEach { walk -> add(MapLine(walk.map { it.lat to it.lon }, Walk, dotted = true)) }
-            plan.legs.forEachIndexed { i, l ->
-                val alpha = if (i == sync.legIndex) 1f else 0.5f
-                add(MapLine(pathOf(l), looks.color(l.lines.firstOrNull(), l.colors.firstOrNull().orEmpty(), apart).copy(alpha = alpha)))
-            }
-        }
-    }
+    val lines = remember(plan, sync.legIndex, sync.stepType, looks, me?.lat, me?.lon) { tripLines(plan, sync, me, looks, apart) }
     val stops = remember(plan) {
         plan.legs.flatMapIndexed { i, l ->
             listOf(
@@ -362,6 +361,33 @@ private fun withHeading(fix: Fix?): Fix? {
         SideEffect { last = fix }
     }
     return heading?.let { Fix(fix.lat, fix.lon, fix.accuracyMeters, it) } ?: fix
+}
+
+// What is behind the traveller is not drawn, as on the phone: passed walks and rides go, the current one starts where they are.
+private fun tripLines(plan: Journey, sync: JourneySync, me: Fix?, looks: LineLooks, apart: Boolean): List<MapLine> {
+    val step = sync.stepType
+    val at = sync.legIndex
+    fun cut(points: List<Pair<Double, Double>>, current: Boolean) =
+        if (current && me != null) cutBehind(points, me.lat, me.lon, AT_STOP_METERS) else points
+    val ends = plan.legs.map { it.boarding } + plan.destination
+    val walks = plan.walks.filter { it.size >= 2 }.mapIndexedNotNull { i, walk ->
+        val to = ends.indices.minBy { haversineMeters(walk.last().lat, walk.last().lon, ends[it].lat, ends[it].lon) }
+        val final = to == plan.legs.size
+        val passed = when (step) {
+            StepType.WALK -> to < at
+            StepType.WAIT, StepType.RIDE -> to <= at
+            StepType.WALK_END, StepType.ARRIVED -> !final
+            else -> false
+        }
+        val current = (step == StepType.WALK && to == at) || (step == StepType.WALK_END && final)
+        if (passed) null else MapLine(cut(walk.map { it.lat to it.lon }, current), Walk, dotted = true, id = "walk$i")
+    }
+    val rides = plan.legs.mapIndexedNotNull { i, l ->
+        if (step == StepType.WALK_END || step == StepType.ARRIVED || i < at) return@mapIndexedNotNull null
+        val color = looks.color(l.lines.firstOrNull(), l.colors.firstOrNull().orEmpty(), apart).copy(alpha = if (i == at) 1f else 0.5f)
+        MapLine(cut(pathOf(l), step == StepType.RIDE && i == at), color, id = "leg$i")
+    }
+    return walks + rides
 }
 
 private fun pathOf(leg: JourneyLeg): List<Pair<Double, Double>> =
