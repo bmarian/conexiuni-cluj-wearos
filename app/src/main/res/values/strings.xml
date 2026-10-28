@@ -145,5 +145,4 @@
     <string name="status_from">%1$s · din %2$s</string>
     <string name="line_timetable">Programul liniei</string>
     <string name="arrives_at_stop">Sosește în stația %1$s</string>
-    <string name="buzz_when_close">Te anunț când e aproape</string>
 </resources>

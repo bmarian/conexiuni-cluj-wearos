@@ -111,12 +111,13 @@ fun FollowScreen(stopId: Int, routeId: Int, tripId: String, onEnded: () -> Unit)
                 }
                 FitText(status, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
                 val walk = follow?.walkMinutes?.takeIf { follow.leaveAt != null } ?: reminder?.walk?.takeIf { leaveAt != null }
-                FitText(
-                    when {
-                        walk != null -> stringResource(R.string.walk_to_stop, walk, followed.stopName)
-                        status == arrives -> stringResource(R.string.buzz_when_close)
-                        else -> arrives
-                    },
+                val detail = when {
+                    walk != null -> stringResource(R.string.walk_to_stop, walk, followed.stopName)
+                    status == arrives -> null
+                    else -> arrives
+                }
+                if (detail != null) FitText(
+                    detail,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
