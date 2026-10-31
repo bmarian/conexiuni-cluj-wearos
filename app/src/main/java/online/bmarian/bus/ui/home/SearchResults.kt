@@ -32,9 +32,12 @@ import online.bmarian.bus.data.Route
 import online.bmarian.bus.data.Stop
 import online.bmarian.bus.logic.KeyedStop
 import online.bmarian.bus.logic.NaturalOrder
+import online.bmarian.bus.logic.Ranked
 import online.bmarian.bus.logic.keyedStops
+import online.bmarian.bus.logic.matching
+import online.bmarian.bus.logic.nameMatches
+import online.bmarian.bus.logic.searchKey
 import online.bmarian.bus.logic.sortedRoutes
-import online.bmarian.bus.logic.stopSortKey
 import online.bmarian.bus.ui.LineBadge
 import online.bmarian.bus.ui.ListScreen
 import online.bmarian.bus.ui.Loading
@@ -47,6 +50,8 @@ import online.bmarian.bus.ui.squish
 import online.bmarian.bus.ui.surface
 
 private const val SEARCH_LIMIT = 25
+
+private data class SearchFound(val lines: List<Route>, val stops: List<Stop>, val stopsFirst: Boolean)
 
 private fun stations(stops: List<Stop>): List<Stop> = Services.repository.network.index.value?.oneStopPerStation(stops) ?: stops
 
@@ -91,14 +96,16 @@ fun SearchScreen(query: String, onSearchAgain: () -> Unit, onOpenRoute: (Int) ->
     val routes by repository.routes.collectAsStateWithLifecycle()
     val stops by repository.stops.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val results by produceState<Pair<List<Route>, List<Stop>>?>(null, routes, stops, query) {
+    val results by produceState<SearchFound?>(null, routes, stops, query) {
         value = withContext(Dispatchers.Default) {
-            val needle = stopSortKey(query)
+            val needle = searchKey(query)
             val compact = needle.replace(" ", "")
-            val lines = sortedRoutes(routes).filter { stopSortKey(it.shortName).startsWith(compact) }
-            val keyed = keyedStops(stations(stops)).filter { it.key.contains(needle) }
-            val found = keyed.sortedWith(compareBy<KeyedStop> { !it.key.startsWith(needle) }.thenComparator { a, b -> NaturalOrder.compare(a.key, b.key) })
-            lines.take(SEARCH_LIMIT) to found.take(SEARCH_LIMIT).map { it.stop }
+            val (numbered, others) = sortedRoutes(routes).partition { searchKey(it.shortName).startsWith(compact) }
+            val named = others.filter { nameMatches(searchKey(it.longName), needle) }
+            val lines = (numbered + named).ifEmpty { others.filter { nameMatches(searchKey(it.longName), needle, typos = true) } }
+            val keyed = matching(keyedStops(stations(stops)), { it.key.lowercase() }, needle)
+            val found = keyed.sortedWith(compareBy<Ranked<KeyedStop>> { it.rank }.thenComparator { a, b -> NaturalOrder.compare(a.item.key, b.item.key) })
+            SearchFound(lines.take(SEARCH_LIMIT), found.take(SEARCH_LIMIT).map { it.item.stop }, stopsFirst = numbered.isEmpty())
         }
     }
 
@@ -115,24 +122,33 @@ fun SearchScreen(query: String, onSearchAgain: () -> Unit, onOpenRoute: (Int) ->
                 label = { Text(stringResource(R.string.search_again)) },
             )
         }
-        val (lines, found) = results ?: run {
+        val (lines, found, stopsFirst) = results ?: run {
             item { Loading(spec) }
             return@ListScreen
         }
         if (lines.isEmpty() && found.isEmpty()) item { Message(stringResource(R.string.no_results, query), spec) }
-        if (lines.isNotEmpty()) {
+        fun showLines() {
+            if (lines.isEmpty()) return
             item { SubHeader(stringResource(R.string.lines), spec) }
             routeItems(lines, spec) { route ->
                 Recents.add(context, Recent(routeId = route.routeId, label = route.longName, shortName = route.shortName, color = route.color))
                 onOpenRoute(route.routeId)
             }
         }
-        if (found.isNotEmpty()) {
+        fun showStops() {
+            if (found.isEmpty()) return
             item { SubHeader(stringResource(R.string.stops), spec) }
             stopItems(found, spec) { stop ->
                 Recents.add(context, Recent(stopId = stop.stopId, label = stop.name))
                 onOpenStop(stop.stopId)
             }
+        }
+        if (stopsFirst) {
+            showStops()
+            showLines()
+        } else {
+            showLines()
+            showStops()
         }
     }
 }

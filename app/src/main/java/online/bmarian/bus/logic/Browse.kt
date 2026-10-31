@@ -17,6 +17,8 @@ fun stopSortKey(name: String): String {
     return Normalizer.normalize(plain, Normalizer.Form.NFD).replace(COMBINING_MARKS, "").uppercase(Locale.ROOT)
 }
 
+fun searchKey(name: String): String = stopSortKey(name).lowercase(Locale.ROOT)
+
 fun initialOf(key: String): String = key.firstOrNull()?.takeIf { it in 'A'..'Z' }?.toString() ?: "#"
 
 /** JS localeCompare with numeric: true. java.text.Collator ignores spaces and punctuation. */
