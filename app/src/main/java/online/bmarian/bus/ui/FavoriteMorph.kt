@@ -36,10 +36,12 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import online.bmarian.bus.logic.LONG_PACE
+import online.bmarian.bus.logic.paced
 import online.bmarian.bus.ui.theme.Palette
 import kotlin.math.hypot
 
-private const val MORPH_MS = 1130
+private const val MORPH_MS = (1130 * LONG_PACE).toInt()
 
 /** Port of the phone's FavoriteMorph.kt. */
 @Stable
@@ -104,22 +106,22 @@ class Morph(color: Color, private var saved: Boolean?) {
             }
             launch {
                 content.animateTo(0f, tween(140, easing = FastOutLinearInEasing))
-                delay(820)
+                delay(paced(820L))
                 content.animateTo(1f, Bouncy.pop)
             }
-            delay(85)
+            delay(paced(85L))
             heart.snapTo(0.25f)
             launch { heart.animateTo(1f, Bouncy.pop) }
             if (saving) {
                 spin.snapTo(-41f)
                 burst.snapTo(0f)
-                launch { burst.animateTo(1f, tween(450)) }
+                launch { burst.animateTo(1f, tween(paced(450))) }
                 launch { spin.animateTo(0f, Bouncy.pop) }
-                delay(740)
+                delay(paced(740L))
                 heart.animateTo(0f, tween(140, easing = FastOutLinearInEasing))
             } else {
-                delay(350)
-                crack.animateTo(1f, tween(565, easing = FastOutLinearInEasing))
+                delay(paced(350L))
+                crack.animateTo(1f, tween(paced(565), easing = FastOutLinearInEasing))
             }
         }
         mark = null

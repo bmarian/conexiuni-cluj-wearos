@@ -1,5 +1,7 @@
 package online.bmarian.bus.ui
 
+import online.bmarian.bus.logic.paced
+import online.bmarian.bus.logic.pacedStiffness
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
@@ -56,11 +58,11 @@ import kotlin.math.min
 import kotlin.math.sin
 
 object Bouncy {
-    val fastSize = spring<IntSize>(dampingRatio = 0.6f, stiffness = 1980f)
-    val press = spring<Float>(dampingRatio = 0.32f, stiffness = 860f)
-    val pop = spring<Float>(dampingRatio = 0.26f, stiffness = 1980f)
-    val slide = spring<Float>(dampingRatio = 0.58f, stiffness = 450f)
-    val land = spring<Float>(dampingRatio = 0.55f, stiffness = 530f)
+    val fastSize = spring<IntSize>(dampingRatio = 0.6f, stiffness = pacedStiffness(1980f))
+    val press = spring<Float>(dampingRatio = 0.32f, stiffness = pacedStiffness(860f))
+    val pop = spring<Float>(dampingRatio = 0.26f, stiffness = pacedStiffness(1980f))
+    val slide = spring<Float>(dampingRatio = 0.58f, stiffness = pacedStiffness(450f))
+    val land = spring<Float>(dampingRatio = 0.55f, stiffness = pacedStiffness(530f))
 }
 
 val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
@@ -134,7 +136,7 @@ fun PopIcon(icon: ImageVector, on: Boolean, modifier: Modifier = Modifier, conte
             burst.snapTo(0f)
             pop.snapTo(0.25f)
             coroutineScope {
-                launch { burst.animateTo(1f, tween(450)) }
+                launch { burst.animateTo(1f, tween(paced(450))) }
                 pop.animateTo(1f, Bouncy.pop)
             }
         } else {
@@ -178,8 +180,8 @@ private fun shrinks(was: String, now: String): Boolean {
 }
 
 private fun <S> AnimatedContentTransitionScope<S>.roll(): ContentTransform =
-    (slideInVertically(spring(dampingRatio = 0.5f, stiffness = 530f)) { it } + fadeIn()) togetherWith
-        (slideOutVertically(spring(stiffness = 530f)) { -it } + fadeOut()) using SizeTransform(clip = false)
+    (slideInVertically(spring(dampingRatio = 0.5f, stiffness = pacedStiffness(530f))) { it } + fadeIn()) togetherWith
+        (slideOutVertically(spring(stiffness = pacedStiffness(530f))) { -it } + fadeOut()) using SizeTransform(clip = false)
 
 @Composable
 fun <T> Rolling(value: T, modifier: Modifier = Modifier, content: @Composable (T) -> Unit) {
@@ -214,8 +216,9 @@ fun Ticker(text: String, modifier: Modifier = Modifier, style: TextStyle = Local
                                 digit,
                                 transitionSpec = {
                                     val from = if (down) -1 else 1
-                                    (slideInVertically(spring(dampingRatio = 0.5f, stiffness = 530f)) { it * from } + fadeIn()) togetherWith
-                                        (slideOutVertically(spring(stiffness = 530f)) { -it * from } + fadeOut()) using SizeTransform(clip = true)
+                                    (slideInVertically(spring(dampingRatio = 0.5f, stiffness = pacedStiffness(530f))) { it * from } + fadeIn()) togetherWith
+                                        (slideOutVertically(spring(stiffness = pacedStiffness(530f))) { -it * from } + fadeOut()) using
+                                            SizeTransform(clip = true)
                                 },
                                 label = "digit",
                             ) { d ->

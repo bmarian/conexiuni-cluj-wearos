@@ -50,11 +50,13 @@ import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.UserLocation
 import online.bmarian.bus.data.Vehicle
+import online.bmarian.bus.logic.LONG_PACE
 import online.bmarian.bus.logic.Mode
 import online.bmarian.bus.logic.RoutePath
 import online.bmarian.bus.logic.SWEEP_MS
 import online.bmarian.bus.logic.VehicleTrack
 import online.bmarian.bus.logic.haversineMeters
+import online.bmarian.bus.logic.paced
 import online.bmarian.bus.logic.partBetween
 import online.bmarian.bus.logic.pathOf
 import online.bmarian.bus.logic.pathThrough
@@ -199,7 +201,7 @@ class MapCamera {
     fun centerOn(lat: Double, lon: Double, zoom: Float) {
         val target = CameraPosition.Builder().target(LatLng(lat, lon)).zoom(zoom.toDouble()).build()
         val m = map
-        if (m == null) pending = target else m.animateCamera(CameraUpdateFactory.newCameraPosition(target), 435)
+        if (m == null) pending = target else m.animateCamera(CameraUpdateFactory.newCameraPosition(target), paced(435))
     }
 
     internal fun attach(m: MapLibreMap) {
@@ -399,10 +401,10 @@ private const val SRC_SWEEP = "ct-sweep"
 private const val SRC_FADE = "ct-fade"
 private const val SRC_RIPPLE = "ct-ripple"
 private const val LAYER_STOPS = "ct-stops"
-private const val MOVE_MS = 520
+private const val MOVE_MS = (520 * LONG_PACE).toInt()
 private const val LEAVE_MS = 140L
-private const val RIPPLE_MS = 870L
-private const val RIPPLE_GAP_MS = 210L
+private const val RIPPLE_MS = (870 * LONG_PACE).toLong()
+private const val RIPPLE_GAP_MS = (210 * LONG_PACE).toLong()
 private const val FADED_VEHICLE_OPACITY = 0.5f
 private const val FADED_VEHICLE_SIZE = 0.7f
 private const val MIN_STEP_PX = 0.3
@@ -811,7 +813,7 @@ private class MapSession(
         val id = vehicleId ?: return
         bounces.remove(id)?.cancel()
         bounces[id] = ValueAnimator.ofFloat(1.2f, 1f).apply {
-            duration = 390
+            duration = paced(390L)
             interpolator = OvershootInterpolator(2.5f)
             addUpdateListener { pushVehicles() }
             doOnEnd {
@@ -981,7 +983,8 @@ private class MapSession(
             component.cancelPaddingWhileTrackingAnimation()
             component.cameraMode = CameraMode.NONE
             component.renderMode = RenderMode.NORMAL
-            map.easeCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(map.cameraPosition).tilt(0.0).padding(0.0, 0.0, 0.0, 0.0).build()), 435)
+            val flat = CameraPosition.Builder(map.cameraPosition).tilt(0.0).padding(0.0, 0.0, 0.0, 0.0).build()
+            map.easeCamera(CameraUpdateFactory.newCameraPosition(flat), paced(435))
             return
         }
         component.renderMode = RenderMode.GPS
@@ -990,9 +993,9 @@ private class MapSession(
         if (component.cameraMode == CameraMode.TRACKING_GPS) {
             if (camera == followed) return
             followed = camera
-            component.zoomWhileTracking(camera.zoom, 520L)
-            component.tiltWhileTracking(camera.tilt, 520L)
-            component.paddingWhileTracking(doubleArrayOf(0.0, top, 0.0, 0.0), 520L)
+            component.zoomWhileTracking(camera.zoom, MOVE_MS.toLong())
+            component.tiltWhileTracking(camera.tilt, MOVE_MS.toLong())
+            component.paddingWhileTracking(doubleArrayOf(0.0, top, 0.0, 0.0), MOVE_MS.toLong())
             return
         }
         val fix = component.lastKnownLocation ?: return
@@ -1071,20 +1074,25 @@ private class MapSession(
         val update = CameraUpdateFactory.newCameraPosition(camera)
         if (!animate) return map.moveCamera(update)
         aiming++
+        var waiting = true
+        val done = {
+            if (waiting) {
+                waiting = false
+                aiming--
+                growWhenStill()
+            }
+        }
         map.easeCamera(
             update,
             MOVE_MS,
             object : MapLibreMap.CancelableCallback {
-                override fun onFinish() = settled()
+                override fun onFinish() = done()
 
-                override fun onCancel() = settled()
+                override fun onCancel() = done()
             },
         )
-    }
-
-    private fun settled() {
-        aiming--
-        growWhenStill()
+        // Lines start drawing halfway through the move.
+        handler.postDelayed(done, MOVE_MS / 2L)
     }
 
     // A fresh MapView draws nothing until its first idle frame.
@@ -1093,7 +1101,8 @@ private class MapSession(
         view.addOnDidBecomeIdleListener(object : MapView.OnDidBecomeIdleListener {
             override fun onDidBecomeIdle() {
                 view.removeOnDidBecomeIdleListener(this)
-                settled()
+                aiming--
+                growWhenStill()
             }
         })
     }

@@ -94,7 +94,10 @@ import androidx.compose.ui.unit.TextUnit
 import online.bmarian.bus.R
 import online.bmarian.bus.follow.minutesUntil
 import online.bmarian.bus.logic.CLUJ_ZONE
+import online.bmarian.bus.logic.delayed
 import online.bmarian.bus.logic.formatMinutesFromNow
+import online.bmarian.bus.logic.paced
+import online.bmarian.bus.logic.pacedStiffness
 import online.bmarian.bus.ui.theme.LocalLineLooks
 import java.time.Instant
 import java.time.LocalDateTime
@@ -302,7 +305,7 @@ fun Eta(
 ) {
     val scheme = MaterialTheme.colorScheme
     val due = live && minutes == 0
-    val solid = tween<Color>(190, delayMillis = 485, easing = LinearEasing)
+    val solid = tween<Color>(190, delayMillis = delayed(485L).toInt(), easing = LinearEasing)
     val fill by animateColorAsState(if (due) scheme.primary else scheme.primary.copy(alpha = 0f), if (due) solid else snap(), label = "eta")
     val color by animateColorAsState(
         when {
@@ -324,14 +327,14 @@ fun Eta(
         if (!due || wasDue || !wasLive) return@LaunchedEffect arrive.snapTo(1f)
         arrive.snapTo(0f)
         launch {
-            delay(70)
-            arrive.animateTo(1f, tween(540, easing = EmphasizedDecelerate))
+            delay(delayed(70L))
+            arrive.animateTo(1f, tween(paced(540), easing = EmphasizedDecelerate))
         }
         launch {
-            delay(540)
+            delay(delayed(540L))
             pill.from(0.86f)
         }
-        delay(610)
+        delay(delayed(610L))
         vehicle.squash()
     }
     Row(
@@ -425,7 +428,7 @@ fun ButtonGroupScope.ToggleAction(
     val haptics = LocalHapticFeedback.current
     val corner by animateDpAsState(
         if (checked) 14.dp else ACTION_HEIGHT / 2,
-        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 530f),
+        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = pacedStiffness(530f)),
         label = "corner",
     )
     Button(

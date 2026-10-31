@@ -1,7 +1,7 @@
 package online.bmarian.bus.logic
 
 /** The web's SWEEP_MS, in step with the badge's heart. */
-const val SWEEP_MS = 1130L
+const val SWEEP_MS = (1130 * LONG_PACE).toLong()
 
 /** The part of [points] between the shares [from] and [to] of its length. */
 fun partBetween(points: List<Pair<Double, Double>>, from: Float, to: Float): List<Pair<Double, Double>> {
