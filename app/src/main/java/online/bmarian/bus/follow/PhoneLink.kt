@@ -36,6 +36,8 @@ import online.bmarian.bus.data.CitySync
 import online.bmarian.bus.data.ColorSync
 import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.data.LanguageSync
+import online.bmarian.bus.data.Recent
+import online.bmarian.bus.data.RecentsSync
 import online.bmarian.bus.data.Links
 import online.bmarian.bus.journey.Journey
 import online.bmarian.bus.journey.JourneyMirror
@@ -65,6 +67,7 @@ object PhoneLink {
     const val PATH_JOURNEY_PLAN_REQUEST = "/journey/plan/request"
     const val PATH_WALK_REQUEST = "/follow/walk/request"
     const val PATH_WALK = "/follow/walk"
+    const val PATH_RECENT = "/follow/recent"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -76,6 +79,11 @@ object PhoneLink {
         relay(path, data)
         val client = Wearable.getMessageClient(context)
         for (node in peers(context)) runCatching { client.sendMessage(node.id, path, data).await() }
+    }
+
+    fun sendRecent(context: Context, recent: Recent) {
+        val app = context.applicationContext
+        scope.launch { send(app, PATH_RECENT, Api.json.encodeToString(recent).encodeToByteArray()) }
     }
 
     // Debug only: logged for the phone project's tools/wear-relay.py.
@@ -169,6 +177,7 @@ class PhoneListener : WearableListenerService() {
         LanguageSync.onDataChanged(applicationContext, events)
         CitySync.onDataChanged(applicationContext, events)
         ColorSync.onDataChanged(applicationContext, events)
+        RecentsSync.onDataChanged(applicationContext, events)
     }
 }
 

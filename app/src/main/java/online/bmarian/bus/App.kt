@@ -12,6 +12,7 @@ import online.bmarian.bus.data.ColorSync
 import online.bmarian.bus.data.Favorites
 import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.data.LanguageSync
+import online.bmarian.bus.data.RecentsSync
 import online.bmarian.bus.data.sync.Sync
 import online.bmarian.bus.data.Repository
 import online.bmarian.bus.data.UserLocation
@@ -62,6 +63,7 @@ object Services {
         LanguageSync.pull(app)
         CitySync.pull(app)
         ColorSync.pull(app)
+        RecentsSync.pull(app)
         Reminders.init(app)
         scope.launch { updateSurfacesOnChange(app) }
     }

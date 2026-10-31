@@ -217,7 +217,7 @@ fun StopScreen(
                     if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     stringResource(if (favorite) R.string.saved else R.string.save),
                     favorite,
-                    { Services.favorites.toggleStop(favoritePlatform ?: vm.stopId) },
+                    { Services.favorites.toggleStation(vm.stopId, platforms) },
                     color = Palette.Heart,
                     onColor = Color.White,
                     iconOnly = true,
