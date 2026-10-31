@@ -448,6 +448,7 @@ private class MapSession(
     private var aiming = 0
     private var dragging = false
     private val handler = Handler(Looper.getMainLooper())
+    private val glide = MeGlide(handler) { applyMe(it) }
 
     init {
         listOf(SRC_LINES, SRC_SWEEP, SRC_FADE, SRC_RIPPLE, SRC_STOPS, SRC_ENDS, SRC_BADGES, SRC_ARROWS, SRC_LABELS, SRC_VEHICLES)
@@ -910,7 +911,7 @@ private class MapSession(
 
     fun setMe(fix: Fix?) {
         me = fix
-        applyMe()
+        glide.to(fix, follow != null && !ambient && ValueAnimator.areAnimatorsEnabled())
     }
 
     fun setFollow(camera: MapFollow?) {
@@ -921,9 +922,8 @@ private class MapSession(
 
     // Fixes are pushed in: no location engine or permission needed.
     @SuppressLint("MissingPermission")
-    private fun applyMe() {
+    private fun applyMe(fix: Fix? = me) {
         val component = map.locationComponent
-        val fix = me
         if (fix == null) {
             if (component.isLocationComponentActivated) component.isLocationComponentEnabled = false
             return
@@ -951,7 +951,8 @@ private class MapSession(
             })
         }
         val first = !component.isLocationComponentEnabled
-        component.isLocationComponentEnabled = true
+        // Enabling replays the last location, leaving the next update no time to animate.
+        if (first) component.isLocationComponentEnabled = true
         component.forceLocationUpdate(
             Location("app").apply {
                 latitude = fix.lat

@@ -282,7 +282,8 @@ private fun StepMark(icon: ImageVector, line: String?, color: String?, tint: Col
 @Composable
 private fun TripMap(sync: JourneySync, plan: Journey) {
     val camera = rememberMapCamera()
-    val phoneFix = sync.lat?.let { lat -> sync.lon?.let { lon -> Fix(lat, lon, 0f, sync.bearing) } }
+    // An unmoved fix must not restart the map's glide.
+    val phoneFix = remember(sync.lat, sync.lon, sync.bearing) { sync.lat?.let { lat -> sync.lon?.let { lon -> Fix(lat, lon, 0f, sync.bearing) } } }
     val me = withHeading(phoneFix ?: watchFix(needed = phoneFix == null))
     val leg = plan.legs.getOrNull(sync.legIndex) ?: plan.legs.last()
     val vehicles by produceState(emptyList<Vehicle>(), leg) {
@@ -367,7 +368,7 @@ private fun withHeading(fix: Fix?): Fix? {
         if (before != null) heading = bearingDegrees(before.lat, before.lon, fix.lat, fix.lon).toFloat()
         SideEffect { last = fix }
     }
-    return heading?.let { Fix(fix.lat, fix.lon, fix.accuracyMeters, it) } ?: fix
+    return remember(fix, heading) { heading?.let { Fix(fix.lat, fix.lon, fix.accuracyMeters, it) } ?: fix }
 }
 
 // What is behind the traveller is not drawn, as on the phone: passed walks and rides go, the current one starts where they are.
