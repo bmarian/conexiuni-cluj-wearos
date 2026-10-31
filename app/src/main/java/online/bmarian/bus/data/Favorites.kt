@@ -69,6 +69,15 @@ class Favorites(
         changed()
     }
 
+    /** Devices may have saved different platforms of one station: every one of them goes. */
+    @Synchronized
+    fun toggleStation(stopId: Int, platforms: List<Int>) {
+        val saved = (platforms + stopId).filter { it in _stops.value }.toSet()
+        if (saved.isEmpty()) return toggleStop(stopId)
+        _stops.value -= saved
+        changed()
+    }
+
     @Synchronized
     fun toggleRoute(routeId: Int, direction: String) {
         val fav = FavoriteRoute(routeId, direction)

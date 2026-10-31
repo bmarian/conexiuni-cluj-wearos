@@ -128,6 +128,7 @@ class MainActivity : ComponentActivity() {
                 }
         }
         if (intent?.getBooleanExtra(EXTRA_OPEN_FOLLOWED, false) == true) openFollowed.value = intent.getStringExtra(EXTRA_FOLLOW_ID).orEmpty()
+        intent?.getStringExtra("debug_search")?.let { openLink.value = Links.Destination(null, "search/$it") }
         val link = intent?.data ?: intent?.getStringExtra(EXTRA_LINK)?.toUri()
         when (link?.takeIf { it.scheme == Links.SCHEME }?.pathSegments?.firstOrNull()) {
             Links.FOLLOWING -> openFollowed.value = ""
