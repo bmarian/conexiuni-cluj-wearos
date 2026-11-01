@@ -35,6 +35,9 @@ import kotlin.math.roundToInt
 
 private val NavArrow by lazy { PathParser().parsePathString("M12 2L21 21l-9-4-9 4 9-19z").toPath() }
 private val DirectionArrow by lazy { PathParser().parsePathString("M12 3 L20 19 L12 15 L4 19 Z").toPath() }
+private val UTurn by lazy {
+    PathParser().parsePathString("M3.71 12.29a.996.996 0 0 1 1.41 0l.88.88V9c0-3.31 2.69-6 6-6s6 2.69 6 6v11c0 .55-.45 1-1 1s-1-.45-1-1V9c0-2.21-1.79-4-4-4S8 6.79 8 9v4.17l.88-.88a.996.996 0 1 1 1.41 1.41L7.7 16.29a.996.996 0 0 1-1.41 0L3.7 13.7c-.38-.38-.38-1.02.01-1.41z").toPath()
+}
 private val Flag by lazy {
     PathParser().parsePathString("m14.4 6-.24-1.2c-.09-.46-.5-.8-.98-.8H6c-.55 0-1 .45-1 1v15c0 .55.45 1 1 1s1-.45 1-1v-6h5.6l.24 1.2c.09.47.5.8.98.8H19c.55 0 1-.45 1-1V7c0-.55-.45-1-1-1h-4.6z").toPath()
 }
@@ -83,13 +86,17 @@ internal class MapImages(context: Context) {
         drawText(layout, topLeft = Offset(center.x - layout.size.width / 2f, center.y - layout.size.height / 2f))
     }
 
-    fun heading() = draw(11f, 11f) {
+    fun heading() = badge(NavArrow)
+
+    fun uTurn() = badge(UTurn)
+
+    private fun badge(glyph: Path) = draw(11f, 11f) {
         val r = 4.5.dp.toPx()
         drawCircle(Color.White, r + 0.5.dp.toPx(), center)
         drawCircle(Ink.copy(alpha = 0.85f), r, center)
         val arrow = r * 1.25f
         translate(center.x - arrow / 2, center.y - arrow / 2) {
-            scale(arrow / 24f, arrow / 24f, pivot = Offset.Zero) { drawPath(NavArrow, Color.White) }
+            scale(arrow / 24f, arrow / 24f, pivot = Offset.Zero) { drawPath(glyph, Color.White) }
         }
     }
 

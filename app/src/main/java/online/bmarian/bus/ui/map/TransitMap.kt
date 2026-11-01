@@ -173,6 +173,7 @@ class MapVehicle(
     val heading: Double,
     val faded: Boolean = false,
     val vehicle: Vehicle? = null,
+    val returning: Boolean = false,
 )
 
 data class MapFollow(val zoom: Double, val tilt: Double)
@@ -461,6 +462,7 @@ private class MapSession(
             growWhenStill()
         }
         style.addImage("heading", images.heading())
+        style.addImage("u-turn", images.uTurn())
         style.addImage("arrow-bubble", images.arrowBubble())
         style.addImage("arrow-glyph", images.arrowGlyph())
         // Under the basemap's labels.
@@ -556,7 +558,7 @@ private class MapSession(
             val size = if (faded) FADED_VEHICLE_SIZE else 1f
             over(
                 SymbolLayer(id, SRC_VEHICLES).withProperties(
-                    iconImage("heading"),
+                    iconImage(get("badge")),
                     iconRotate(get("heading")),
                     iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
                     iconTranslate(arrayOf(8f * size, 8f * size)),
@@ -898,6 +900,7 @@ private class MapSession(
                     drawn[v.id] = at to heading
                     Feature.fromGeometry(Point.fromLngLat(at.second, at.first)).apply {
                         addStringProperty("img", name)
+                        addStringProperty("badge", if (v.returning) "u-turn" else "heading")
                         addNumberProperty("heading", heading)
                         addNumberProperty("z", i)
                         addBooleanProperty("faded", v.faded)
