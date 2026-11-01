@@ -279,6 +279,7 @@ private fun RouteMapView(
     onTimetable: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val direction by vm.direction.collectAsStateWithLifecycle()
     val me by rememberUserLocation()
     LaunchedEffect(me) { me?.let(vm::locate) }
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
@@ -344,7 +345,8 @@ private fun RouteMapView(
                 stops = mapStops,
                 labels = labels,
                 vehicles = current?.fadedVehicles.orEmpty().map {
-                    MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading, faded = true, vehicle = it)
+                    val returning = it.tripId != tripIdFor(vm.routeId, direction)
+                    MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading, faded = true, vehicle = it, returning = returning)
                 } + current?.vehicles.orEmpty().map {
                     MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading, vehicle = it)
                 },
