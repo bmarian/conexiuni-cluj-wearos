@@ -163,7 +163,7 @@ fun stationMapStop(stopId: Int, lat: Double, lon: Double, selected: Boolean = fa
     return MapStop("$stopId", lat, lon, look?.let { routeColor(it.color) } ?: Palette.StopGray, selected, look?.mode ?: Mode.BUS)
 }
 class MapLabel(val id: String, val lat: Double, val lon: Double, val text: String, val live: Boolean, val rank: Int)
-/** [faded]: on the other direction now, counted on coming back. */
+/** [faded]: on the other direction now, counted on coming back, or at a hidden stand. */
 class MapVehicle(
     val id: String,
     val lat: Double,

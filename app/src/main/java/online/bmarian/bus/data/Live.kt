@@ -67,10 +67,12 @@ class LiveState(val asOfMs: Long, val rows: Map<String, LiveRow>, val vehiclesBy
 
     fun vehicles(tripId: String): List<Vehicle> = vehiclesByTrip[tripId].orEmpty()
 
-    /** The other direction's buses that [tripId]'s rows count on coming back. */
-    fun roundTrip(tripId: String, otherTripId: String): List<Vehicle> {
+    fun onLine(tripId: String): List<Vehicle> = vehicles(tripId).filterNot { it.atStand }
+
+    /** The other direction's buses that [tripId]'s rows count on coming back, and [tripId]'s own at a hidden stand. */
+    fun faded(tripId: String, otherTripId: String): List<Vehicle> {
         val counted = rows.values.filter { it.tripId == tripId }.flatMap { row -> row.entries.map { it.vehicleId } }.toSet()
-        return vehicles(otherTripId).filter { it.id in counted }
+        return vehicles(otherTripId).filter { it.id in counted } + vehicles(tripId).filter { it.atStand }
     }
 }
 
@@ -119,6 +121,8 @@ object LiveStream {
         return parts.joinToString("&")
     }
 
+    fun line(tripIds: List<String>): Flow<LiveState> = stream(query(emptyList(), tripIds) + "&stands=1", Cities.current.value)
+
     /** One reading of the rows and vehicles, for surfaces that cannot hold a stream open. */
     suspend fun once(stopIds: List<Int>, tripIds: List<String>, city: String = Cities.current.value): LiveState? {
         val q = query(stopIds, tripIds)
@@ -127,8 +131,9 @@ object LiveStream {
         return LiveMerge().apply(snapshot)
     }
 
-    fun live(stopIds: List<Int>, tripIds: List<String>, city: String = Cities.current.value): Flow<LiveState> = flow {
-        val q = query(stopIds, tripIds)
+    fun live(stopIds: List<Int>, tripIds: List<String>, city: String = Cities.current.value): Flow<LiveState> = stream(query(stopIds, tripIds), city)
+
+    private fun stream(q: String, city: String): Flow<LiveState> = flow {
         if (q.isEmpty()) return@flow
         var backoff = 2_000L
         while (true) {

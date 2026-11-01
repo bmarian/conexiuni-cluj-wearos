@@ -118,6 +118,7 @@ data class Vehicle(
     @SerialName("vehicle_type") val vehicleType: Int = 0,
     @SerialName("bike_accessible") val bikeAccessible: String = "",
     @SerialName("wheelchair_accessible") val wheelchairAccessible: String = "",
+    @SerialName("at_stand") val atStand: Boolean = false,
 )
 
 

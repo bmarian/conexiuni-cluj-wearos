@@ -36,7 +36,7 @@ class RouteDirectionUi(
     val arrivals: List<List<MarkedArrival>>,
     val shape: DirectionShape?,
     val vehicles: List<Vehicle>,
-    val roundTripVehicles: List<Vehicle>,
+    val fadedVehicles: List<Vehicle>,
     val now: LocalDateTime,
 )
 
@@ -64,8 +64,8 @@ class RouteViewModel(val routeId: Int, initialDirection: String, val fromStopId:
             stops = stops,
             arrivals = routeStopArrivals(info, stops, dir == "0", tripId, live, now, nowMs),
             shape = shapes[dir],
-            vehicles = live?.vehicles(tripId).orEmpty(),
-            roundTripVehicles = live?.roundTrip(tripId, tripIdFor(routeId, if (dir == "0") "1" else "0")).orEmpty(),
+            vehicles = live?.onLine(tripId).orEmpty(),
+            fadedVehicles = live?.faded(tripId, tripIdFor(routeId, if (dir == "0") "1" else "0")).orEmpty(),
             now = now,
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -125,6 +125,6 @@ class RouteViewModel(val routeId: Int, initialDirection: String, val fromStopId:
 
     suspend fun live() = coroutineScope {
         launch { clock.keepTime() }
-        LiveStream.live(emptyList(), listOf(tripIdFor(routeId, "0"), tripIdFor(routeId, "1"))).collect { live.value = it }
+        LiveStream.line(listOf(tripIdFor(routeId, "0"), tripIdFor(routeId, "1"))).collect { live.value = it }
     }
 }

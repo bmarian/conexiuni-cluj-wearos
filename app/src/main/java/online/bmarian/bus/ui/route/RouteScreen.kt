@@ -343,7 +343,7 @@ private fun RouteMapView(
                 arrows = true,
                 stops = mapStops,
                 labels = labels,
-                vehicles = current?.roundTripVehicles.orEmpty().map {
+                vehicles = current?.fadedVehicles.orEmpty().map {
                     MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading, faded = true, vehicle = it)
                 } + current?.vehicles.orEmpty().map {
                     MapVehicle("${it.id}", it.latitude, it.longitude, info?.shortName.orEmpty(), color, it.heading, vehicle = it)
