@@ -99,6 +99,8 @@ object Api {
     suspend fun shapePolylines(shapeIds: List<String>, city: String): Map<String, String> =
         get("shapes?format=polyline&shape_ids=${shapeIds.joinToString(",")}", city)
 
+    suspend fun traffic(tripIds: List<String>, city: String): TrafficNow = getFresh("traffic?trip_ids=${tripIds.joinToString(",")}", city)
+
     suspend fun networkVersion(city: String): NetworkVersion = getFresh("network/version", city)
 
     private val bundleClient: OkHttpClient by lazy { client.newBuilder().cache(null).build() }

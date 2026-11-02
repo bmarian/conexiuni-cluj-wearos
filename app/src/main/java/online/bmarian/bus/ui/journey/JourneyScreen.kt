@@ -393,7 +393,7 @@ private fun tripLines(plan: Journey, sync: JourneySync, me: Fix?, looks: LineLoo
     val rides = plan.legs.mapIndexedNotNull { i, l ->
         if (step == StepType.WALK_END || step == StepType.ARRIVED || i < at) return@mapIndexedNotNull null
         val color = looks.color(l.lines.firstOrNull(), l.colors.firstOrNull().orEmpty(), apart).copy(alpha = if (i == at) 1f else 0.5f)
-        MapLine(cut(pathOf(l), step == StepType.RIDE && i == at), color, id = "leg$i")
+        MapLine(cut(pathOf(l), step == StepType.RIDE && i == at), color, id = "leg$i", tripId = l.tripIds.firstOrNull().orEmpty())
     }
     return walks + rides
 }

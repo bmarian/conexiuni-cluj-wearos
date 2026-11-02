@@ -44,9 +44,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
+import kotlinx.coroutines.delay
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Cities
+import online.bmarian.bus.data.ColorSync
+import online.bmarian.bus.data.TRAFFIC_REFRESH_MS
+import online.bmarian.bus.data.TrafficStretch
 import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.UserLocation
 import online.bmarian.bus.data.Vehicle
@@ -57,9 +61,11 @@ import online.bmarian.bus.logic.SWEEP_MS
 import online.bmarian.bus.logic.VehicleTrack
 import online.bmarian.bus.logic.haversineMeters
 import online.bmarian.bus.logic.paced
+import online.bmarian.bus.logic.paintedParts
 import online.bmarian.bus.logic.partBetween
 import online.bmarian.bus.logic.pathOf
 import online.bmarian.bus.logic.pathThrough
+import online.bmarian.bus.logic.trafficRuns
 import online.bmarian.bus.ui.theme.Palette
 import online.bmarian.bus.ui.theme.routeColor
 import org.maplibre.android.MapLibre
@@ -147,7 +153,7 @@ private fun startMapLibre(context: Context) {
 }
 
 /** [id] keeps a line the same one while its points change, so it's redrawn in place rather than grown again. */
-class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false, val name: String = "", val id: String = "")
+class MapLine(val points: List<Pair<Double, Double>>, val color: Color, val dotted: Boolean = false, val name: String = "", val id: String = "", val tripId: String = "")
 class MapStop(
     val id: String,
     val lat: Double,
@@ -304,6 +310,18 @@ fun TransitMap(
     }
 
     LaunchedEffect(session, lines) { session?.setLines(lines) }
+    val city by Cities.current.collectAsStateWithLifecycle()
+    val trafficOn by ColorSync.traffic.collectAsStateWithLifecycle()
+    val lineTrips = remember(lines) { lines.map { it.tripId }.filter { it.isNotEmpty() }.distinct().sorted() }
+    val traffic by produceState(emptyMap<String, List<TrafficStretch>>(), lineTrips, city, trafficOn) {
+        value = emptyMap()
+        if (!trafficOn || lineTrips.isEmpty() || Cities.info(city)?.traffic != true) return@produceState
+        while (true) {
+            value = runCatching { Api.traffic(lineTrips, city).lines }.getOrDefault(emptyMap())
+            delay(TRAFFIC_REFRESH_MS)
+        }
+    }
+    LaunchedEffect(session, traffic) { session?.setTraffic(traffic) }
     LaunchedEffect(session, lines, terminals, arrows) {
         session?.setEnds(
             if (terminals) lineStarts(lines) else emptyList(),
@@ -433,6 +451,7 @@ private class MapSession(
     private var moving = false
     private val frame = Choreographer.FrameCallback { stepVehicles() }
     private var lines: List<MapLine> = emptyList()
+    private var traffic: Map<String, List<TrafficStretch>> = emptyMap()
     private var hidden: Set<Int> = emptySet()
     private var growingKeys: Set<String> = emptySet()
     private var stops: List<MapStop> = emptyList()
@@ -583,15 +602,24 @@ private class MapSession(
 
     private fun key(line: MapLine) = line.id.ifEmpty { "${line.points.size}|${line.points.first()}|${line.points.last()}|${line.dotted}" }
 
-    private fun lineFeature(points: List<Pair<Double, Double>>, line: MapLine, opacity: Float = line.color.alpha * 0.9f) =
+    private fun lineFeature(points: List<Pair<Double, Double>>, line: MapLine, color: Color = line.color, opacity: Float = line.color.alpha * 0.9f) =
         Feature.fromGeometry(LineString.fromLngLats(points.map { Point.fromLngLat(it.second, it.first) })).apply {
-            addStringProperty("color", hex(line.color))
+            addStringProperty("color", hex(color))
             addNumberProperty("opacity", opacity)
             addBooleanProperty("dotted", line.dotted)
         }
 
+    /** The line in its traffic colours where measured, its own between, up to the share [done] of its length. */
+    private fun parts(line: MapLine, done: Float = 1f) =
+        paintedParts(line.points, line.color, trafficRuns(traffic[line.tripId].orEmpty(), line.points), done).map { (part, color) -> lineFeature(part, line, color) }
+
     private fun applyLines() {
-        source(SRC_LINES)?.setGeoJson(FeatureCollection.fromFeatures(lines.filterIndexed { i, _ -> i !in hidden }.map { lineFeature(it.points, it) }))
+        source(SRC_LINES)?.setGeoJson(FeatureCollection.fromFeatures(lines.filterIndexed { i, _ -> i !in hidden }.flatMap { parts(it) }))
+    }
+
+    fun setTraffic(value: Map<String, List<TrafficStretch>>) {
+        traffic = value
+        if (sweep == null && pendingGrow == null) applyLines()
     }
 
     // Port of growLine.
@@ -647,8 +675,7 @@ private class MapSession(
                 val done = a.animatedValue as Float
                 reveal.draw(done)
                 startReveal()
-                val parts = grows.map { it to partBetween(it.points, 0f, done) }.filter { it.second.size >= 2 }
-                source(SRC_SWEEP)?.setGeoJson(FeatureCollection.fromFeatures(parts.map { (line, part) -> lineFeature(part, line) }))
+                source(SRC_SWEEP)?.setGeoJson(FeatureCollection.fromFeatures(grows.flatMap { parts(it, done) }))
             }
             doOnEnd {
                 sweep = null
@@ -671,7 +698,7 @@ private class MapSession(
             interpolator = AccelerateInterpolator()
             addUpdateListener { a ->
                 val fade = a.animatedValue as Float
-                source(SRC_FADE)?.setGeoJson(FeatureCollection.fromFeatures(gone.map { lineFeature(it.points, it, it.color.alpha * 0.9f * fade) }))
+                source(SRC_FADE)?.setGeoJson(FeatureCollection.fromFeatures(gone.map { lineFeature(it.points, it, opacity = it.color.alpha * 0.9f * fade) }))
             }
             doOnEnd { source(SRC_FADE)?.setGeoJson(FeatureCollection.fromFeatures(emptyList())) }
             start()

@@ -421,7 +421,7 @@ fun StopMapScreen(vm: StopViewModel) {
                 camera = camera,
                 frame = frame,
                 onMapTap = chrome::toggle,
-                lines = layer.lines.map { MapLine(it.points, lineColor(it.name, it.color, apart), name = it.name) },
+                lines = layer.lines.map { MapLine(it.points, lineColor(it.name, it.color, apart), name = it.name, tripId = it.tripId) },
                 terminals = true,
                 stops = listOfNotNull(location?.let { stationMapStop(vm.stopId, it.first, it.second, selected = true) }),
                 vehicles = layer.vehicles.map {

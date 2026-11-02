@@ -340,7 +340,7 @@ private fun RouteMapView(
                 camera = camera,
                 frame = frame,
                 onMapTap = chrome::toggle,
-                lines = current?.shape?.let { listOf(MapLine(it.shape.map { p -> p.lat to p.lon }, color)) }.orEmpty(),
+                lines = current?.shape?.let { listOf(MapLine(it.shape.map { p -> p.lat to p.lon }, color, tripId = tripIdFor(vm.routeId, direction))) }.orEmpty(),
                 arrows = true,
                 stops = mapStops,
                 labels = labels,
