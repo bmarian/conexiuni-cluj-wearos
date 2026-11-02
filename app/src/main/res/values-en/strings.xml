@@ -124,6 +124,7 @@
     <string name="walk_to_destination">Walk to your destination</string>
     <string name="walk_minutes">%1$d min walk</string>
     <string name="colorful_lines">Colorful lines</string>
+    <string name="traffic">Traffic</string>
     <string name="setting_on">On</string>
     <string name="setting_off">Off</string>
     <string name="sync_title">Sync</string>

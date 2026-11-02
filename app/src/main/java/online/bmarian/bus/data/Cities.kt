@@ -27,6 +27,7 @@ data class City(
     val operatorUrl: String = "",
     val realtime: Boolean = false,
     val news: Boolean = false,
+    val traffic: Boolean = false,
     val lat: Double,
     val lon: Double,
     val bounds: Bounds? = null,

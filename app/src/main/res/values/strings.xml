@@ -130,6 +130,7 @@
     <string name="walk_to_destination">Mergi până la destinație</string>
     <string name="walk_minutes">%1$d min pe jos</string>
     <string name="colorful_lines">Linii colorate</string>
+    <string name="traffic">Trafic</string>
     <string name="setting_on">Pornit</string>
     <string name="setting_off">Oprit</string>
     <string name="sync_title">Sincronizare</string>

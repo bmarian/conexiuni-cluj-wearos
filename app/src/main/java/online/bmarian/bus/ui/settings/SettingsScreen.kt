@@ -47,6 +47,7 @@ fun SettingsScreen(onSync: () -> Unit) {
     val cities by Cities.list.collectAsStateWithLifecycle()
     val city by Cities.current.collectAsStateWithLifecycle()
     val colorful by ColorSync.colorful.collectAsStateWithLifecycle()
+    val traffic by ColorSync.traffic.collectAsStateWithLifecycle()
     val status by Services.sync.status.collectAsStateWithLifecycle()
     val phoneApp by produceState<Boolean?>(null) { value = Services.sync.phoneHasApp() }
     val info = remember(cities, city) { cities.firstOrNull { it.slug == city } }
@@ -56,6 +57,7 @@ fun SettingsScreen(onSync: () -> Unit) {
         item { Title(stringResource(R.string.settings), spec) }
         item { InfoRow(stringResource(R.string.city), cityName, spec) }
         item { InfoRow(stringResource(R.string.colorful_lines), stringResource(if (colorful) R.string.setting_on else R.string.setting_off), spec) }
+        if (info?.traffic == true) item { InfoRow(stringResource(R.string.traffic), stringResource(if (traffic) R.string.setting_on else R.string.setting_off), spec) }
         item {
             val press = remember { MutableInteractionSource() }
             FilledTonalButton(

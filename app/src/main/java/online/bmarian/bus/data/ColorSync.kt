@@ -18,21 +18,24 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-/** The phone's "Colorful lines" setting. */
+/** The phone's "Colorful lines" and "Traffic" settings. */
 object ColorSync {
     const val PATH = "/sync/colors"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _colorful = MutableStateFlow(false)
     val colorful: StateFlow<Boolean> = _colorful
+    private val _traffic = MutableStateFlow(false)
+    val traffic: StateFlow<Boolean> = _traffic
 
-    private class Choice(val colorful: Boolean, val at: Long)
+    private class Choice(val colorful: Boolean, val traffic: Boolean, val at: Long)
 
     private fun prefs(context: Context) = context.getSharedPreferences("colors", Context.MODE_PRIVATE)
 
     fun pull(context: Context) {
         val app = context.applicationContext
         _colorful.value = prefs(app).getBoolean("colorful", false)
+        _traffic.value = prefs(app).getBoolean("traffic", false)
         scope.launch {
             runCatching {
                 val items = Wearable.getDataClient(app).getDataItems("wear://*$PATH".toUri()).await()
@@ -57,7 +60,7 @@ object ColorSync {
 
     private fun read(item: DataItem): Choice? = runCatching {
         val map = DataMapItem.fromDataItem(item).dataMap
-        Choice(map.getBoolean("colorful"), map.getLong("at"))
+        Choice(map.getBoolean("colorful"), map.getBoolean("traffic"), map.getLong("at"))
     }.getOrNull()
 
     private fun take(context: Context, choice: Choice) {
@@ -66,7 +69,9 @@ object ColorSync {
         prefs.edit {
             putLong("at", choice.at)
             putBoolean("colorful", choice.colorful)
+            putBoolean("traffic", choice.traffic)
         }
         _colorful.value = choice.colorful
+        _traffic.value = choice.traffic
     }
 }

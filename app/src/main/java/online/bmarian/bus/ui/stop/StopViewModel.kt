@@ -33,7 +33,7 @@ import java.time.LocalDateTime
 class StopUi(val departures: List<StopDeparture>, val now: LocalDateTime)
 
 class StopVehicle(val id: String, val lat: Double, val lon: Double, val name: String, val color: String, val heading: Double, val vehicle: Vehicle)
-class StopMapLine(val points: List<Pair<Double, Double>>, val name: String, val color: String)
+class StopMapLine(val points: List<Pair<Double, Double>>, val name: String, val color: String, val tripId: String)
 class StopMapLayer(val lines: List<StopMapLine>, val vehicles: List<StopVehicle>)
 
 class StopViewModel(val stopId: Int) : ViewModel() {
@@ -70,7 +70,7 @@ class StopViewModel(val stopId: Int) : ViewModel() {
             val shape = shapes[departure.tripId].orEmpty()
             val vehicles = live.vehicles(departure.tripId)
             if (shape.isEmpty() || vehicles.isEmpty()) continue
-            lines += StopMapLine(shape.map { it.lat to it.lon }, departure.shortName, departure.color)
+            lines += StopMapLine(shape.map { it.lat to it.lon }, departure.shortName, departure.color, departure.tripId)
             vehicles.mapTo(buses) { StopVehicle("${it.id}", it.latitude, it.longitude, departure.shortName, departure.color, it.heading, it) }
         }
         StopMapLayer(lines, buses)
