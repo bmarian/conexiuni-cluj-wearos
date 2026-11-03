@@ -84,7 +84,6 @@ private fun groupViewModel(key: String): GroupViewModel {
 fun GroupScreen(key: String, onOpenRoute: (Int, String, Int?) -> Unit, onOpenMap: () -> Unit) {
     val vm = groupViewModel(key)
     val index by Services.repository.network.index.collectAsStateWithLifecycle()
-    val boards by vm.boards.collectAsStateWithLifecycle()
     val ui by vm.ui.collectAsStateWithLifecycle()
     val beat by vm.beat.collectAsStateWithLifecycle()
     val title = groupTitle(key)
@@ -106,9 +105,8 @@ fun GroupScreen(key: String, onOpenRoute: (Int, String, Int?) -> Unit, onOpenMap
                 HomeCard(spec, 0, "lines", top = 6.dp) {
                     vm.lines.forEachIndexed { i, line ->
                         val route = known.route(line.routeId) ?: return@forEachIndexed
-                        val stopId = boards.getOrNull(i)
-                        val departure = ui?.departures?.getOrNull(i)
-                        CardRow({ onOpenRoute(line.routeId, line.direction, stopId) }) {
+                        val row = ui?.rows?.getOrNull(i)
+                        CardRow({ onOpenRoute(line.routeId, line.direction, row?.stopId) }) {
                             LineBadge(route.shortName, route.color, height = 20.dp)
                             Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
                                 Text(
@@ -117,16 +115,10 @@ fun GroupScreen(key: String, onOpenRoute: (Int, String, Int?) -> Unit, onOpenMap
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                 )
-                                stopId?.let { known.stop(it) }?.let {
-                                    Text(
-                                        stringResource(R.string.from_stop, it.name),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
+                                row?.stopId?.let { known.stop(it) }?.let { RowNote(stringResource(R.string.from_stop, it.name)) }
+                                if (row != null && row.departure == null) RowNote(stringResource(R.string.no_more_today))
                             }
+                            val departure = row?.departure
                             val now = ui?.now
                             if (departure != null && now != null) {
                                 Eta(
@@ -151,6 +143,11 @@ fun GroupScreen(key: String, onOpenRoute: (Int, String, Int?) -> Unit, onOpenMap
 }
 
 @Composable
+private fun RowNote(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+@Composable
 fun GroupMapScreen(key: String) {
     val vm = groupViewModel(key)
     LaunchedEffect(vm) { vm.load() }
@@ -168,7 +165,8 @@ fun GroupMapScreen(key: String) {
         vm.lines.mapNotNull { line ->
             val route = known?.route(line.routeId) ?: return@mapNotNull null
             val points = shapes[tripOf(line)]?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-            MapLine(points.map { it.lat to it.lon }, looks.color(route.shortName, route.color), name = route.shortName, id = tripOf(line), tripId = tripOf(line))
+            val trip = tripOf(line)
+            MapLine(points.map { it.lat to it.lon }, looks.color(route.shortName, route.color), name = route.shortName, id = trip, tripId = trip)
         }
     }
     val frame = remember(lines) { lines.flatMap { it.points }.takeIf { it.isNotEmpty() }?.let { MapFrame.Fit(it) } }

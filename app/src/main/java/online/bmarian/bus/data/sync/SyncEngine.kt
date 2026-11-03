@@ -55,17 +55,19 @@ class SyncEngine(private val vault: SyncVault) {
         override fun empty(value: SyncRecords.City) = value.isEmpty
     }
 
-    // The watch only shows groups, so it takes the record as it is.
+    // The watch only shows groups: it takes the server's record and never writes one.
     private fun groupsKind(slug: String) = object : Kind<SyncRecords.Groups> {
         override fun read(raw: String) = SyncRecords.readGroups(raw)
         override fun write(value: SyncRecords.Groups) = SyncRecords.writeGroups(value)
-        override fun local(base: SyncRecords.Groups?) = base ?: SyncRecords.Groups(emptyList())
+        override fun local(base: SyncRecords.Groups?) = SyncRecords.Groups(
+            Services.groups.savedIn(slug).map { g -> SyncRecords.Group(g.lines.map { SyncRecords.Line(it.routeId.toLong(), it.direction) }, g.name.orEmpty()) },
+        )
         override fun merge(base: SyncRecords.Groups?, local: SyncRecords.Groups, remote: SyncRecords.Groups) = remote
         override fun apply(value: SyncRecords.Groups) = Services.groups.take(
             slug,
             value.groups.map { g -> SavedGroup(g.lines.map { GroupLine(it.route.toInt(), it.dir) }, g.name.ifEmpty { null }) },
         )
-        override fun empty(value: SyncRecords.Groups) = value.groups.isEmpty()
+        override fun empty(value: SyncRecords.Groups) = true
     }
 
     private fun devicesKind(run: Run) = object : Kind<SyncRecords.Devices> {

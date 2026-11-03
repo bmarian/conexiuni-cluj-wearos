@@ -54,6 +54,7 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.TransformationSpec
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
+import online.bmarian.bus.data.NetworkIndex
 import online.bmarian.bus.data.Route
 import online.bmarian.bus.data.SavedGroup
 import online.bmarian.bus.data.bothWays
@@ -129,6 +130,7 @@ fun HomeScreen(
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
     val groups by Services.groups.saved.collectAsStateWithLifecycle()
+    val network by repository.network.index.collectAsStateWithLifecycle()
     val follows by FollowManager.follows.collectAsStateWithLifecycle()
     val reminders by Reminders.all.collectAsStateWithLifecycle()
     val journey by JourneyMirror.state.collectAsStateWithLifecycle()
@@ -190,9 +192,9 @@ fun HomeScreen(
                 items(saved.size, key = { "saved-${saved[it].stopId}" }) { i -> StationCard(saved[i], current.now, i, spec, onOpenStop, onOpenDeparture) }
             }
             if (savedLines.isNotEmpty()) item(key = "lines") { SavedLinesCard(savedLines, spec, onOpenRoute) }
-            if (groups.isNotEmpty()) {
+            network?.takeIf { groups.isNotEmpty() }?.let { known ->
                 item(key = "groups-label") { SubHeader(stringResource(R.string.group_title), spec) }
-                item(key = "groups") { GroupsCard(groups, spec, onOpenGroup) }
+                item(key = "groups") { GroupsCard(groups, known, spec, onOpenGroup) }
             }
 
             item(key = "actions") {
@@ -290,15 +292,14 @@ private fun TransformingLazyColumnItemScope.SavedLinesCard(lines: List<SavedLine
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TransformingLazyColumnItemScope.GroupsCard(groups: List<SavedGroup>, spec: TransformationSpec, onOpenGroup: (String) -> Unit) {
-    val index by Services.repository.network.index.collectAsStateWithLifecycle()
+private fun TransformingLazyColumnItemScope.GroupsCard(groups: List<SavedGroup>, index: NetworkIndex, spec: TransformationSpec, onOpenGroup: (String) -> Unit) {
     HomeCard(spec, 0, "groups", top = 6.dp) {
         for (group in groups) {
             CardRow({ onOpenGroup(group.key) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     group.name?.let { Text(it, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        for (route in index?.groupRoutes(group.lines).orEmpty()) LineBadge(route.shortName, route.color, height = 20.dp)
+                        for (route in index.groupRoutes(group.lines)) LineBadge(route.shortName, route.color, height = 20.dp)
                     }
                 }
             }
