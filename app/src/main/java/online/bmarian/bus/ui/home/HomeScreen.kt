@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -53,6 +55,7 @@ import androidx.wear.compose.material3.lazy.TransformationSpec
 import online.bmarian.bus.R
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.Route
+import online.bmarian.bus.data.SavedGroup
 import online.bmarian.bus.data.bothWays
 import online.bmarian.bus.data.terminalName
 import online.bmarian.bus.follow.FollowManager
@@ -67,6 +70,7 @@ import online.bmarian.bus.logic.CLUJ_ZONE
 import online.bmarian.bus.logic.Mode
 import online.bmarian.bus.logic.StopDeparture
 import online.bmarian.bus.logic.formatMeters
+import online.bmarian.bus.logic.groupRoutes
 import online.bmarian.bus.ui.ActionRow
 import online.bmarian.bus.ui.Countdown
 import online.bmarian.bus.ui.Eta
@@ -101,6 +105,7 @@ fun HomeScreen(
     onOpenStop: (Int) -> Unit,
     onOpenDeparture: (Int, StopDeparture) -> Unit,
     onOpenRoute: (Int, String) -> Unit,
+    onOpenGroup: (String) -> Unit,
     onOpenFollow: (Followed) -> Unit,
     onOpenJourney: () -> Unit,
     onSearch: () -> Unit,
@@ -123,6 +128,7 @@ fun HomeScreen(
     val routes by repository.routes.collectAsStateWithLifecycle()
     val favoriteStops by Services.favorites.stops.collectAsStateWithLifecycle()
     val favoriteRoutes by Services.favorites.routes.collectAsStateWithLifecycle()
+    val groups by Services.groups.saved.collectAsStateWithLifecycle()
     val follows by FollowManager.follows.collectAsStateWithLifecycle()
     val reminders by Reminders.all.collectAsStateWithLifecycle()
     val journey by JourneyMirror.state.collectAsStateWithLifecycle()
@@ -172,7 +178,7 @@ fun HomeScreen(
             }
 
             val saved = current?.saved.orEmpty()
-            val noFavorites = favoriteStops.isEmpty() && savedLines.isEmpty()
+            val noFavorites = favoriteStops.isEmpty() && savedLines.isEmpty() && groups.isEmpty()
             val savedLoading = current == null && favoriteStops.isNotEmpty()
             // The nearest stop may be the only saved one.
             if (noFavorites || savedLoading || saved.isNotEmpty() || savedLines.isNotEmpty()) {
@@ -184,6 +190,10 @@ fun HomeScreen(
                 items(saved.size, key = { "saved-${saved[it].stopId}" }) { i -> StationCard(saved[i], current.now, i, spec, onOpenStop, onOpenDeparture) }
             }
             if (savedLines.isNotEmpty()) item(key = "lines") { SavedLinesCard(savedLines, spec, onOpenRoute) }
+            if (groups.isNotEmpty()) {
+                item(key = "groups-label") { SubHeader(stringResource(R.string.group_title), spec) }
+                item(key = "groups") { GroupsCard(groups, spec, onOpenGroup) }
+            }
 
             item(key = "actions") {
                 ActionRow(spec) {
@@ -278,8 +288,26 @@ private fun TransformingLazyColumnItemScope.SavedLinesCard(lines: List<SavedLine
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TransformingLazyColumnItemScope.HomeCard(
+private fun TransformingLazyColumnItemScope.GroupsCard(groups: List<SavedGroup>, spec: TransformationSpec, onOpenGroup: (String) -> Unit) {
+    val index by Services.repository.network.index.collectAsStateWithLifecycle()
+    HomeCard(spec, 0, "groups", top = 6.dp) {
+        for (group in groups) {
+            CardRow({ onOpenGroup(group.key) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    group.name?.let { Text(it, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        for (route in index?.groupRoutes(group.lines).orEmpty()) LineBadge(route.shortName, route.color, height = 20.dp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun TransformingLazyColumnItemScope.HomeCard(
     spec: TransformationSpec,
     index: Int,
     key: Any,
@@ -297,7 +325,7 @@ private fun TransformingLazyColumnItemScope.HomeCard(
 }
 
 @Composable
-private fun CardRow(onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
+internal fun CardRow(onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = ROW_MIN_HEIGHT).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

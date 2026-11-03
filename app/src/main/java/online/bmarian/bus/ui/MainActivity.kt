@@ -46,6 +46,8 @@ import online.bmarian.bus.follow.Followed
 import online.bmarian.bus.follow.soonest
 import online.bmarian.bus.journey.JourneyMirror
 import online.bmarian.bus.ui.follow.FollowScreen
+import online.bmarian.bus.ui.group.GroupMapScreen
+import online.bmarian.bus.ui.group.GroupScreen
 import online.bmarian.bus.ui.home.HomeScreen
 import online.bmarian.bus.ui.home.NearbyMapScreen
 import online.bmarian.bus.ui.home.SearchScreen
@@ -218,6 +220,7 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
                             onOpenStop = { navController.navigate("stop/$it") },
                             onOpenDeparture = { stopId, departure -> navController.navigate("departure/$stopId/${departure.routeId}/${departure.tripId}") },
                             onOpenRoute = { id, direction -> navController.navigate("route/$id/$direction") },
+                            onOpenGroup = { navController.navigate("group/${Uri.encode(it)}") },
                             onOpenFollow = ::openFollow,
                             onOpenJourney = { navController.navigate("journey") },
                             onSearch = { navController.navigate("search") },
@@ -314,6 +317,15 @@ private fun WearApp(openFollowed: MutableStateFlow<String?>, openLink: MutableSt
                             onOpenDeparture = { stopId, tripId -> navController.navigate("departure/$stopId/$routeId/$tripId") },
                         )
                     }
+                    composable("group/{key}") { entry ->
+                        val key = entry.arguments?.getString("key").orEmpty()
+                        GroupScreen(
+                            key = key,
+                            onOpenRoute = { id, direction, from -> navController.navigate("route/$id/$direction" + from?.let { "?from=$it" }.orEmpty()) },
+                            onOpenMap = { navController.navigate("groupMap/${Uri.encode(key)}") },
+                        )
+                    }
+                    composable("groupMap/{key}") { entry -> GroupMapScreen(entry.arguments?.getString("key").orEmpty()) }
                     composable("journey") {
                         JourneyScreen(onEnded = { navController.popBackStack("home", inclusive = false) })
                     }

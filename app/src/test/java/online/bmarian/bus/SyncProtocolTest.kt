@@ -87,6 +87,7 @@ class SyncProtocolTest {
     private fun outcome(kind: String, raw: String): String = when (val read = when (kind) {
         "city" -> SyncRecords.readCity(raw)
         "devices" -> SyncRecords.readDevices(raw)
+        "groups" -> SyncRecords.readGroups(raw)
         else -> SyncRecords.readSettings(raw)
     }) {
         is Read.Ok -> "ok"

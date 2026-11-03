@@ -43,6 +43,8 @@ fun MapControls(chrome: MapChrome, modifier: Modifier = Modifier, content: @Comp
 // Where the round screen is wide enough for the chip's corners.
 val MAP_CHIP_TOP = 32.dp
 
+const val ME_ZOOM = 14f
+
 @Composable
 fun MapChip(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(

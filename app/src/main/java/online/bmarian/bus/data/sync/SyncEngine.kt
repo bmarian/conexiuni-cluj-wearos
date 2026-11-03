@@ -5,6 +5,8 @@ import kotlinx.serialization.json.JsonObject
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.FavoriteRoute
+import online.bmarian.bus.data.SavedGroup
+import online.bmarian.bus.logic.GroupLine
 import online.bmarian.bus.data.sync.SyncRecords.Read
 import online.bmarian.bus.data.sync.SyncVault.Base
 import online.bmarian.bus.data.sync.SyncVault.Membership
@@ -51,6 +53,19 @@ class SyncEngine(private val vault: SyncVault) {
         override fun apply(value: SyncRecords.City) =
             Services.favorites.replaceSynced(slug, value.stops.map(Long::toInt), value.lines.map { FavoriteRoute(it.route.toInt(), it.dir) })
         override fun empty(value: SyncRecords.City) = value.isEmpty
+    }
+
+    // The watch only shows groups, so it takes the record as it is.
+    private fun groupsKind(slug: String) = object : Kind<SyncRecords.Groups> {
+        override fun read(raw: String) = SyncRecords.readGroups(raw)
+        override fun write(value: SyncRecords.Groups) = SyncRecords.writeGroups(value)
+        override fun local(base: SyncRecords.Groups?) = base ?: SyncRecords.Groups(emptyList())
+        override fun merge(base: SyncRecords.Groups?, local: SyncRecords.Groups, remote: SyncRecords.Groups) = remote
+        override fun apply(value: SyncRecords.Groups) = Services.groups.take(
+            slug,
+            value.groups.map { g -> SavedGroup(g.lines.map { GroupLine(it.route.toInt(), it.dir) }, g.name.ifEmpty { null }) },
+        )
+        override fun empty(value: SyncRecords.Groups) = value.groups.isEmpty()
     }
 
     private fun devicesKind(run: Run) = object : Kind<SyncRecords.Devices> {
@@ -175,7 +190,10 @@ class SyncEngine(private val vault: SyncVault) {
         }
         try {
             step("devices", devicesKind(run))
-            for (city in Cities.list.value) step("city:${city.slug}", cityKind(city.slug))
+            for (city in Cities.list.value) {
+                step("city:${city.slug}", cityKind(city.slug))
+                step("groups:${city.slug}", groupsKind(city.slug))
+            }
         } finally {
             vault.saveBases(run.bases)
         }

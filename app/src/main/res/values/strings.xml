@@ -114,6 +114,7 @@
     <string name="sync_removed">Ceasul a fost scos din sincronizare. Asociază-l din nou ca să se sincronizeze.</string>
     <string name="near_you">Lângă tine</string>
     <string name="saved_stops">Salvate</string>
+    <string name="group_title">Linii grupate</string>
     <string name="settings">Setări</string>
     <string name="recent">Recente</string>
     <string name="walk_to_stop">%1$d min pe jos până la %2$s</string>
