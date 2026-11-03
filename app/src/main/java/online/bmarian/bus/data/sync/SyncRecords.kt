@@ -13,6 +13,7 @@ import java.math.RoundingMode
 object SyncRecords {
     const val CITY_CAP = 50
     const val DEVICE_CAP = 10
+    const val GROUP_LINES_CAP = 10
     private const val MAX_INT = Int.MAX_VALUE.toLong()
     val LAT = 43.6..48.3
     val LON = 20.2..29.8
@@ -26,6 +27,8 @@ object SyncRecords {
     }
     data class Device(val id: String, val kind: String, val label: String, val pub: String)
     data class Devices(val devices: List<Device>)
+    data class Group(val lines: List<Line>, val name: String, val to: Origin? = null)
+    data class Groups(val groups: List<Group>)
     data class Settings(
         val theme: String,
         val locale: String,
@@ -131,15 +134,17 @@ object SyncRecords {
         Read.Refused
     }
 
+    private fun parseLine(l: JsonElement): Line {
+        val pair = list(l, 2)
+        val dir = (pair.getOrNull(1) as? JsonPrimitive)?.takeIf { it.isString }?.content
+        if (pair.size != 2 || (dir != "0" && dir != "1")) refuse()
+        return Line(integer(pair[0], 1, MAX_INT), dir)
+    }
+
     private fun parseCity(record: JsonElement): City {
         val m = obj(record, "v", "stops", "lines", "places", "followed")
         val stops = list(m["stops"], CITY_CAP).map { integer(it, 1, MAX_INT) }
-        val lines = list(m["lines"], CITY_CAP).map { l ->
-            val pair = list(l, 2)
-            val dir = (pair.getOrNull(1) as? JsonPrimitive)?.takeIf { it.isString }?.content
-            if (pair.size != 2 || (dir != "0" && dir != "1")) refuse()
-            Line(integer(pair[0], 1, MAX_INT), dir)
-        }
+        val lines = list(m["lines"], CITY_CAP).map(::parseLine)
         val places = list(m["places"], CITY_CAP).map { p ->
             val f = list(p, 7)
             if (f.size != 4 && f.size != 7) refuse()
@@ -173,11 +178,33 @@ object SyncRecords {
 
     fun writeCity(r: City): String =
         "{\"v\":1,\"stops\":" + joined(r.stops, ::stopId) +
-            ",\"lines\":" + joined(r.lines) { "[${it.route},${quote(it.dir)}]" } +
+            ",\"lines\":" + joined(r.lines, ::writeLine) +
             ",\"places\":" + joined(r.places, ::writePlace) +
             ",\"followed\":" + joined(r.followed, ::quote) + "}"
 
     fun readCity(raw: String): Read<City> = read(raw, ::parseCity, ::writeCity)
+
+    private fun writeLine(l: Line) = "[${l.route},${quote(l.dir)}]"
+
+    private fun parseGroups(record: JsonElement): Groups {
+        val groups = list(obj(record, "v", "groups")["groups"], CITY_CAP).map { item ->
+            val f = list(item, 5)
+            if (f.size != 2 && f.size != 5) refuse()
+            val lines = list(f[0], GROUP_LINES_CAP).map(::parseLine)
+            if (lines.isEmpty()) refuse()
+            unique(lines) { it.route.toString() }
+            Group(lines, text(f[1], 0, 40), if (f.size == 5) Origin(text(f[2], 1, 100), coordinate(f[3], LAT), coordinate(f[4], LON)) else null)
+        }
+        unique(groups) { g -> g.lines.joinToString(",", transform = ::lineId) }
+        return Groups(groups)
+    }
+
+    fun writeGroups(r: Groups): String = "{\"v\":1,\"groups\":" + joined(r.groups) { g ->
+        val to = g.to?.let { listOf(quote(it.name), coord(it.lat), coord(it.lon)) }.orEmpty()
+        (listOf(joined(g.lines, ::writeLine), quote(g.name)) + to).joinToString(",", "[", "]")
+    } + "}"
+
+    fun readGroups(raw: String): Read<Groups> = read(raw, ::parseGroups, ::writeGroups)
 
     private val ID_TEXT = Regex("^[A-Za-z0-9_-]{21}[AQgw]$")
 

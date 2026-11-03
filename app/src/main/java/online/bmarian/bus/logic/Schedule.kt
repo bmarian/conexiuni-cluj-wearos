@@ -88,13 +88,15 @@ fun availableBusesForStop(
     now: LocalDateTime,
     maxMinutes: Int? = null,
     limit: Int? = null,
+    onlyTrip: String? = null,
 ): List<StopDeparture> {
     val nowMinutes = exactMinutesOfDay(now)
     val results = mutableListOf<StopDeparture>()
     for (shape in info.shapesInfo) {
+        if (onlyTrip != null && routeIdFromTripId(onlyTrip) != shape.routeId) continue
         val schedule = daySchedule(shape.timetable, now)
         if (schedule.entries.isEmpty()) continue
-        val tripId = tripIdForRouteAtStop(info.outgoingTripIds, info.incomingTripIds, shape.routeId) ?: continue
+        val tripId = onlyTrip ?: tripIdForRouteAtStop(info.outgoingTripIds, info.incomingTripIds, shape.routeId) ?: continue
         val offset = timeOffsetToStop(shape.stopTimes, tripId, info.stopId)
         val outgoing = tripId.endsWith(OUTGOING_SUFFIX)
         var upcoming = scheduledArrivals(

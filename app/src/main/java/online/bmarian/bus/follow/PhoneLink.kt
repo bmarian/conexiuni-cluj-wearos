@@ -37,6 +37,7 @@ import online.bmarian.bus.data.ColorSync
 import online.bmarian.bus.data.FavoritesSync
 import online.bmarian.bus.data.LanguageSync
 import online.bmarian.bus.data.Recent
+import online.bmarian.bus.data.GroupsSync
 import online.bmarian.bus.data.RecentsSync
 import online.bmarian.bus.data.Links
 import online.bmarian.bus.journey.Journey
@@ -178,6 +179,7 @@ class PhoneListener : WearableListenerService() {
         CitySync.onDataChanged(applicationContext, events)
         ColorSync.onDataChanged(applicationContext, events)
         RecentsSync.onDataChanged(applicationContext, events)
+        GroupsSync.onDataChanged(applicationContext, events)
     }
 }
 

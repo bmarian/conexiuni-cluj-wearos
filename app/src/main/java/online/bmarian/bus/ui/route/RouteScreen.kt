@@ -91,6 +91,7 @@ import online.bmarian.bus.ui.follow.reminding
 import online.bmarian.bus.ui.itemModifier
 import online.bmarian.bus.ui.map.ChipText
 import online.bmarian.bus.ui.map.MAP_CHIP_TOP
+import online.bmarian.bus.ui.map.ME_ZOOM
 import online.bmarian.bus.ui.map.MapCamera
 import online.bmarian.bus.ui.map.MapChip
 import online.bmarian.bus.ui.map.MapControls
@@ -113,7 +114,6 @@ import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
 private const val FROM_STOP_ZOOM = 13f
-private const val ME_ZOOM = 14f
 private val MAP_BUTTON = 44.dp
 
 @Composable

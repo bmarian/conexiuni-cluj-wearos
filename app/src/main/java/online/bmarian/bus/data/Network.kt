@@ -133,6 +133,8 @@ class NetworkIndex(val bundle: NetworkBundle) {
 
     fun route(shortName: String): NetworkRoute? = routeByShortName[shortName]
 
+    fun stop(stopId: Int): Stop? = stopById[stopId]
+
     fun shapeHash(tripId: String): String? =
         routeIdFromTripId(tripId)?.let { routeById[it] }?.trips?.firstOrNull { it.tripId == tripId }?.shapeHash
 

@@ -91,6 +91,7 @@ import online.bmarian.bus.ui.map.ChipText
 import online.bmarian.bus.ui.map.MAP_CHIP_TOP
 import online.bmarian.bus.ui.map.MapArrival
 import online.bmarian.bus.ui.map.MapChip
+import online.bmarian.bus.ui.map.ME_ZOOM
 import online.bmarian.bus.ui.map.MapControls
 import online.bmarian.bus.ui.map.MapFrame
 import online.bmarian.bus.ui.map.MapLine
@@ -111,7 +112,6 @@ import online.bmarian.bus.ui.theme.manyLines
 import java.time.LocalDateTime
 
 private const val STOP_MAP_ZOOM = 13f
-private const val ME_ZOOM = 14f
 
 @Composable
 fun stopViewModel(stopId: Int): StopViewModel = viewModel(key = "stop-$stopId") { StopViewModel(stopId) }

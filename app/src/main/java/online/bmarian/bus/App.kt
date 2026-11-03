@@ -11,6 +11,8 @@ import online.bmarian.bus.data.CitySync
 import online.bmarian.bus.data.ColorSync
 import online.bmarian.bus.data.Favorites
 import online.bmarian.bus.data.FavoritesSync
+import online.bmarian.bus.data.Groups
+import online.bmarian.bus.data.GroupsSync
 import online.bmarian.bus.data.LanguageSync
 import online.bmarian.bus.data.RecentsSync
 import online.bmarian.bus.data.sync.Sync
@@ -38,6 +40,8 @@ object Services {
         private set
     lateinit var favorites: Favorites
         private set
+    lateinit var groups: Groups
+        private set
     lateinit var sync: Sync
         private set
     val atHome = MutableStateFlow(true)
@@ -47,6 +51,7 @@ object Services {
         Cities.init(app)
         repository = Repository(app)
         favorites = Favorites(app) { city, stops, routes, updatedAt -> FavoritesSync.publish(app, city, stops, routes, updatedAt) }
+        groups = Groups(app)
         sync = Sync(app)
         scope.launch {
             repository.loadCached()
@@ -64,6 +69,7 @@ object Services {
         CitySync.pull(app)
         ColorSync.pull(app)
         RecentsSync.pull(app)
+        GroupsSync.pull(app)
         Reminders.init(app)
         scope.launch { updateSurfacesOnChange(app) }
     }
@@ -73,6 +79,7 @@ object Services {
         if (slug == Cities.current.value) return
         repository.use(slug)
         favorites.use(slug)
+        groups.use(slug)
         Cities.show(slug)
         scope.launch {
             repository.loadCached()
