@@ -23,6 +23,9 @@ class Groups(private val context: Context) {
     private fun read(city: String): List<SavedGroup> = cityPrefs(context, "groups", city).getString("list", null)
         ?.let { runCatching { Api.json.decodeFromString<List<SavedGroup>>(it) }.getOrNull() }
         .orEmpty()
+        .filter { it.lines.isNotEmpty() }
+
+    fun savedIn(city: String): List<SavedGroup> = if (city == this.city) _saved.value else read(city)
 
     @Synchronized
     fun use(slug: String) {
@@ -33,7 +36,8 @@ class Groups(private val context: Context) {
 
     @Synchronized
     fun take(city: String, list: List<SavedGroup>) {
-        cityPrefs(context, "groups", city).edit { putString("list", Api.json.encodeToString(list)) }
-        if (city == this.city) _saved.value = list
+        val kept = list.filter { it.lines.isNotEmpty() }
+        cityPrefs(context, "groups", city).edit { putString("list", Api.json.encodeToString(kept)) }
+        if (city == this.city) _saved.value = kept
     }
 }

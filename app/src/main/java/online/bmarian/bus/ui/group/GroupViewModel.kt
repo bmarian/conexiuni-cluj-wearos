@@ -29,8 +29,11 @@ import online.bmarian.bus.logic.stopDepartures
 import online.bmarian.bus.logic.tripOf
 import online.bmarian.bus.ui.keepTime
 
-/** [departures]: each line's next bus at its boarding stop, null once none is left today. */
-class GroupUi(val departures: List<StopDeparture?>, val now: LocalDateTime)
+/** [departure]: the line's next buses at [stopId], null once none is left today. */
+class GroupRow(val stopId: Int?, val departure: StopDeparture?)
+
+/** [rows]: one per line, in the group's order. */
+class GroupUi(val rows: List<GroupRow>, val now: LocalDateTime)
 
 class GroupViewModel(key: String) : ViewModel() {
     private val index = Services.repository.network.index
@@ -44,18 +47,19 @@ class GroupViewModel(key: String) : ViewModel() {
     val live: StateFlow<LiveState?> = _live
     val beat: StateFlow<Long?> = _live.map { it?.asOfMs }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val boards: StateFlow<List<Int?>> = combine(index, here) { index, fix ->
+    private val boards: StateFlow<List<Int?>> = combine(index, here) { index, fix ->
         if (index == null) emptyList() else lines.map { index.boardingStop(it, fix?.lat, fix?.lon) }
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val ui: StateFlow<GroupUi?> = combine(index, boards, _live, clock) { index, boards, live, nowMs ->
-        if (index == null) return@combine null
+        if (index == null || boards.size != lines.size) return@combine null
         val now = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), CLUJ_ZONE)
-        val departures = lines.mapIndexed { i, line ->
-            val info = boards.getOrNull(i)?.let { index.stopInfo(it, nowMs) } ?: return@mapIndexed null
-            stopDepartures(info, live, now, nowMs, tripOf(line)).firstOrNull()
+        val rows = lines.mapIndexed { i, line ->
+            val stopId = boards.getOrNull(i)
+            val info = stopId?.let { index.stopInfo(it, nowMs) }
+            GroupRow(stopId, info?.let { stopDepartures(it, live, now, nowMs, tripOf(line)).firstOrNull() })
         }
-        GroupUi(departures, now)
+        GroupUi(rows, now)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun locate(fix: Fix?) {

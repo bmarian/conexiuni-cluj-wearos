@@ -23,7 +23,7 @@ fun NetworkIndex.groupRoutes(lines: List<GroupLine>): List<NetworkRoute> = lines
 
 fun groupLabel(routes: List<NetworkRoute>) = routes.joinToString(", ") { it.shortName }
 
-fun NetworkIndex.stopsOf(line: GroupLine): List<Int> =
+private fun NetworkIndex.stopsOf(line: GroupLine): List<Int> =
     route(line.routeId)?.trips?.firstOrNull { it.tripId == tripOf(line) }?.stopIds?.toList().orEmpty()
 
 /** The line's stop nearest you, never its last; its first without a location. */

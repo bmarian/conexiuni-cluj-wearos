@@ -141,6 +141,8 @@ object SyncRecords {
         return Line(integer(pair[0], 1, MAX_INT), dir)
     }
 
+    private fun parseOrigin(f: List<JsonElement>) = Origin(text(f[0], 1, 100), coordinate(f[1], LAT), coordinate(f[2], LON))
+
     private fun parseCity(record: JsonElement): City {
         val m = obj(record, "v", "stops", "lines", "places", "followed")
         val stops = list(m["stops"], CITY_CAP).map { integer(it, 1, MAX_INT) }
@@ -153,7 +155,7 @@ object SyncRecords {
                 label = text(f[1], 0, 40),
                 lat = coordinate(f[2], LAT),
                 lon = coordinate(f[3], LON),
-                origin = if (f.size == 7) Origin(text(f[4], 1, 100), coordinate(f[5], LAT), coordinate(f[6], LON)) else null,
+                origin = if (f.size == 7) parseOrigin(f.drop(4)) else null,
             )
         }
         val followed = list(m["followed"], CITY_CAP).map { text(it, 1, 16) }
@@ -170,11 +172,10 @@ object SyncRecords {
 
     private fun <T> joined(items: List<T>, write: (T) -> String) = items.joinToString(",", "[", "]", transform = write)
 
-    private fun writePlace(p: Place): String {
-        val base = listOf(quote(p.name), quote(p.label), coord(p.lat), coord(p.lon))
-        val origin = p.origin?.let { listOf(quote(it.name), coord(it.lat), coord(it.lon)) }.orEmpty()
-        return (base + origin).joinToString(",", "[", "]")
-    }
+    private fun originFields(o: Origin?) = o?.let { listOf(quote(it.name), coord(it.lat), coord(it.lon)) }.orEmpty()
+
+    private fun writePlace(p: Place): String =
+        (listOf(quote(p.name), quote(p.label), coord(p.lat), coord(p.lon)) + originFields(p.origin)).joinToString(",", "[", "]")
 
     fun writeCity(r: City): String =
         "{\"v\":1,\"stops\":" + joined(r.stops, ::stopId) +
@@ -193,15 +194,14 @@ object SyncRecords {
             val lines = list(f[0], GROUP_LINES_CAP).map(::parseLine)
             if (lines.isEmpty()) refuse()
             unique(lines) { it.route.toString() }
-            Group(lines, text(f[1], 0, 40), if (f.size == 5) Origin(text(f[2], 1, 100), coordinate(f[3], LAT), coordinate(f[4], LON)) else null)
+            Group(lines, text(f[1], 0, 40), if (f.size == 5) parseOrigin(f.drop(2)) else null)
         }
         unique(groups) { g -> g.lines.joinToString(",", transform = ::lineId) }
         return Groups(groups)
     }
 
     fun writeGroups(r: Groups): String = "{\"v\":1,\"groups\":" + joined(r.groups) { g ->
-        val to = g.to?.let { listOf(quote(it.name), coord(it.lat), coord(it.lon)) }.orEmpty()
-        (listOf(joined(g.lines, ::writeLine), quote(g.name)) + to).joinToString(",", "[", "]")
+        (listOf(joined(g.lines, ::writeLine), quote(g.name)) + originFields(g.to)).joinToString(",", "[", "]")
     } + "}"
 
     fun readGroups(raw: String): Read<Groups> = read(raw, ::parseGroups, ::writeGroups)
