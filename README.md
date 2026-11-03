@@ -2,7 +2,7 @@
 
 The [Ce autobuz iau?](https://github.com/bmarian/conexiuni-cluj) bus, tram and trolleybus tracker as a Wear OS app.
 
-**Join the beta:** [join the testers group](https://groups.google.com/g/ce-autobuz-iau-beta), then install “Ce autobuz iau?” from Google Play on your watch. Needs Wear OS 2 or newer.
+**Install “Ce autobuz iau?” from [Google Play](https://play.google.com/store/apps/details?id=online.bmarian.bus) on your watch.** Needs Wear OS 2 or newer.
 
 <p align="center">
   <img src="readme/home.png" width="180" alt="Favorite stops on the watch, the one by the dorm first">
