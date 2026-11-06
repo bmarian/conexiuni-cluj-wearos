@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.LocalTextStyle
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +40,7 @@ import online.bmarian.bus.data.NetworkRoute
 import online.bmarian.bus.data.StationLook
 import online.bmarian.bus.logic.Mode
 import online.bmarian.bus.ui.theme.lineColor
+import online.bmarian.bus.ui.theme.lineNumberShadow
 import online.bmarian.bus.ui.theme.routeColor
 
 /** Port of utils/modeIcons.ts. */
@@ -132,7 +134,14 @@ fun LineBadges(routes: List<NetworkRoute>, modifier: Modifier = Modifier) {
                     .background(lineColor(route.shortName, route.color)).padding(horizontal = 5.dp, vertical = 1.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(route.shortName, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                Text(
+                    route.shortName,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    style = LocalTextStyle.current.copy(shadow = lineNumberShadow()),
+                )
             }
         }
     }
