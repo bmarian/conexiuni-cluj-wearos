@@ -1,5 +1,8 @@
 package online.bmarian.bus.ui.map
 
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import online.bmarian.bus.logic.Mode
 import online.bmarian.bus.ui.ModeGlyphs
 import online.bmarian.bus.ui.drawModeGlyph
@@ -32,6 +35,8 @@ import androidx.compose.ui.unit.sp
 import online.bmarian.bus.ui.theme.Palette
 import kotlin.math.ceil
 import kotlin.math.roundToInt
+import online.bmarian.bus.ui.theme.lineNumberShadow
+import online.bmarian.bus.ui.theme.lineShadow
 
 private val NavArrow by lazy { PathParser().parsePathString("M12 2L21 21l-9-4-9 4 9-19z").toPath() }
 private val DirectionArrow by lazy { PathParser().parsePathString("M12 3 L20 19 L12 15 L4 19 Z").toPath() }
@@ -82,7 +87,7 @@ internal class MapImages(context: Context) {
             label.length >= 3 -> 8.sp
             else -> 9.sp
         }
-        val layout = measurer.measure(label, TextStyle(fontSize = size, fontWeight = FontWeight.Black, color = Color.White))
+        val layout = measurer.measure(label, TextStyle(fontSize = size, fontWeight = FontWeight.Black, color = Color.White, shadow = lineNumberShadow(density)))
         drawText(layout, topLeft = Offset(center.x - layout.size.width / 2f, center.y - layout.size.height / 2f))
     }
 
@@ -123,13 +128,18 @@ internal class MapImages(context: Context) {
         drawCircle(color, r - 1.5.dp.toPx(), center)
         val glyph = r * 1.15f
         translate(center.x - glyph / 2, center.y - glyph / 2) {
-            scale(glyph / 24f, glyph / 24f, pivot = Offset.Zero) { drawPath(Flag, Color.White) }
+            scale(glyph / 24f, glyph / 24f, pivot = Offset.Zero) {
+                drawIntoCanvas { canvas ->
+                    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.color = android.graphics.Color.WHITE }
+                    canvas.nativeCanvas.drawPath(Flag.asAndroidPath(), paint.lineShadow(density * 24f / glyph))
+                }
+            }
         }
     }
 
     // Port of lineStartIcon.
     fun badge(routes: List<Pair<String, Color>>): Bitmap {
-        val style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color.White)
+        val style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color.White, shadow = lineNumberShadow(density.density))
         val layouts = routes.map { measurer.measure(it.first, style) }
         val d = density.density
         val h = 16f

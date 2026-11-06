@@ -12,8 +12,11 @@ import androidx.wear.protolayout.LayoutElementBuilders.HORIZONTAL_ALIGN_START
 import androidx.wear.protolayout.LayoutElementBuilders.LayoutElement
 import androidx.wear.protolayout.LayoutElementBuilders.TEXT_ALIGN_START
 import androidx.wear.protolayout.LayoutElementBuilders.VERTICAL_ALIGN_CENTER
+import androidx.wear.protolayout.layout.basicImage
 import androidx.wear.protolayout.layout.box
 import androidx.wear.protolayout.layout.column
+import androidx.wear.protolayout.layout.imageResource
+import androidx.wear.protolayout.layout.inlineImageResource
 import androidx.wear.protolayout.layout.row
 import androidx.wear.protolayout.layout.spacer
 import androidx.wear.protolayout.material3.ColorScheme
@@ -174,11 +177,12 @@ class BusTileService : Material3TileService(allowDynamicTheme = false, defaultCo
         )
     }
 
-    private fun MaterialScope.badge(line: String, color: String?): LayoutElement = box(
-        text(line.layoutString, typography = Typography.LABEL_SMALL, color = 0xFFFFFFFF.argb),
-        modifier = LayoutModifier
-            .background(runCatching { ownHex(line, color)!!.toColorInt() }.getOrDefault(GRAY).argb)
-            .clip(6f)
-            .padding(horizontal = 5f, vertical = 1f),
-    )
+    private fun MaterialScope.badge(line: String, color: String?): LayoutElement {
+        val badge = tileBadge(context, line, runCatching { ownHex(line, color)!!.toColorInt() }.getOrDefault(GRAY))
+        return protoLayoutScope.basicImage(
+            imageResource(inlineImage = inlineImageResource(badge.png, badge.widthPx, badge.heightPx)),
+            width = dp(badge.widthDp),
+            height = dp(badge.heightDp),
+        )
+    }
 }

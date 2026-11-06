@@ -102,6 +102,7 @@ import online.bmarian.bus.ui.theme.LocalLineLooks
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import online.bmarian.bus.ui.theme.lineNumberShadow
 
 private val CLOCK = DateTimeFormatter.ofPattern("HH:mm")
 
@@ -220,6 +221,7 @@ fun LineBadge(shortName: String, color: String, modifier: Modifier = Modifier, h
             fontSize = (height.value * 0.5f).sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
+            style = LocalTextStyle.current.copy(shadow = lineNumberShadow()),
         )
     }
 }
