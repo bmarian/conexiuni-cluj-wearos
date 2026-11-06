@@ -25,7 +25,7 @@ object ColorSync {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _colorful = MutableStateFlow(false)
     val colorful: StateFlow<Boolean> = _colorful
-    private val _traffic = MutableStateFlow(false)
+    private val _traffic = MutableStateFlow(true)
     val traffic: StateFlow<Boolean> = _traffic
 
     private class Choice(val colorful: Boolean, val traffic: Boolean, val at: Long)
@@ -35,7 +35,7 @@ object ColorSync {
     fun pull(context: Context) {
         val app = context.applicationContext
         _colorful.value = prefs(app).getBoolean("colorful", false)
-        _traffic.value = prefs(app).getBoolean("traffic", false)
+        _traffic.value = prefs(app).getBoolean("traffic", true)
         scope.launch {
             runCatching {
                 val items = Wearable.getDataClient(app).getDataItems("wear://*$PATH".toUri()).await()
@@ -60,7 +60,7 @@ object ColorSync {
 
     private fun read(item: DataItem): Choice? = runCatching {
         val map = DataMapItem.fromDataItem(item).dataMap
-        Choice(map.getBoolean("colorful"), map.getBoolean("traffic"), map.getLong("at"))
+        Choice(map.getBoolean("colorful"), map.getBoolean("traffic", true), map.getLong("at"))
     }.getOrNull()
 
     private fun take(context: Context, choice: Choice) {
