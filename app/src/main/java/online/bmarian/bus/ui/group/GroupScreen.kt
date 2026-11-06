@@ -60,6 +60,7 @@ import online.bmarian.bus.ui.map.TransitMap
 import online.bmarian.bus.ui.map.rememberMapCamera
 import online.bmarian.bus.ui.map.rememberMapChrome
 import online.bmarian.bus.ui.map.rememberUserLocation
+import online.bmarian.bus.ui.map.stationMapStop
 import online.bmarian.bus.ui.surface
 import online.bmarian.bus.ui.theme.LocalLineLooks
 
@@ -154,6 +155,7 @@ fun GroupMapScreen(key: String) {
     val index by Services.repository.network.index.collectAsStateWithLifecycle()
     val shapes by vm.shapes.collectAsStateWithLifecycle()
     val live by vm.live.collectAsStateWithLifecycle()
+    val boards by vm.boards.collectAsStateWithLifecycle()
     val title = groupTitle(key)
     val me by rememberUserLocation()
     val camera = rememberMapCamera()
@@ -168,6 +170,9 @@ fun GroupMapScreen(key: String) {
             val trip = tripOf(line)
             MapLine(points.map { it.lat to it.lon }, looks.color(route.shortName, route.color), name = route.shortName, id = trip, tripId = trip)
         }
+    }
+    val stops = remember(known, boards) {
+        boards.filterNotNull().distinct().mapNotNull { id -> known?.stop(id)?.let { stationMapStop(id, it.lat, it.lon, selected = true) } }
     }
     val frame = remember(lines) { lines.flatMap { it.points }.takeIf { it.isNotEmpty() }?.let { MapFrame.Fit(it) } }
     val vehicles = vm.lines.flatMap { line ->
@@ -185,6 +190,7 @@ fun GroupMapScreen(key: String) {
                 frame = frame,
                 onMapTap = chrome::toggle,
                 lines = lines,
+                stops = stops,
                 terminals = true,
                 vehicles = vehicles,
                 me = me,

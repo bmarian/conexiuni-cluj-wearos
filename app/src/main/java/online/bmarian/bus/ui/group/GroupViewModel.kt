@@ -47,7 +47,8 @@ class GroupViewModel(key: String) : ViewModel() {
     val live: StateFlow<LiveState?> = _live
     val beat: StateFlow<Long?> = _live.map { it?.asOfMs }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    private val boards: StateFlow<List<Int?>> = combine(index, here) { index, fix ->
+    /** Each line's stop its times are from. */
+    val boards: StateFlow<List<Int?>> = combine(index, here) { index, fix ->
         if (index == null) emptyList() else lines.map { index.boardingStop(it, fix?.lat, fix?.lon) }
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
