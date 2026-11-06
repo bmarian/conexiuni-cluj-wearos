@@ -1,11 +1,24 @@
 package online.bmarian.bus.data
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
 
 @Serializable
-class TrafficStretch(val path: String, val band: Int)
+data class TrafficStretch(val path: String, val band: Int)
 
 @Serializable
-class TrafficNow(val lines: Map<String, List<TrafficStretch>> = emptyMap())
+data class Traffic(val stretches: List<TrafficStretch> = emptyList())
 
-const val TRAFFIC_REFRESH_MS = 60_000L
+// Port of publishTraffic.
+object LiveTraffic {
+    private val streams = HashMap<Any, Map<String, Traffic>>()
+    private val merged = MutableStateFlow<Map<String, Traffic>>(emptyMap())
+    val byTrip: StateFlow<Map<String, Traffic>> = merged
+
+    @Synchronized
+    fun publish(stream: Any, traffic: Map<String, Traffic>?) {
+        if (traffic == null) streams.remove(stream) else streams[stream] = traffic
+        merged.value = streams.values.fold(emptyMap()) { all, one -> all + one }
+    }
+}

@@ -42,6 +42,7 @@ data class LiveSnapshot(
     @SerialName("as_of") val asOf: Long,
     val rows: List<LiveRow> = emptyList(),
     val vehicles: List<Vehicle> = emptyList(),
+    val traffic: Map<String, Traffic> = emptyMap(),
 )
 
 @Serializable
@@ -52,6 +53,7 @@ private data class LiveDelta(
     @SerialName("as_of") val asOf: Long,
     val rows: List<LiveRow> = emptyList(),
     val vehicles: LiveVehicleDelta = LiveVehicleDelta(),
+    val traffic: Map<String, Traffic>? = null,
 )
 
 fun liveRowKey(tripId: String, stopId: Int) = "$tripId@$stopId"
@@ -80,6 +82,8 @@ class LiveMerge {
     private val rows = LinkedHashMap<String, LiveRow>()
     private val vehicles = LinkedHashMap<Int, Vehicle>()
     private var asOfMs = 0L
+    var traffic: Map<String, Traffic> = emptyMap()
+        private set
 
     fun apply(snapshot: LiveSnapshot): LiveState {
         rows.clear()
@@ -87,6 +91,7 @@ class LiveMerge {
         snapshot.rows.forEach { rows[liveRowKey(it.tripId, it.stopId)] = it }
         snapshot.vehicles.forEach { vehicles[it.id] = it }
         asOfMs = snapshot.asOf * 1000
+        traffic = snapshot.traffic
         return state()
     }
 
@@ -100,6 +105,7 @@ class LiveMerge {
                 delta.rows.forEach { rows[liveRowKey(it.tripId, it.stopId)] = it }
                 delta.vehicles.upsert.forEach { vehicles[it.id] = it }
                 delta.vehicles.remove.forEach { vehicles.remove(it) }
+                delta.traffic?.let { traffic = it }
                 asOfMs = delta.asOf * 1000
             }
             else -> return null
@@ -156,7 +162,10 @@ object LiveStream {
         val merge = LiveMerge()
         val source = EventSources.createFactory(client).newEventSource(request, object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                merge.apply(type, data)?.let { trySend(it) }
+                merge.apply(type, data)?.let {
+                    LiveTraffic.publish(merge, merge.traffic)
+                    trySend(it)
+                }
             }
 
             override fun onClosed(eventSource: EventSource) {
@@ -167,6 +176,9 @@ object LiveStream {
                 close(t ?: IOException("stream failed: ${response?.code}"))
             }
         })
-        awaitClose { source.cancel() }
+        awaitClose {
+            source.cancel()
+            LiveTraffic.publish(merge, null)
+        }
     }
 }

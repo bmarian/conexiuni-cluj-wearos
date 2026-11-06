@@ -44,13 +44,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
-import kotlinx.coroutines.delay
 import online.bmarian.bus.Services
 import online.bmarian.bus.data.Api
 import online.bmarian.bus.data.Cities
 import online.bmarian.bus.data.ColorSync
-import online.bmarian.bus.data.TRAFFIC_REFRESH_MS
-import online.bmarian.bus.data.TrafficStretch
+import online.bmarian.bus.data.LiveTraffic
+import online.bmarian.bus.data.Traffic
 import online.bmarian.bus.data.Fix
 import online.bmarian.bus.data.UserLocation
 import online.bmarian.bus.data.Vehicle
@@ -58,13 +57,16 @@ import online.bmarian.bus.logic.LONG_PACE
 import online.bmarian.bus.logic.Mode
 import online.bmarian.bus.logic.RoutePath
 import online.bmarian.bus.logic.SWEEP_MS
+import online.bmarian.bus.logic.TrafficRun
 import online.bmarian.bus.logic.VehicleTrack
 import online.bmarian.bus.logic.haversineMeters
 import online.bmarian.bus.logic.paced
-import online.bmarian.bus.logic.paintedParts
 import online.bmarian.bus.logic.partBetween
 import online.bmarian.bus.logic.pathOf
 import online.bmarian.bus.logic.pathThrough
+import online.bmarian.bus.logic.RAIL_GAP
+import online.bmarian.bus.logic.RAILS
+import online.bmarian.bus.logic.railParts
 import online.bmarian.bus.logic.trafficRuns
 import online.bmarian.bus.ui.theme.Palette
 import online.bmarian.bus.ui.theme.routeColor
@@ -112,6 +114,7 @@ import org.maplibre.android.style.layers.PropertyFactory.iconTranslateAnchor
 import org.maplibre.android.style.layers.PropertyFactory.lineCap
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineDasharray
+import org.maplibre.android.style.layers.PropertyFactory.lineGapWidth
 import org.maplibre.android.style.layers.PropertyFactory.lineJoin
 import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
@@ -310,18 +313,9 @@ fun TransitMap(
     }
 
     LaunchedEffect(session, lines) { session?.setLines(lines) }
-    val city by Cities.current.collectAsStateWithLifecycle()
     val trafficOn by ColorSync.traffic.collectAsStateWithLifecycle()
-    val lineTrips = remember(lines) { lines.map { it.tripId }.filter { it.isNotEmpty() }.distinct().sorted() }
-    val traffic by produceState(emptyMap<String, List<TrafficStretch>>(), lineTrips, city, trafficOn) {
-        value = emptyMap()
-        if (!trafficOn || lineTrips.isEmpty() || Cities.info(city)?.traffic != true) return@produceState
-        while (true) {
-            value = runCatching { Api.traffic(lineTrips, city).lines }.getOrDefault(emptyMap())
-            delay(TRAFFIC_REFRESH_MS)
-        }
-    }
-    LaunchedEffect(session, traffic) { session?.setTraffic(traffic) }
+    val traffic by LiveTraffic.byTrip.collectAsStateWithLifecycle()
+    LaunchedEffect(session, traffic, trafficOn) { session?.setTraffic(if (trafficOn) traffic else emptyMap()) }
     LaunchedEffect(session, lines, terminals, arrows) {
         session?.setEnds(
             if (terminals) lineStarts(lines) else emptyList(),
@@ -410,6 +404,7 @@ private fun darkStyle(context: Context): String =
     cachedStyle ?: context.assets.open("styles/dark.json").bufferedReader().use { it.readText() }.also { cachedStyle = it }
 
 private const val SRC_LINES = "ct-lines"
+private const val SRC_RAILS = "ct-rails"
 private const val SRC_STOPS = "ct-stops"
 private const val SRC_LABELS = "ct-labels"
 private const val SRC_VEHICLES = "ct-vehicles"
@@ -427,6 +422,7 @@ private const val RIPPLE_GAP_MS = (210 * LONG_PACE).toLong()
 private const val FADED_VEHICLE_OPACITY = 0.5f
 private const val FADED_VEHICLE_SIZE = 0.7f
 private const val MIN_STEP_PX = 0.3
+private const val LINE_WIDTH = 3.5f
 private const val MAX_IDLE_MS = 250L
 
 private class MapSession(
@@ -451,7 +447,7 @@ private class MapSession(
     private var moving = false
     private val frame = Choreographer.FrameCallback { stepVehicles() }
     private var lines: List<MapLine> = emptyList()
-    private var traffic: Map<String, List<TrafficStretch>> = emptyMap()
+    private var traffic: Map<String, Traffic> = emptyMap()
     private var hidden: Set<Int> = emptySet()
     private var growingKeys: Set<String> = emptySet()
     private var stops: List<MapStop> = emptyList()
@@ -473,7 +469,7 @@ private class MapSession(
     private val glide = MeGlide(handler) { applyMe(it) }
 
     init {
-        listOf(SRC_LINES, SRC_SWEEP, SRC_FADE, SRC_RIPPLE, SRC_STOPS, SRC_ENDS, SRC_BADGES, SRC_ARROWS, SRC_LABELS, SRC_VEHICLES)
+        listOf(SRC_LINES, SRC_RAILS, SRC_SWEEP, SRC_FADE, SRC_RIPPLE, SRC_STOPS, SRC_ENDS, SRC_BADGES, SRC_ARROWS, SRC_LABELS, SRC_VEHICLES)
             .forEach { style.addSource(GeoJsonSource(it)) }
         map.addOnCameraMoveStartedListener { reason -> if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) dragging = true }
         map.addOnCameraIdleListener {
@@ -489,11 +485,23 @@ private class MapSession(
         val lastGround = layers.indexOfLast { it !is SymbolLayer && !it.id.startsWith("boundary") }
         val firstLabel = layers.drop(lastGround + 1).firstOrNull { it is SymbolLayer }?.id
         fun under(layer: Layer) = if (firstLabel != null) style.addLayerBelow(layer, firstLabel) else style.addLayer(layer)
+        for (rail in RAILS) {
+            under(
+                LineLayer("ct-rails-${rail.band}", SRC_RAILS).withProperties(
+                    lineColor(rail.color.toArgb()),
+                    lineOpacity(get("opacity")),
+                    lineWidth(rail.width),
+                    lineGapWidth(LINE_WIDTH + 2 * RAIL_GAP),
+                    lineCap(Property.LINE_CAP_ROUND),
+                    lineJoin(Property.LINE_JOIN_ROUND),
+                ).withFilter(eq(get("band"), literal(rail.band))),
+            )
+        }
         under(
             LineLayer("ct-lines", SRC_LINES).withProperties(
                 lineColor(toColor(get("color"))),
                 lineOpacity(get("opacity")),
-                lineWidth(3.5f),
+                lineWidth(LINE_WIDTH),
                 lineCap(Property.LINE_CAP_ROUND),
                 lineJoin(Property.LINE_JOIN_ROUND),
             ).withFilter(eq(get("dotted"), literal(false))),
@@ -502,7 +510,7 @@ private class MapSession(
             LineLayer("ct-walks", SRC_LINES).withProperties(
                 lineColor(toColor(get("color"))),
                 lineOpacity(get("opacity")),
-                lineWidth(3.5f),
+                lineWidth(LINE_WIDTH),
                 lineDasharray(arrayOf(0f, 2f)),
                 lineCap(Property.LINE_CAP_ROUND),
                 lineJoin(Property.LINE_JOIN_ROUND),
@@ -513,7 +521,7 @@ private class MapSession(
                 LineLayer(id, id).withProperties(
                     lineColor(toColor(get("color"))),
                     lineOpacity(get("opacity")),
-                    lineWidth(3.5f),
+                    lineWidth(LINE_WIDTH),
                     lineCap(Property.LINE_CAP_ROUND),
                     lineJoin(Property.LINE_JOIN_ROUND),
                 ),
@@ -602,22 +610,32 @@ private class MapSession(
 
     private fun key(line: MapLine) = line.id.ifEmpty { "${line.points.size}|${line.points.first()}|${line.points.last()}|${line.dotted}" }
 
-    private fun lineFeature(points: List<Pair<Double, Double>>, line: MapLine, color: Color = line.color, opacity: Float = line.color.alpha * 0.9f) =
+    private fun lineFeature(points: List<Pair<Double, Double>>, line: MapLine, opacity: Float = line.color.alpha * 0.9f) =
         Feature.fromGeometry(LineString.fromLngLats(points.map { Point.fromLngLat(it.second, it.first) })).apply {
-            addStringProperty("color", hex(color))
+            addStringProperty("color", hex(line.color))
             addNumberProperty("opacity", opacity)
             addBooleanProperty("dotted", line.dotted)
         }
 
-    /** The line in its traffic colours where measured, its own between, up to the share [done] of its length. */
-    private fun parts(line: MapLine, done: Float = 1f) =
-        paintedParts(line.points, line.color, trafficRuns(traffic[line.tripId].orEmpty(), line.points), done).map { (part, color) -> lineFeature(part, line, color) }
+    private fun runsOf(line: MapLine) = trafficRuns(traffic[line.tripId]?.stretches.orEmpty(), line.points)
+
+    private fun rails(line: MapLine, runs: List<TrafficRun> = runsOf(line), done: Float = 1f) =
+        railParts(line.points, runs, done).map { (part, band) ->
+            Feature.fromGeometry(LineString.fromLngLats(part.map { Point.fromLngLat(it.second, it.first) })).apply {
+                addNumberProperty("band", band)
+                addNumberProperty("opacity", line.color.alpha)
+            }
+        }
+
+    private fun shownLines() = lines.filterIndexed { i, _ -> i !in hidden }
 
     private fun applyLines() {
-        source(SRC_LINES)?.setGeoJson(FeatureCollection.fromFeatures(lines.filterIndexed { i, _ -> i !in hidden }.flatMap { parts(it) }))
+        val shown = shownLines()
+        source(SRC_LINES)?.setGeoJson(FeatureCollection.fromFeatures(shown.map { lineFeature(it.points, it) }))
+        source(SRC_RAILS)?.setGeoJson(FeatureCollection.fromFeatures(shown.flatMap { rails(it) }))
     }
 
-    fun setTraffic(value: Map<String, List<TrafficStretch>>) {
+    fun setTraffic(value: Map<String, Traffic>) {
         traffic = value
         if (sweep == null && pendingGrow == null) applyLines()
     }
@@ -668,6 +686,8 @@ private class MapSession(
     }
 
     private fun grow(grows: List<MapLine>) {
+        val still = shownLines().flatMap { rails(it) }
+        val runs = grows.map(::runsOf)
         sweep = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = SWEEP_MS
             interpolator = AccelerateDecelerateInterpolator()
@@ -675,7 +695,9 @@ private class MapSession(
                 val done = a.animatedValue as Float
                 reveal.draw(done)
                 startReveal()
-                source(SRC_SWEEP)?.setGeoJson(FeatureCollection.fromFeatures(grows.flatMap { parts(it, done) }))
+                val parts = grows.map { it to partBetween(it.points, 0f, done) }.filter { it.second.size >= 2 }
+                source(SRC_SWEEP)?.setGeoJson(FeatureCollection.fromFeatures(parts.map { (line, part) -> lineFeature(part, line) }))
+                source(SRC_RAILS)?.setGeoJson(FeatureCollection.fromFeatures(still + grows.zip(runs).flatMap { (line, run) -> rails(line, run, done) }))
             }
             doOnEnd {
                 sweep = null
